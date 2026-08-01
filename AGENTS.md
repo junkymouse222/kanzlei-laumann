@@ -1,17 +1,6 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
-
 ## Cursor Cloud specific instructions
 
-Product: single TanStack Start (React 19 SSR) + Vite 8 app for the "Adler und Sohn" law-firm/product-catalog site. Package manager is Bun (`bun.lock`). There is no separate backend service; server routes/functions run inside the same dev server. Data lives in a hosted Supabase project referenced by `.env`.
+Product: single TanStack Start (React 19 SSR) + Vite 8 app for the "Kanzlei Laumann" law-firm/product-catalog site. Package manager is Bun (`bun.lock`). There is no separate backend service; server routes/functions run inside the same dev server. Data lives in a hosted Supabase project referenced by `.env`.
 
 Commands (see `package.json`): dev `bun run dev` (serves on port 8080), build `bun run build`, preview `bun run preview`, lint `bun run lint`, format `bun run format`. `bun run lint` currently reports many pre-existing `prettier/prettier` errors in committed code — that is the repo's baseline, not a setup failure; run `bun run format` to auto-fix if a task requires clean lint.
 
