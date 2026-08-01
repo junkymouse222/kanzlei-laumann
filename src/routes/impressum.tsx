@@ -65,7 +65,7 @@ function ImpressumPage() {
           <div>
             <h2 className="text-2xl">Berufshaftpflichtversicherung</h2>
             <p className="mt-4">
-              [Versicherer und Anschrift bitte ergänzen].<br />
+              {SITE.insurer}, {SITE.insurerAddress}.<br />
               Räumlicher Geltungsbereich: mindestens Deutschland und die
               Mitgliedstaaten der Europäischen Union.
             </p>
