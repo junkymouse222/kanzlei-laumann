@@ -126,11 +126,10 @@ function AngebotAnfordernPage() {
           <h1 className="mt-6 max-w-3xl text-4xl md:text-5xl">Angebot anfordern</h1>
           <span className="rule-gold mt-8" />
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-foreground/75">
-            Bitte geben Sie Losnummer, Produktbezeichnung und gewünschte Stückzahl
-            an. Wählen Sie die Positionen aus dem Katalog und übermitteln Sie Ihre
-            Kontaktdaten — Sie erhalten Ihr individuelles Angebot per E-Mail. Jede
-            Anfrage wird vertraulich und in der Reihenfolge ihres Eingangs
-            bearbeitet.
+            Wählen Sie Ihre Positionen direkt aus dem Katalog, legen Sie die
+            gewünschte Stückzahl fest und übermitteln Sie Ihre Kontaktdaten — Sie
+            erhalten Ihr individuelles Angebot per E-Mail. Jede Anfrage wird
+            vertraulich und in der Reihenfolge ihres Eingangs bearbeitet.
           </p>
           <div className="mt-8">
             <a
