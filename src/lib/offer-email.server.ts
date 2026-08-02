@@ -173,17 +173,18 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
         <!-- Kopf mit Logo + Belegnr., Gold-Unterlinie -->
         <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:top;">
+            <td style="vertical-align:top;padding-right:24px;">
               ${LOGO_HTML}
-              <div style="margin-top:14px;font-size:11px;line-height:1.6;color:#6b6455;">
-                ${escapeHtml(SITE.legalName)} · ${escapeHtml(SITE.addressLine)}<br/>
+              <div style="margin-top:12px;font-size:11px;line-height:1.55;color:#6b6455;">
+                ${escapeHtml(SITE.legalName)}<br/>
+                ${escapeHtml(SITE.addressLine)}<br/>
                 ${escapeHtml(SITE.email)}
               </div>
             </td>
-            <td style="vertical-align:top;text-align:right;">
-              <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8a8578;">${belegLabel}</div>
-              <div style="margin-top:4px;font-family:Georgia,serif;font-size:28px;font-weight:600;color:#0f2740;letter-spacing:0.5px;">${escapeHtml(opts.belegNr)}</div>
-              <div style="margin-top:10px;font-size:11px;color:#6b6656;line-height:1.6;">
+            <td width="200" style="vertical-align:top;text-align:right;white-space:nowrap;">
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#8a8578;">${belegLabel}</div>
+              <div style="margin-top:4px;font-family:Georgia,serif;font-size:22px;font-weight:600;color:#0f2740;letter-spacing:0;line-height:1.2;">${escapeHtml(opts.belegNr)}</div>
+              <div style="margin-top:10px;font-size:11px;color:#6b6656;line-height:1.55;white-space:normal;">
                 Datum: ${opts.datum}<br/>
                 ${dateLabel}: ${opts.faelligOderGueltig}
               </div>

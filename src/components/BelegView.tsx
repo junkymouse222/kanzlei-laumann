@@ -112,21 +112,23 @@ export function BelegView(props: BelegViewProps) {
 
   return (
     <article className="beleg mt-12 border border-border bg-background p-8 md:p-12 print:mt-0 print:border-0 print:p-0">
-      <div className="beleg-header flex flex-wrap items-start justify-between gap-6 border-b border-gold pb-6">
-        <div>
-          <Logo />
-          <div className="mt-4 text-xs leading-relaxed text-muted-foreground">
-            {SITE.legalName} · {SITE.addressLine}
+      <div className="beleg-header grid grid-cols-[1fr_auto] items-start gap-8 border-b border-gold pb-6">
+        <div className="min-w-0">
+          <Logo hideSubline />
+          <div className="mt-3 max-w-md text-xs leading-relaxed text-muted-foreground">
+            {SITE.legalName}
+            <br />
+            {SITE.addressLine}
             <br />
             {SITE.email}
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-[0.7rem] uppercase tracking-[0.25em] text-muted-foreground">
+        <div className="shrink-0 whitespace-nowrap text-right">
+          <div className="text-[0.7rem] uppercase tracking-[0.12em] text-muted-foreground">
             {belegArt}
           </div>
-          <div className="mt-1 text-3xl font-semibold tabular-nums">{belegNr}</div>
-          <div className="mt-2 text-xs text-muted-foreground">
+          <div className="mt-1 text-2xl font-semibold tabular-nums tracking-normal">{belegNr}</div>
+          <div className="mt-2 text-xs leading-relaxed text-muted-foreground">
             Datum: {fmtDate(datum)}
             <br />
             {belegArt === "Angebot" ? "Gültig bis: " : "Fällig am: "}
