@@ -5,15 +5,43 @@ export const Route = createFileRoute("/kanzlei")({
   head: () => ({
     meta: [
       { title: "Die Kanzlei — Kanzlei Laumann" },
-      { name: "description", content: "Erik Laumann, Rechtsanwalt und Insolvenzverwalter in Düsseldorf. Verwertung aus der Insolvenzmasse — Ablauf, Konditionen und Grundsätze." },
+      { name: "description", content: "Die Kanzlei Laumann in Düsseldorf — Rechtsanwalt Erik Laumann. Profil, Historie und Grundsätze einer auf Insolvenz- und Sanierungsrecht spezialisierten Kanzlei." },
       { property: "og:title", content: "Die Kanzlei — Kanzlei Laumann" },
-      { property: "og:description", content: "Verwertung aus der Insolvenzmasse — Ablauf, Konditionen und Grundsätze." },
+      { property: "og:description", content: "Profil, Historie und Grundsätze der Kanzlei Laumann in Düsseldorf." },
       { property: "og:url", content: `${SITE.baseUrl}/kanzlei` },
     ],
     links: [{ rel: "canonical", href: `${SITE.baseUrl}/kanzlei` }],
   }),
   component: KanzleiPage,
 });
+
+const historie = [
+  [
+    "2008",
+    "Zulassung als Rechtsanwalt",
+    "Erik Laumann wird als Rechtsanwalt zugelassen und beginnt seine Laufbahn in einer wirtschaftsrechtlich ausgerichteten Sozietät mit Schwerpunkt im Insolvenz- und Sanierungsrecht.",
+  ],
+  [
+    "2013",
+    "Gründung der Kanzlei",
+    "Gründung der Kanzlei Laumann in Düsseldorf am Fürstenwall — als unabhängige Adresse für Insolvenz-, Sanierungs- und Wirtschaftsrecht.",
+  ],
+  [
+    "2016",
+    "Erste Bestellung als Insolvenzverwalter",
+    "Erste gerichtliche Bestellung zum Insolvenzverwalter. Seither begleitet die Kanzlei Regel- und Eigenverwaltungsverfahren von der Sicherung bis zur geordneten Verwertung.",
+  ],
+  [
+    "2019",
+    "Ausbau der Verwertungspraxis",
+    "Aufbau eines eigenen Dezernats für die strukturierte Verwertung von Vermögenswerten — mit dem Anspruch, im Interesse aller Gläubiger das bestmögliche Ergebnis zu erzielen.",
+  ],
+  [
+    "Heute",
+    "Feste Größe in Düsseldorf",
+    "Die Kanzlei Laumann steht für sorgfältige, diskrete und wirtschaftlich fundierte Arbeit — als verlässlicher Partner für Gerichte, Gläubiger und Beteiligte im Rheinland.",
+  ],
+] as const;
 
 function KanzleiPage() {
   return (
@@ -22,59 +50,101 @@ function KanzleiPage() {
         <div className="container-prose py-24 md:py-32">
           <p className="eyebrow">Die Kanzlei</p>
           <h1 className="mt-6 max-w-3xl text-5xl md:text-6xl">
-            Verwertung aus der Insolvenzmasse — geordnet und transparent.
+            Eine Kanzlei mit klarer Haltung.
           </h1>
           <span className="rule-gold mt-8" />
+          <p className="mt-8 max-w-2xl text-lg text-muted-foreground">
+            Die Kanzlei Laumann in {SITE.city} ist auf das Insolvenz- und
+            Sanierungsrecht spezialisiert — unabhängig, sorgfältig und mit einem
+            klaren Blick für wirtschaftliche Zusammenhänge.
+          </p>
         </div>
       </section>
 
+      {/* Profil */}
       <section className="container-prose grid gap-16 py-24 md:grid-cols-[1fr_2fr] md:py-32">
-        <p className="eyebrow">Zum Verkauf</p>
+        <div>
+          <p className="eyebrow">Profil</p>
+          <h2 className="mt-4 text-4xl md:text-5xl">Wer wir sind</h2>
+          <span className="rule-gold mt-6" />
+        </div>
         <div className="space-y-6 text-lg leading-relaxed text-foreground/85">
           <p>
-            Die aufgeführten Gegenstände stammen unmittelbar aus dem Bestand
-            eines insolventen Unternehmens: Premium-Büromöbel namhafter Hersteller
-            wie Herman Miller, Vitra, USM und Wilkhahn, moderne IT-Ausstattung
-            von Apple sowie professionelle Kaffeevollautomaten von WMF und
-            La Marzocco.
+            Die Kanzlei Laumann wird von Rechtsanwalt Erik Laumann geführt, der
+            als gerichtlich bestellter Insolvenzverwalter tätig ist. Von unserem
+            Sitz am {SITE.street} in {SITE.city} aus betreuen wir Insolvenz- und
+            Sanierungsmandate mit der Ruhe und Verbindlichkeit, die solche
+            Verfahren verlangen.
           </p>
           <p>
-            Es handelt sich, sofern nicht anders vermerkt, ausnahmslos um
-            originalverpackte Neuware in technisch einwandfreiem Zustand.
-            Sämtliche Artikel werden mit ordnungsgemäßer Rechnung und
-            ausgewiesener Mehrwertsteuer verkauft.
+            Im Mittelpunkt steht die geordnete Bewältigung wirtschaftlich
+            schwieriger Lagen: von der ersten Bestandsaufnahme über die Sicherung
+            der Masse bis zur transparenten Verwertung. Wir arbeiten eng mit
+            Gerichten, Gläubigern und den Beteiligten zusammen — stets mit dem
+            Ziel, Werte zu erhalten und faire Ergebnisse zu erreichen.
           </p>
           <p>
-            Der Erwerb aus der Insolvenzmasse bietet die Gelegenheit, hochwertige
-            Designmöbel und Geräte zu einem Bruchteil des regulären Marktpreises
-            zu erwerben. Aufgrund der begrenzten Verfügbarkeit ist eine zeitnahe
-            Rückmeldung empfehlenswert.
+            Kurze Wege, persönliche Ansprechbarkeit und eine sorgfältige,
+            nachvollziehbare Dokumentation prägen unsere Arbeit. Was wir zusagen,
+            halten wir — und was wir nicht verantworten können, sprechen wir offen an.
           </p>
         </div>
       </section>
 
+      {/* Historie */}
+      <section className="border-t border-border bg-parchment">
+        <div className="container-prose py-24 md:py-32">
+          <div className="grid gap-16 md:grid-cols-[1fr_2fr]">
+            <div>
+              <p className="eyebrow">Historie</p>
+              <h2 className="mt-4 text-4xl md:text-5xl">Der Weg der Kanzlei</h2>
+              <span className="rule-gold mt-6" />
+              <p className="mt-6 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                Gewachsen aus der Praxis, geprägt von einer klaren Ausrichtung
+                auf das Insolvenz- und Sanierungsrecht.
+              </p>
+            </div>
+            <div className="space-y-10">
+              {historie.map(([jahr, titel, text]) => (
+                <div
+                  key={jahr}
+                  className="grid grid-cols-[5rem_1fr] gap-6 border-b border-border pb-8 last:border-b-0 md:grid-cols-[7rem_1fr]"
+                >
+                  <p className="font-serif text-2xl text-gold md:text-3xl">{jahr}</p>
+                  <div>
+                    <h3 className="text-xl">{titel}</h3>
+                    <p className="mt-2 text-base leading-relaxed text-foreground/80">{text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Grundsätze */}
       <section className="bg-primary text-primary-foreground">
         <div className="container-prose py-24 md:py-32">
           <p className="text-[0.7rem] uppercase tracking-[0.24em] text-gold">Unsere Grundsätze</p>
           <h2 className="mt-4 max-w-2xl font-serif text-4xl text-primary-foreground md:text-5xl">
-            Drei Prinzipien, die jede Verwertung tragen.
+            Drei Prinzipien, die unsere Arbeit tragen.
           </h2>
           <div className="mt-16 grid gap-12 md:grid-cols-3">
             {[
               {
                 num: "01",
-                title: "Vertraulichkeit",
-                text: "Jede Anfrage wird vertraulich behandelt und in der Reihenfolge ihres Eingangs bearbeitet. Verbindlich wird ein Erwerb erst mit schriftlicher Bestätigung.",
+                title: "Unabhängigkeit",
+                text: "Als bestellter Insolvenzverwalter handeln wir unabhängig und ausschließlich im Interesse des Verfahrens und aller Gläubiger — frei von sachfremden Einflüssen.",
               },
               {
                 num: "02",
-                title: "Gläubigerinteresse",
-                text: "Als gerichtlich bestellter Insolvenzverwalter ist es meine Aufgabe, die Insolvenzmasse bestmöglich im Interesse aller Gläubiger zu verwerten.",
+                title: "Sorgfalt & Diskretion",
+                text: "Jedes Mandat wird sorgfältig, nachvollziehbar dokumentiert und streng vertraulich bearbeitet. Diskretion ist für uns eine Selbstverständlichkeit.",
               },
               {
                 num: "03",
-                title: "Ordnungsmäßigkeit",
-                text: "Verkauf mit ordnungsgemäßer, vorsteuerabzugsfähiger Rechnung und ausgewiesener Mehrwertsteuer. Alle Preise netto zzgl. gesetzlicher MwSt.",
+                title: "Verantwortung",
+                text: "Wir übernehmen Verantwortung für schwierige Lagen — mit dem Ziel, Werte zu erhalten, faire Lösungen zu finden und Beteiligte verlässlich zu begleiten.",
               },
             ].map((v) => (
               <div key={v.num}>
@@ -87,37 +157,19 @@ function KanzleiPage() {
         </div>
       </section>
 
+      {/* CTA */}
       <section className="container-prose py-24 md:py-32">
-        <div className="grid gap-16 md:grid-cols-[1fr_2fr]">
-          <div>
-            <p className="eyebrow">So kommen Sie zum Artikel</p>
-            <h2 className="mt-4 text-4xl md:text-5xl">Ablauf &amp; Konditionen</h2>
-            <span className="rule-gold mt-6" />
-          </div>
-          <div className="space-y-10">
-            {[
-              ["01", "Kontaktanfrage über die Webseite", "Am einfachsten über die Schaltfläche „Angebot anfordern“ — direkt zu unserem Formular. Bitte Losnummer, Produktbezeichnung und Stückzahl angeben. Alternativ per E-Mail."],
-              ["02", "Bestätigung & Reservierung", "Sie erhalten eine schriftliche Bestätigung der Verfügbarkeit. Erst damit ist der Artikel für Sie reserviert."],
-              ["03", "Rechnung & Zahlung", "Verkauf mit ordnungsgemäßer Rechnung und ausgewiesener Mehrwertsteuer, zahlbar vor Übergabe."],
-              ["04", "Abholung oder Versand", "Abholung am Lagerort nach Terminvereinbarung. Versand ab 1.000 € Warenwert frei Haus, darunter pauschal 29 €."],
-            ].map(([num, title, text]) => (
-              <div key={num} className="grid grid-cols-[3rem_1fr] gap-6 border-b border-border pb-8 last:border-b-0">
-                <p className="font-serif text-2xl text-gold">{num}</p>
-                <div>
-                  <h3 className="text-xl">{title}</h3>
-                  <p className="mt-2 text-base leading-relaxed text-foreground/80">{text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="container-prose pb-24">
         <div className="border border-border p-10 text-center md:p-16">
-          <h2 className="text-3xl md:text-4xl">Bereit, eine Anfrage zu stellen?</h2>
-          <Link to="/angebot-anfordern" search={{ ref: undefined }} className="mt-8 inline-block bg-primary px-8 py-4 text-xs uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90">
-            Angebot anfordern
+          <h2 className="text-3xl md:text-4xl">Sprechen Sie mit uns.</h2>
+          <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground">
+            Sie erreichen die Kanzlei Laumann in {SITE.city} jederzeit über unser
+            Kontaktformular. Wir melden uns kurzfristig bei Ihnen zurück.
+          </p>
+          <Link
+            to="/kontakt"
+            className="mt-8 inline-block bg-primary px-8 py-4 text-xs uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90"
+          >
+            Kontakt aufnehmen
           </Link>
         </div>
       </section>

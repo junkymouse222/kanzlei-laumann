@@ -146,8 +146,6 @@ function Index() {
             </p>
             <p className="mt-6 text-sm leading-relaxed text-primary-foreground/60">
               Rechtsanwalt · Insolvenzverwaltung · Mitglied der {SITE.kammer}
-              <br />
-              Aktenzeichen {SITE.aktenzeichen} · Stand {SITE.katalogStand}
             </p>
             <Link to="/anwaelte" className="mt-10 inline-block border-b border-gold pb-1 text-xs uppercase tracking-[0.22em] text-gold hover:text-gold-soft">
               Mehr über den Verwalter

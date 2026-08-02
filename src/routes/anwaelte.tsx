@@ -22,7 +22,6 @@ const verwalter = {
   img: goldmannImg,
   bio: [
     "Erik Laumann ist Rechtsanwalt und wird als gerichtlich bestellter Insolvenzverwalter mit der Verwaltung und Verwertung von Insolvenzmassen betraut. Sein Schwerpunkt liegt auf der Insolvenzverwaltung und der bestmöglichen Verwertung von Vermögenswerten im Interesse aller Gläubiger.",
-    "Der vorliegende Bestandskatalog dokumentiert Vermögenswerte, die im Rahmen des Verfahrens 97 IN 290/25 zum freihändigen Verkauf angeboten werden. Jede Anfrage wird vertraulich und in der Reihenfolge ihres Eingangs bearbeitet; verbindlich wird ein Erwerb erst mit schriftlicher Bestätigung.",
   ],
   schwerpunkte: [
     "Insolvenzverwaltung",

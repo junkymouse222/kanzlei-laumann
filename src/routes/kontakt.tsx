@@ -51,26 +51,7 @@ function KontaktPage() {
               <dt className="text-muted-foreground">Web</dt>
               <dd>{SITE.domain}</dd>
             </div>
-            <div className="grid grid-cols-[8rem_1fr] gap-4">
-              <dt className="text-muted-foreground">Aktenzeichen</dt>
-              <dd>{SITE.aktenzeichen}</dd>
-            </div>
           </dl>
-
-          <div className="mt-10 border-t border-border pt-8">
-            <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">Bitte angeben</p>
-            <ul className="mt-4 space-y-2 text-sm text-foreground/80">
-              <li className="flex justify-between border-b border-border pb-2">
-                <span>Losnummer</span>
-              </li>
-              <li className="flex justify-between border-b border-border pb-2">
-                <span>Produktbezeichnung</span>
-              </li>
-              <li className="flex justify-between">
-                <span>Gewünschte Stückzahl</span>
-              </li>
-            </ul>
-          </div>
 
           <div className="mt-10 border-t border-border pt-8">
             <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">Hinweis</p>
