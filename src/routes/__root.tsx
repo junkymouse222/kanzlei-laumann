@@ -13,6 +13,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SITE } from "../lib/site";
+import { Logo } from "../components/Logo";
 
 function NotFoundComponent() {
   return (
@@ -83,6 +84,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
+      { rel: "apple-touch-icon", href: "/favicon.svg" },
     ],
   }),
   shellComponent: RootShell,
@@ -114,21 +118,13 @@ const navItems = [
   { to: "/angebot-anfordern", label: "Angebot anfordern" },
 ] as const;
 
-function Wordmark({ className = "" }: { className?: string }) {
-  return (
-    <span className={`font-serif leading-none tracking-[0.02em] ${className}`}>
-      Kanzlei <span className="italic">Laumann</span>
-    </span>
-  );
-}
-
 function Header() {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
       <div className="container-prose flex items-center justify-between py-5">
         <Link to="/" className="group flex items-center" onClick={() => setOpen(false)} aria-label={`${SITE.brand} – Startseite`}>
-          <Wordmark className="text-2xl text-primary md:text-[1.7rem]" />
+          <Logo />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
@@ -182,7 +178,7 @@ function Footer() {
       <div className="container-prose grid gap-12 py-16 md:grid-cols-4">
         <div className="md:col-span-2">
           <div className="flex items-center gap-4">
-            <Wordmark className="text-2xl text-primary-foreground" />
+            <Logo inverse />
           </div>
           <span className="rule-gold mt-4" />
           <p className="mt-6 max-w-sm text-sm leading-relaxed text-primary-foreground/70">

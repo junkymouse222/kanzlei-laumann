@@ -2,8 +2,20 @@
 import logoAsset from "@/assets/kanzlei-logo.png.asset.json";
 import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
 
-const WORDMARK_HTML =
-  '<div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:#0f2740;letter-spacing:0.5px;">Kanzlei Laumann</div>';
+// E-Mail-taugliches Logo-Lockup (Tabelle + Inline-Styles), rendert zuverlässig
+// auch in Gmail/Outlook – ohne von blockierten externen Bildern abzuhängen.
+const LOGO_HTML = `
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td style="vertical-align:middle;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="width:54px;height:54px;border:2px solid #1e2c3f;text-align:center;vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:25px;font-weight:600;color:#1e2c3f;line-height:54px;">EL</td>
+    </tr></table>
+  </td>
+  <td style="vertical-align:middle;padding-left:14px;">
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:19px;font-weight:600;letter-spacing:4px;color:#1e2c3f;line-height:1.1;">ERIK&nbsp;LAUMANN</div>
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:9px;letter-spacing:3px;color:#7c8894;margin-top:5px;">RECHTSANWALTSKANZLEI</div>
+  </td>
+</tr></table>`;
 
 const fmtEUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(n));
@@ -162,7 +174,7 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
         <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td style="vertical-align:top;">
-              ${WORDMARK_HTML}
+              ${LOGO_HTML}
               <div style="margin-top:14px;font-size:11px;line-height:1.6;color:#6b6455;">
                 ${escapeHtml(SITE.legalName)} · ${escapeHtml(SITE.addressLine)}<br/>
                 ${escapeHtml(SITE.email)}
@@ -326,7 +338,7 @@ export function renderPaymentConfirmationHtml(offer: {
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e7e2d4;">
 
         <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
-          ${WORDMARK_HTML}
+          ${LOGO_HTML}
           <div style="margin-top:14px;font-size:11px;line-height:1.6;color:#6b6455;">
             ${escapeHtml(SITE.legalName)} · ${escapeHtml(SITE.addressLine)}<br/>
             ${escapeHtml(SITE.email)}

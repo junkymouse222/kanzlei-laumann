@@ -2,6 +2,7 @@
 // und /beleg-print/... (Server-Render für Puppeteer-PDF und E-Mail-Versand).
 // Änderungen hier wirken automatisch überall.
 import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
+import { Logo } from "@/components/Logo";
 
 export type BelegViewPosition = {
   pos: number;
@@ -113,9 +114,7 @@ export function BelegView(props: BelegViewProps) {
     <article className="beleg mt-12 border border-border bg-background p-8 md:p-12 print:mt-0 print:border-0 print:p-0">
       <div className="beleg-header flex flex-wrap items-start justify-between gap-6 border-b border-gold pb-6">
         <div>
-          <div className="font-serif text-2xl text-primary">
-            Kanzlei <span className="italic">Laumann</span>
-          </div>
+          <Logo />
           <div className="mt-4 text-xs leading-relaxed text-muted-foreground">
             {SITE.legalName} · {SITE.addressLine}
             <br />
