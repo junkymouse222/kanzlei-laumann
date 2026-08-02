@@ -141,7 +141,7 @@ function AngebotAnfordernPage() {
               className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
             >
               <span aria-hidden>↓</span>
-              Bestandskatalog (PDF) herunterladen
+              Insolvenzkatalog (PDF) herunterladen
             </a>
           </div>
         </div>

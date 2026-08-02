@@ -111,7 +111,7 @@ function RechnungPage() {
         <h1 className="mt-6 text-4xl md:text-5xl">Angebots- & Rechnungsgenerator</h1>
         <span className="rule-gold mt-6" />
         <p className="mt-6 max-w-2xl text-sm text-muted-foreground">
-          Wählen Sie Positionen aus dem Verwertungskatalog (18 Lose) und erstellen Sie
+          Wählen Sie Positionen aus dem Verwertungskatalog (20 Lose) und erstellen Sie
           direkt ein Angebot oder eine Rechnung. Über „Drucken / PDF speichern" erhalten Sie
           ein druckfertiges Dokument.
         </p>

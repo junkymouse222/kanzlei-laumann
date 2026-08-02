@@ -49,7 +49,7 @@ export const SITE = {
   katalogStand: "Juli 2026",
 
   /** Öffentlicher Bestandskatalog (PDF in /public) */
-  katalogPdf: "/bestandskatalog-laumann-2026.pdf",
+  katalogPdf: "/insolvenzkatalog-laumann-2026.pdf",
 
   /** Lieferkonditionen (aus dem Katalog): frei Haus ab Warenwert, sonst Pauschale */
   versandFreiAbNetto: 1000,

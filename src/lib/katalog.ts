@@ -87,7 +87,7 @@ export const PRODUKTE: Produkt[] = [
       "Der Wilkhahn ON ermöglicht mit seiner Trimension-Technologie dreidimensionale Bewegungen und fördert aktives Sitzen. Mit Kopfstütze. Made in Germany.",
   },
 
-  // II. Technik & Präsentation (Lose 05–08)
+  // II. Technik & Präsentation (Lose 05–10)
   {
     pos: 5,
     artikel: "LOS-05",
@@ -136,6 +136,36 @@ export const PRODUKTE: Produkt[] = [
   {
     pos: 8,
     artikel: "LOS-08",
+    name: "Apple iPhone 17, 256 GB, Weiß",
+    beschreibung: "256 GB · Weiß",
+    einzelpreis: 519.0,
+    einheit: "Stk.",
+    kategorie: KATEGORIEN[1],
+    regulaerVk: 749.0,
+    nachlassProzent: 31,
+    verfuegbar: 4,
+    zustand: NEUWARE,
+    langtext:
+      "Die aktuelle iPhone-Generation in Weiß mit 256 GB Speicher — unbenutzte, originalverpackte und ungeöffnete Neuware aus dem Unternehmensbestand. Geeignet für den geschäftlichen wie privaten Einsatz; die Aktivierung erfolgt durch den Erwerber, sämtliche Herstellerleistungen ab Aktivierung.",
+  },
+  {
+    pos: 9,
+    artikel: "LOS-09",
+    name: "Apple iPhone 17 Pro Max, 256 GB, Silber",
+    beschreibung: "256 GB · Silber",
+    einzelpreis: 811.0,
+    einheit: "Stk.",
+    kategorie: KATEGORIEN[1],
+    regulaerVk: 1249.0,
+    nachlassProzent: 35,
+    verfuegbar: 7,
+    zustand: NEUWARE,
+    langtext:
+      "Das Topmodell der aktuellen iPhone-Reihe: größtes Display, stärkste Ausstattung und die beste Akkulaufzeit der Serie — in Silber mit 256 GB Speicher. Originalverpackte, ungeöffnete Neuware aus dem Unternehmensbestand; Aktivierung durch den Erwerber, sämtliche Herstellerleistungen ab Aktivierung.",
+  },
+  {
+    pos: 10,
+    artikel: "LOS-10",
     name: "Apple Studio Display 27″ 5K",
     beschreibung: "Das Display für Profis",
     einzelpreis: 831.18,
@@ -149,10 +179,10 @@ export const PRODUKTE: Produkt[] = [
       "27-Zoll-5K-Retina-Display mit P3-Farbunterstützung, integrierte 12-MP-Ultraweitwinkel-Kamera mit Center Stage, Aluminium-Gehäuse mit A13-Chip.",
   },
 
-  // III. Kaffeekultur (Lose 09–11)
+  // III. Kaffeekultur (Lose 11–13)
   {
-    pos: 9,
-    artikel: "LOS-09",
+    pos: 11,
+    artikel: "LOS-11",
     name: "WMF 950 S Kaffeevollautomat",
     beschreibung: "Barista-Qualität auf Knopfdruck",
     einzelpreis: 944.62,
@@ -166,8 +196,8 @@ export const PRODUKTE: Produkt[] = [
       "Großes Touchdisplay, bis zu 40 programmierbare Getränke, Dynamic Milk System, automatische Reinigung. Konzipiert für bis zu 80 Tassen täglich.",
   },
   {
-    pos: 10,
-    artikel: "LOS-10",
+    pos: 12,
+    artikel: "LOS-12",
     name: "WMF 1500 S+ Kaffeevollautomat",
     beschreibung: "High-Performance für Enthusiasten",
     einzelpreis: 3017.7,
@@ -181,8 +211,8 @@ export const PRODUKTE: Produkt[] = [
       "Flaggschiff für anspruchsvolle Büroumgebungen: zwei separate Bohnenbehälter, patentiertes Brühsystem, großes Farbdisplay, Festwasseranschluss. Bis zu 150 Tassen pro Tag.",
   },
   {
-    pos: 11,
-    artikel: "LOS-11",
+    pos: 13,
+    artikel: "LOS-13",
     name: "La Marzocco Linea Mini Espressomaschine",
     beschreibung: "Italienische Kaffeekunst",
     einzelpreis: 1913.45,
@@ -196,10 +226,10 @@ export const PRODUKTE: Produkt[] = [
       "Dual-Boiler-System und präzise PID-Temperatursteuerung für Espresso auf Weltklasse-Niveau. Gebürsteter Edelstahl, in der Manufaktur in Florenz von Hand gefertigt.",
   },
 
-  // IV. USM Haller System (Lose 12–18)
+  // IV. USM Haller System (Lose 14–20)
   {
-    pos: 12,
-    artikel: "LOS-12",
+    pos: 14,
+    artikel: "LOS-14",
     name: "USM Haller Sideboard, 4 Klapptüren",
     beschreibung: "Design-Ikone seit 1965",
     einzelpreis: 1042.94,
@@ -213,8 +243,8 @@ export const PRODUKTE: Produkt[] = [
       "Modulares Schweizer System in Reinweiß, aufgenommen in die Sammlung des Museum of Modern Art. Verchromte Stahlrohre, pulverbeschichtete Metallflächen, jederzeit erweiterbar.",
   },
   {
-    pos: 13,
-    artikel: "LOS-13",
+    pos: 15,
+    artikel: "LOS-15",
     name: "USM Haller Highboard, 3 Klapptüren",
     beschreibung: "Mit 3 Klapptüren",
     einzelpreis: 1070.0,
@@ -228,8 +258,8 @@ export const PRODUKTE: Produkt[] = [
       "Drei übereinander angeordnete Fächer mit Klapptüren für übersichtliche Organisation von Akten und Büromaterial. Reinweiß, gefertigt in der Schweiz.",
   },
   {
-    pos: 14,
-    artikel: "LOS-14",
+    pos: 16,
+    artikel: "LOS-16",
     name: "USM Haller Sideboard, 2 Klapptüren",
     beschreibung: "2 Klapptüren übereinander",
     einzelpreis: 699.0,
@@ -243,8 +273,8 @@ export const PRODUKTE: Produkt[] = [
       "Zwei übereinander angeordnete Klapptüren – kompakte Maße mit durchdachter Funktionalität, ideal als Stauraum neben dem Schreibtisch oder im Empfangsbereich.",
   },
   {
-    pos: 15,
-    artikel: "LOS-15",
+    pos: 17,
+    artikel: "LOS-17",
     name: "USM Haller Lowboard, 2 Klapptüren",
     beschreibung: "2 Klapptüren",
     einzelpreis: 817.69,
@@ -258,8 +288,8 @@ export const PRODUKTE: Produkt[] = [
       "Stilvolle Aufbewahrung auf niedriger Höhe – als TV-Möbel, Mediencenter oder Ablage. Charakteristische Chromkugeln und verchromte Stahlrohre in Reinweiß.",
   },
   {
-    pos: 16,
-    artikel: "LOS-16",
+    pos: 18,
+    artikel: "LOS-18",
     name: "USM Haller Sideboard, 6 Klapptüren",
     beschreibung: "6 Klapptüren",
     einzelpreis: 1961.76,
@@ -273,8 +303,8 @@ export const PRODUKTE: Produkt[] = [
       "Raumwunder: drei Fächer nebeneinander, zwei Reihen übereinander – maximaler Stauraum bei elegantem Erscheinungsbild. Sechs einzeln zugängliche Fächer.",
   },
   {
-    pos: 17,
-    artikel: "LOS-17",
+    pos: 19,
+    artikel: "LOS-19",
     name: "USM Haller Highboard, 6 Klapptüren",
     beschreibung: "6 Klapptüren",
     einzelpreis: 1809.07,
@@ -288,8 +318,8 @@ export const PRODUKTE: Produkt[] = [
       "Maximale Stauraumkapazität im ikonischen USM Design: zwei Spalten mit je drei Fächern. Reinweiß mit verchromten Stahlrohren und Verbindungskugeln.",
   },
   {
-    pos: 18,
-    artikel: "LOS-18",
+    pos: 20,
+    artikel: "LOS-20",
     name: "USM Haller Rollcontainer, 3 Schübe",
     beschreibung: "3 Schübe",
     einzelpreis: 817.69,
