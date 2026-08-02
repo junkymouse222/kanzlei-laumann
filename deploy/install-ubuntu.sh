@@ -8,17 +8,17 @@
 # NICHT dieses Script verwenden, sondern deploy/install-second-site.sh.
 #
 # Ergebnis nach dem Lauf:
-#   https://kanzlei-laumann.de          -> die App (systemd-Service, Node)
-#   https://supabase.kanzlei-laumann.de -> Supabase Studio (Basic-Auth)
+#   https://laumann-kanzlei.de          -> die App (systemd-Service, Node)
+#   https://supabase.laumann-kanzlei.de -> Supabase Studio (Basic-Auth)
 #   Supabase-Stack (Postgres, Auth, PostgREST, Storage, Realtime, Studio) via
 #   Docker Compose unter /opt/supabase
 #
 # Voraussetzungen VOR dem Start:
 #   - DNS A-Records auf die Server-IP:
-#       kanzlei-laumann.de
-#       www.kanzlei-laumann.de
-#       supabase.kanzlei-laumann.de
-#     (prüfen: dig +short kanzlei-laumann.de)
+#       laumann-kanzlei.de
+#       www.laumann-kanzlei.de
+#       supabase.laumann-kanzlei.de
+#     (prüfen: dig +short laumann-kanzlei.de)
 #   - App-Repo-URL bereit (GitHub)
 #   - RESEND_API_KEY bereit
 #
@@ -30,8 +30,8 @@
 
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-kanzlei-laumann.de}"
-STUDIO_DOMAIN="${STUDIO_DOMAIN:-supabase.kanzlei-laumann.de}"
+DOMAIN="${DOMAIN:-laumann-kanzlei.de}"
+STUDIO_DOMAIN="${STUDIO_DOMAIN:-supabase.laumann-kanzlei.de}"
 APP_USER="${APP_USER:-laumann}"
 APP_DIR="${APP_DIR:-/opt/kanzlei-laumann}"
 APP_SERVICE="${APP_SERVICE:-kanzlei-laumann}"
@@ -183,7 +183,7 @@ if [[ ! -f .env ]]; then
   sed -i "s|^# *STUDIO_HOST=.*|STUDIO_HOST=127.0.0.1|"                                    .env || true
 
   # SMTP für Auth-Mails via Resend (Port 587)
-  sed -i "s|^SMTP_ADMIN_EMAIL=.*|SMTP_ADMIN_EMAIL=kontakt@kanzlei-laumann.de|"             .env
+  sed -i "s|^SMTP_ADMIN_EMAIL=.*|SMTP_ADMIN_EMAIL=kontakt@laumann-kanzlei.de|"             .env
   sed -i "s|^SMTP_HOST=.*|SMTP_HOST=smtp.resend.com|"                                     .env
   sed -i "s|^SMTP_PORT=.*|SMTP_PORT=587|"                                                 .env
   sed -i "s|^SMTP_USER=.*|SMTP_USER=resend|"                                              .env

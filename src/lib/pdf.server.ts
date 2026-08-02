@@ -57,7 +57,7 @@ function siteBaseUrl(): string {
   return (
     process.env.PUBLIC_SITE_URL ||
     process.env.SITE_URL ||
-    "https://kanzlei-laumann.de"
+    "https://laumann-kanzlei.de"
   ).replace(/\/$/, "");
 }
 

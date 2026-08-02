@@ -1,4 +1,4 @@
-# Deployment – Kanzlei Laumann (kanzlei-laumann.de)
+# Deployment – Kanzlei Laumann (laumann-kanzlei.de)
 
 Dieser Ordner enthält alles, um die App zu betreiben. Zwei Szenarien:
 
@@ -17,9 +17,9 @@ System-User, eigenem systemd-Service und einem zusätzlichen Caddy-vHost.
 adlerundsohn.de wird dabei **nicht** angefasst.
 
 ### Vorbereitung
-1. **DNS:** A-Record (und ggf. AAAA) für `kanzlei-laumann.de` **und**
-   `www.kanzlei-laumann.de` auf `145.239.77.117` setzen.
-   Prüfen: `dig +short kanzlei-laumann.de`
+1. **DNS:** A-Record (und ggf. AAAA) für `laumann-kanzlei.de` **und**
+   `www.laumann-kanzlei.de` auf `145.239.77.117` setzen.
+   Prüfen: `dig +short laumann-kanzlei.de`
 2. **Repo:** GitHub-URL + Branch bereithalten.
 3. **Supabase:** eigenes Projekt empfohlen (siehe unten), Keys bereithalten.
 4. **Resend:** eigener API-Key mit verifizierter Absender-Domain.
@@ -34,7 +34,7 @@ Das Script fragt interaktiv nach Repo, Branch, Supabase-Keys, Resend-Key und
 Absender-E-Mail, baut die App und richtet Caddy + systemd ein.
 
 ### Nach dem Lauf
-- Seite: `https://kanzlei-laumann.de` (Service `kanzlei-laumann`, Port 3100)
+- Seite: `https://laumann-kanzlei.de` (Service `kanzlei-laumann`, Port 3100)
 - Logs: `journalctl -u kanzlei-laumann -f`
 - Caddy-vHost: `/etc/caddy/sites.d/kanzlei-laumann.caddy`
 - **Schema einspielen** (siehe „Datenbank") und ersten Admin anlegen.
@@ -62,7 +62,7 @@ die Daten (Angebote/Rechnungen) sauber von adlerundsohn.de getrennt sind.
 1. Neues Projekt auf supabase.com anlegen.
 2. Im SQL-Editor `deploy/schema.sql` und danach `deploy/storage-bucket.sql`
    ausführen. **Vorher** in `schema.sql` die Auto-Admin-E-Mail auf die
-   gewünschte Login-Adresse anpassen (Standard: `kontakt@kanzlei-laumann.de`).
+   gewünschte Login-Adresse anpassen (Standard: `kontakt@laumann-kanzlei.de`).
 3. `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (anon) und
    `SUPABASE_SERVICE_ROLE_KEY` aus den Projekt-Settings übernehmen.
 
@@ -70,7 +70,7 @@ die Daten (Angebote/Rechnungen) sauber von adlerundsohn.de getrennt sind.
 > mitbenutzen (Werte aus dessen `.env`). Dann landen aber beide Kanzleien in
 > **derselben** `offer_requests`-Tabelle – nur als Übergangslösung sinnvoll.
 
-Ersten Admin anlegen: auf `https://kanzlei-laumann.de/auth` mit der oben
+Ersten Admin anlegen: auf `https://laumann-kanzlei.de/auth` mit der oben
 hinterlegten E-Mail registrieren (der DB-Trigger vergibt die Rolle `admin`).
 Alternativ manuell:
 ```sql
@@ -83,11 +83,11 @@ SELECT id, 'admin' FROM auth.users WHERE email = 'DEINE@MAIL';
 ## E-Mail-Versand (Resend)
 
 - Eigener Resend-API-Key nötig.
-- Die Absender-Domain (z. B. `kanzlei-laumann.de`) muss in Resend **verifiziert**
+- Die Absender-Domain (z. B. `laumann-kanzlei.de`) muss in Resend **verifiziert**
   sein (SPF/DKIM-Records setzen), sonst werden Angebots-/Rechnungsmails
   abgelehnt.
 - `OFFER_FROM_EMAIL` in der `.env` steuert den Absender
-  (Default: `Kanzlei Laumann <kontakt@kanzlei-laumann.de>`).
+  (Default: `Kanzlei Laumann <kontakt@laumann-kanzlei.de>`).
 
 Test:
 ```bash
@@ -107,8 +107,8 @@ den Caddyfile überschreibt.
 ```bash
 bash deploy/install-ubuntu.sh
 ```
-DNS-Records vorher setzen: `kanzlei-laumann.de`, `www.kanzlei-laumann.de`,
-`supabase.kanzlei-laumann.de`.
+DNS-Records vorher setzen: `laumann-kanzlei.de`, `www.laumann-kanzlei.de`,
+`supabase.laumann-kanzlei.de`.
 
 ---
 

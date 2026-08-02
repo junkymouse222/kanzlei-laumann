@@ -9,7 +9,7 @@
 # Konfigurierbar per Env:
 #   APP_DIR              (Default: /opt/kanzlei-laumann)
 #   SERVICE_NAME         (Default: kanzlei-laumann)
-#   SCHEDULED_OFFERS_URL (Default: https://kanzlei-laumann.de/api/public/hooks/send-scheduled-offers)
+#   SCHEDULED_OFFERS_URL (Default: https://laumann-kanzlei.de/api/public/hooks/send-scheduled-offers)
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/kanzlei-laumann}"
@@ -32,7 +32,7 @@ if [[ -z "$ANON" ]]; then
   exit 1
 fi
 
-URL="${SCHEDULED_OFFERS_URL:-https://kanzlei-laumann.de/api/public/hooks/send-scheduled-offers}"
+URL="${SCHEDULED_OFFERS_URL:-https://laumann-kanzlei.de/api/public/hooks/send-scheduled-offers}"
 
 TRIGGER="/usr/local/bin/${SERVICE_NAME}-send-scheduled"
 

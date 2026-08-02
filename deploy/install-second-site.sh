@@ -15,8 +15,8 @@
 #
 # Voraussetzungen VOR dem Start:
 #   - Der Server läuft bereits mit Caddy (adlerundsohn.de ist online).
-#   - DNS A-/AAAA-Records für kanzlei-laumann.de + www zeigen auf DIESEN Server.
-#     (prüfen: dig +short kanzlei-laumann.de)
+#   - DNS A-/AAAA-Records für laumann-kanzlei.de + www zeigen auf DIESEN Server.
+#     (prüfen: dig +short laumann-kanzlei.de)
 #   - Eine Supabase-Instanz + Keys (eigenes Projekt empfohlen; siehe README).
 #   - RESEND_API_KEY (eigener Key mit verifizierter Absender-Domain).
 #
@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-kanzlei-laumann.de}"
+DOMAIN="${DOMAIN:-laumann-kanzlei.de}"
 APP_USER="${APP_USER:-laumann}"
 APP_DIR="${APP_DIR:-/opt/kanzlei-laumann}"
 APP_SERVICE="${APP_SERVICE:-kanzlei-laumann}"
@@ -48,7 +48,7 @@ read -rp "Git-Branch [main]: " REPO_BRANCH
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
 echo
-echo "Supabase-Zugangsdaten für kanzlei-laumann.de"
+echo "Supabase-Zugangsdaten für laumann-kanzlei.de"
 echo "(eigenes Projekt empfohlen; alternativ die Werte aus der adlerundsohn-.env)"
 read -rp "SUPABASE_URL (https://<projekt>.supabase.co): " SUPABASE_URL
 [[ -n "$SUPABASE_URL" ]] || fail "SUPABASE_URL erforderlich."
@@ -60,8 +60,8 @@ read -rsp "SUPABASE_SERVICE_ROLE_KEY: " SUPABASE_SERVICE_ROLE_KEY; echo
 echo
 read -rsp "RESEND_API_KEY (re_...): " RESEND_KEY; echo
 [[ "$RESEND_KEY" == re_* ]] || fail "Der Resend API-Key muss mit re_ beginnen."
-read -rp "OFFER_FROM_EMAIL [Kanzlei Laumann <kontakt@kanzlei-laumann.de>]: " OFFER_FROM_EMAIL
-OFFER_FROM_EMAIL="${OFFER_FROM_EMAIL:-Kanzlei Laumann <kontakt@kanzlei-laumann.de>}"
+read -rp "OFFER_FROM_EMAIL [Kanzlei Laumann <kontakt@laumann-kanzlei.de>]: " OFFER_FROM_EMAIL
+OFFER_FROM_EMAIL="${OFFER_FROM_EMAIL:-Kanzlei Laumann <kontakt@laumann-kanzlei.de>}"
 read -rp "Let's-Encrypt-Kontakt-E-Mail: " ACME_EMAIL
 [[ -n "$ACME_EMAIL" ]] || fail "ACME-E-Mail nötig."
 
@@ -184,7 +184,7 @@ EOF
 # Sicherstellen, dass der Haupt-Caddyfile die zusätzlichen vHosts importiert.
 if [[ -f "$CADDY_MAIN" ]] && ! grep -q "sites.d/\*.caddy" "$CADDY_MAIN"; then
   log "import-Zeile zum bestehenden Caddyfile hinzufügen…"
-  printf '\n# Zusätzliche vHosts (z. B. kanzlei-laumann.de)\nimport %s/*.caddy\n' "$CADDY_SITES_DIR" >> "$CADDY_MAIN"
+  printf '\n# Zusätzliche vHosts (z. B. laumann-kanzlei.de)\nimport %s/*.caddy\n' "$CADDY_SITES_DIR" >> "$CADDY_MAIN"
 fi
 
 if caddy validate --config "$CADDY_MAIN" --adapter caddyfile; then

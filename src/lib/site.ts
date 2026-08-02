@@ -15,9 +15,9 @@ export const SITE = {
   role: "Rechtsanwalt · Insolvenzverwaltung",
 
   /** Domain ohne Protokoll */
-  domain: "kanzlei-laumann.de",
+  domain: "laumann-kanzlei.de",
   /** Kanonische Basis-URL (ohne Slash am Ende) */
-  baseUrl: "https://kanzlei-laumann.de",
+  baseUrl: "https://laumann-kanzlei.de",
 
   /** Anschrift */
   street: "Fürstenwall 172",
@@ -27,9 +27,9 @@ export const SITE = {
   addressLine: "Fürstenwall 172 · 40217 Düsseldorf",
 
   /** Kontakt */
-  email: "kontakt@kanzlei-laumann.de",
+  email: "kontakt@laumann-kanzlei.de",
   /** Absender für ausgehende E-Mails (Resend) – Domain muss in Resend verifiziert sein */
-  emailFrom: "Kanzlei Laumann <kontakt@kanzlei-laumann.de>",
+  emailFrom: "Kanzlei Laumann <kontakt@laumann-kanzlei.de>",
   /** Telefon – im Katalog nicht angegeben; leer lassen bis ergänzt */
   phone: "",
 

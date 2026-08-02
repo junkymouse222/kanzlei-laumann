@@ -23,7 +23,7 @@ if [[ -z "${RESEND_API_KEY:-}" ]]; then
   exit 1
 fi
 
-FROM="${OFFER_FROM_EMAIL:-Kanzlei Laumann <kontakt@kanzlei-laumann.de>}"
+FROM="${OFFER_FROM_EMAIL:-Kanzlei Laumann <kontakt@laumann-kanzlei.de>}"
 export TO FROM
 
 node <<'NODE'
