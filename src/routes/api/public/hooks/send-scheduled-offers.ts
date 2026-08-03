@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SITE } from "@/lib/site";
 
-// Cron-Endpoint: wird alle 5 Minuten von pg_cron via /api/public/hooks/send-scheduled-offers aufgerufen.
+// Cron-Endpoint: wird alle 5 Minuten via systemd-Timer aufgerufen.
 // Sendet fällige Angebote (status=pending, scheduled_send_at <= now()) per Resend.
+// WICHTIG: filtert strikt nach SITE.siteKey — bei geteilter DB sonst Fremd-Branding.
 
 export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")({
   server: {
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
           .from("offer_requests" as never)
           .select("*")
           .eq("status", "pending")
+          .eq("site_key", SITE.siteKey)
           .lte("scheduled_send_at", nowIso)
           .order("scheduled_send_at", { ascending: true })
           .limit(20);

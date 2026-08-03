@@ -5,6 +5,12 @@
 // Live-Gang durch echte Angaben ersetzt werden (siehe deploy/README.md).
 
 export const SITE = {
+  /**
+   * Mandanten-/Site-Schlüssel in der (ggf. geteilten) Datenbank.
+   * Jede Installation schreibt und liest nur eigene offer_requests.
+   */
+  siteKey: "laumann",
+
   /** Marken-/Wortmarke (Header, Footer, E-Mails, PDF) */
   brand: "Kanzlei Laumann",
   /** Vollständige Bezeichnung des Anbieters (Impressum, Beleg-Footer) */

@@ -99,7 +99,13 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
   const { id, rabatt_rate, mwst_rate, lieferkosten } = SendOfferSchema.parse(input);
   const admin = supabaseAdmin as any;
 
-  const { data: offer, error: offerErr } = await admin.from("offer_requests").select("*").eq("id", id).maybeSingle();
+  const { SITE } = await import("@/lib/site");
+  const { data: offer, error: offerErr } = await admin
+    .from("offer_requests")
+    .select("*")
+    .eq("id", id)
+    .eq("site_key", SITE.siteKey)
+    .maybeSingle();
   if (offerErr) throw new AdminSendError(offerErr.message, 500);
   if (!offer) throw new AdminSendError("Anfrage nicht gefunden.", 404);
 
@@ -173,8 +179,14 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
   await assertAdminRequest(request);
   const data = InvoiceSchema.parse(input);
   const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
 
-  const { data: offer, error: offerErr } = await admin.from("offer_requests").select("*").eq("id", data.id).maybeSingle();
+  const { data: offer, error: offerErr } = await admin
+    .from("offer_requests")
+    .select("*")
+    .eq("id", data.id)
+    .eq("site_key", SITE.siteKey)
+    .maybeSingle();
   if (offerErr) throw new AdminSendError(offerErr.message, 500);
   if (!offer) throw new AdminSendError("Anfrage nicht gefunden.", 404);
 
@@ -300,8 +312,14 @@ export async function sendPaymentConfirmationFromAdmin(
   await assertAdminRequest(request);
   const { id } = IdSchema.parse(input);
   const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
 
-  const { data: offer, error: offerErr } = await admin.from("offer_requests").select("*").eq("id", id).maybeSingle();
+  const { data: offer, error: offerErr } = await admin
+    .from("offer_requests")
+    .select("*")
+    .eq("id", id)
+    .eq("site_key", SITE.siteKey)
+    .maybeSingle();
   if (offerErr) throw new AdminSendError(offerErr.message, 500);
   if (!offer) throw new AdminSendError("Anfrage nicht gefunden.", 404);
 

@@ -66,6 +66,7 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
       .from("offer_requests" as never)
       .insert({
         angebot_nr: angebotNr,
+        site_key: SITE.siteKey,
         scheduled_send_at: scheduledSendAt.toISOString(),
         status: "pending",
         customer_company: data.customer_company ?? null,

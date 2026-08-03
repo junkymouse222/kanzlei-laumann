@@ -139,6 +139,7 @@ export type Database = {
           resend_message_id: string | null
           scheduled_send_at: string
           sent_at: string | null
+          site_key: string | null
           status: string
           subtotal: number
           total: number
@@ -182,6 +183,7 @@ export type Database = {
           resend_message_id?: string | null
           scheduled_send_at: string
           sent_at?: string | null
+          site_key?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -225,6 +227,7 @@ export type Database = {
           resend_message_id?: string | null
           scheduled_send_at?: string
           sent_at?: string | null
+          site_key?: string | null
           status?: string
           subtotal?: number
           total?: number

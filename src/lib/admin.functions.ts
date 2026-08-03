@@ -97,9 +97,11 @@ export const listOfferRequests = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<{ rows: OfferListRow[] }> => {
     await assertAdmin(context.supabase as never, context.userId);
     const client = context.supabase as any;
+    const { SITE } = await import("@/lib/site");
     const { data, error } = await client
       .from("offer_requests")
       .select("id, created_at, scheduled_send_at, sent_at, status, angebot_nr, customer_company, customer_name, customer_email, subtotal, total, error_message, accepted_at, rechnung_status")
+      .eq("site_key", SITE.siteKey)
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
@@ -112,10 +114,12 @@ export const getOfferRequest = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<OfferDetail> => {
     await assertAdmin(context.supabase as never, context.userId);
     const client = context.supabase as any;
+    const { SITE } = await import("@/lib/site");
     const { data: offer, error } = await client
       .from("offer_requests")
       .select("*")
       .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!offer) throw new Error("Anfrage nicht gefunden.");
@@ -170,7 +174,12 @@ export const updateOfferStatus = createServerFn({ method: "POST" })
       patch.accepted_at = null;
     }
     if (Object.keys(patch).length === 0) return { ok: true };
-    const { error } = await client.from("offer_requests").update(patch).eq("id", data.id);
+    const { SITE } = await import("@/lib/site");
+    const { error } = await client
+      .from("offer_requests")
+      .update(patch)
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -182,10 +191,23 @@ export const deleteOfferRequest = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<{ ok: true }> => {
     await assertAdmin(context.supabase as never, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { SITE } = await import("@/lib/site");
     const admin = supabaseAdmin as any;
+    // Nur eigene Site-Vorgänge löschen.
+    const { data: own } = await admin
+      .from("offer_requests")
+      .select("id")
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
+      .maybeSingle();
+    if (!own) throw new Error("Anfrage nicht gefunden.");
     // Zuerst Positionen (FK), dann den Vorgang löschen.
     await admin.from("offer_request_items").delete().eq("request_id", data.id);
-    const { error } = await admin.from("offer_requests").delete().eq("id", data.id);
+    const { error } = await admin
+      .from("offer_requests")
+      .delete()
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -201,11 +223,13 @@ export const resendOfferNow = createServerFn({ method: "POST" })
     const { renderOfferPdf, toBase64 } = await import("@/lib/pdf.server");
     const { ensureOfferShortLinks } = await import("@/lib/tly.server");
 
+    const { SITE } = await import("@/lib/site");
     const admin = supabaseAdmin as any;
     const { data: offer, error: offerErr } = await admin
       .from("offer_requests")
       .select("*")
       .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
       .maybeSingle();
     if (offerErr) throw new Error(offerErr.message);
     if (!offer) throw new Error("Anfrage nicht gefunden.");
@@ -289,11 +313,13 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
     const { renderInvoicePdf, toBase64 } = await import("@/lib/pdf.server");
     const { ensureOfferShortLinks } = await import("@/lib/tly.server");
 
+    const { SITE } = await import("@/lib/site");
     const admin = supabaseAdmin as any;
     const { data: offer, error: offerErr } = await admin
       .from("offer_requests")
       .select("*")
       .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
       .maybeSingle();
     if (offerErr) throw new Error(offerErr.message);
     if (!offer) throw new Error("Anfrage nicht gefunden.");
@@ -430,8 +456,14 @@ export const previewOfferPdf = createServerFn({ method: "POST" })
     const { renderOfferPdf, toBase64 } = await import("@/lib/pdf.server");
     const { offerAcceptUrl } = await import("@/lib/offer-email.server");
     const { ensureOfferShortLinks } = await import("@/lib/tly.server");
+    const { SITE } = await import("@/lib/site");
     const admin = supabaseAdmin as any;
-    const { data: offer } = await admin.from("offer_requests").select("*").eq("id", data.id).maybeSingle();
+    const { data: offer } = await admin
+      .from("offer_requests")
+      .select("*")
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
+      .maybeSingle();
     if (!offer) throw new Error("Anfrage nicht gefunden.");
     const { data: items } = await admin
       .from("offer_request_items")
@@ -467,8 +499,14 @@ export const previewInvoicePdf = createServerFn({ method: "POST" })
     const { renderInvoicePdf, toBase64 } = await import("@/lib/pdf.server");
     const { invoicePayUrl } = await import("@/lib/offer-email.server");
     const { ensureOfferShortLinks } = await import("@/lib/tly.server");
+    const { SITE } = await import("@/lib/site");
     const admin = supabaseAdmin as any;
-    const { data: offer } = await admin.from("offer_requests").select("*").eq("id", data.id).maybeSingle();
+    const { data: offer } = await admin
+      .from("offer_requests")
+      .select("*")
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
+      .maybeSingle();
     if (!offer) throw new Error("Anfrage nicht gefunden.");
     const { data: items } = await admin
       .from("offer_request_items")

@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS public.offer_requests (
   angebot_nr          text NOT NULL,
   rechnung_nr         text,
   ref_source          text,
+  -- Site-/Mandanten-Schlüssel (bei geteilter DB Pflicht; z. B. 'laumann' / 'adler')
+  site_key            text,
 
   customer_name       text NOT NULL,
   customer_company    text,
@@ -134,6 +136,7 @@ CREATE TABLE IF NOT EXISTS public.offer_requests (
 
 CREATE INDEX IF NOT EXISTS offer_requests_status_idx           ON public.offer_requests (status);
 CREATE INDEX IF NOT EXISTS offer_requests_scheduled_idx        ON public.offer_requests (scheduled_send_at);
+CREATE INDEX IF NOT EXISTS offer_requests_site_key_idx         ON public.offer_requests (site_key);
 CREATE INDEX IF NOT EXISTS offer_requests_accept_token_idx     ON public.offer_requests (accept_token);
 CREATE INDEX IF NOT EXISTS offer_requests_pay_token_idx        ON public.offer_requests (pay_token);
 
