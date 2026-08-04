@@ -138,6 +138,49 @@ export const getOfferRequest = createServerFn({ method: "GET" })
 const OFFER_STATUS = ["pending", "sent", "failed", "accepted"] as const;
 const RECHNUNG_STATUS = ["none", "sent", "failed", "paid"] as const;
 
+const UpdateCustomerSchema = z.object({
+  id: z.string().uuid(),
+  customer_company: z.string().trim().max(200).nullable().optional(),
+  customer_name: z.string().trim().min(2).max(200),
+  customer_email: z.string().trim().email().max(255),
+  customer_phone: z.string().trim().max(50).nullable().optional(),
+  customer_address: z.string().trim().min(5).max(500),
+  customer_ust_id: z.string().trim().max(50).nullable().optional(),
+  /** Optional: geplanten Versand verschieben (ISO-String). */
+  scheduled_send_at: z.string().datetime().optional(),
+});
+
+/** Kundendaten (Adresse etc.) vor dem Versand korrigieren. */
+export const updateOfferCustomer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateCustomerSchema.parse(input))
+  .handler(async ({ context, data }): Promise<{ ok: true }> => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const { SITE } = await import("@/lib/site");
+    const client = context.supabase as any;
+    const patch: Record<string, unknown> = {
+      customer_company: data.customer_company?.trim() || null,
+      customer_name: data.customer_name.trim(),
+      customer_email: data.customer_email.trim(),
+      customer_phone: data.customer_phone?.trim() || null,
+      customer_address: data.customer_address.trim(),
+      customer_ust_id: data.customer_ust_id?.trim() || null,
+    };
+    if (data.scheduled_send_at) {
+      patch.scheduled_send_at = data.scheduled_send_at;
+    }
+    const { data: updated, error } = await client
+      .from("offer_requests")
+      .update(patch)
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!updated) throw new Error("Anfrage nicht gefunden.");
+    return { ok: true };
+  });
+
 const UpdateStatusSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(OFFER_STATUS).optional(),

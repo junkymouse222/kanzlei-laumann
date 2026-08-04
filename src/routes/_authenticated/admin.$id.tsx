@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { getOfferRequest, previewOfferPdf, previewInvoicePdf, updateOfferStatus, type OfferDetail } from "@/lib/admin.functions";
+import {
+  getOfferRequest,
+  previewOfferPdf,
+  previewInvoicePdf,
+  updateOfferStatus,
+  updateOfferCustomer,
+  type OfferDetail,
+} from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { computeOfferTotals } from "@/lib/offer-totals";
 
@@ -88,6 +95,14 @@ function AdminDetailPage() {
   const [invoiceResult, setInvoiceResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [paymentConfirming, setPaymentConfirming] = useState(false);
   const [paymentConfirmResult, setPaymentConfirmResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [custCompany, setCustCompany] = useState("");
+  const [custName, setCustName] = useState("");
+  const [custEmail, setCustEmail] = useState("");
+  const [custPhone, setCustPhone] = useState("");
+  const [custAddress, setCustAddress] = useState("");
+  const [custUstId, setCustUstId] = useState("");
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [customerSaveResult, setCustomerSaveResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -98,6 +113,12 @@ function AdminDetailPage() {
       setOfferRabatt(Number(res.offer.rabatt_rate ?? 5));
       setOfferMwst(Number(res.offer.mwst_rate ?? 19));
       setOfferLieferkosten(Number(res.offer.lieferkosten ?? 0));
+      setCustCompany(res.offer.customer_company ?? "");
+      setCustName(res.offer.customer_name ?? "");
+      setCustEmail(res.offer.customer_email ?? "");
+      setCustPhone(res.offer.customer_phone ?? "");
+      setCustAddress(res.offer.customer_address ?? "");
+      setCustUstId(res.offer.customer_ust_id ?? "");
       if (res.offer.bank_inhaber) setBankInhaber(res.offer.bank_inhaber);
       if (res.offer.bank_name) setBankName(res.offer.bank_name);
       if (res.offer.bank_iban) setBankIban(res.offer.bank_iban);
@@ -106,6 +127,38 @@ function AdminDetailPage() {
       setError(e instanceof Error ? e.message : "Laden fehlgeschlagen.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveCustomer(opts?: { delaySendMinutes?: number }) {
+    setSavingCustomer(true);
+    setCustomerSaveResult(null);
+    try {
+      await updateOfferCustomer({
+        data: {
+          id,
+          customer_company: custCompany.trim() || null,
+          customer_name: custName.trim(),
+          customer_email: custEmail.trim(),
+          customer_phone: custPhone.trim() || null,
+          customer_address: custAddress.trim(),
+          customer_ust_id: custUstId.trim() || null,
+          ...(opts?.delaySendMinutes && opts.delaySendMinutes > 0
+            ? { scheduled_send_at: new Date(Date.now() + opts.delaySendMinutes * 60_000).toISOString() }
+            : {}),
+        },
+      });
+      setCustomerSaveResult({
+        ok: true,
+        msg: opts?.delaySendMinutes
+          ? `Gespeichert. Automatischer Versand um ${opts.delaySendMinutes} Min. verschoben.`
+          : "Kundendaten gespeichert.",
+      });
+      await load();
+    } catch (e) {
+      setCustomerSaveResult({ ok: false, msg: e instanceof Error ? e.message : "Speichern fehlgeschlagen." });
+    } finally {
+      setSavingCustomer(false);
     }
   }
 
@@ -434,14 +487,101 @@ function AdminDetailPage() {
 
       <div className="mt-8 grid gap-8 md:grid-cols-2">
         <div className="border border-border p-6">
-          <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Kunde</h2>
-          <div className="mt-4 space-y-1 text-sm">
-            {offer.customer_company && <div className="font-semibold">{offer.customer_company}</div>}
-            <div>{offer.customer_name}</div>
-            <div className="whitespace-pre-line text-muted-foreground">{offer.customer_address}</div>
-            <div><a href={`mailto:${offer.customer_email}`} className="underline">{offer.customer_email}</a></div>
-            {offer.customer_phone && <div>{offer.customer_phone}</div>}
-            {offer.customer_ust_id && <div className="text-xs text-muted-foreground">USt-IdNr.: {offer.customer_ust_id}</div>}
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Kunde / Adresse</h2>
+            {offer.status === "pending" && (
+              <span className="text-[0.65rem] uppercase tracking-widest text-amber-800">
+                Vor Versand prüfbar
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Adresse und Kontaktdaten hier korrigieren — gespeicherte Werte erscheinen im Angebot/PDF.
+          </p>
+          <div className="mt-4 space-y-3 text-sm">
+            <label className="block">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Firma</span>
+              <input
+                value={custCompany}
+                onChange={(e) => setCustCompany(e.target.value)}
+                className="mt-1 w-full border border-border bg-background px-3 py-2"
+                placeholder="optional"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Name*</span>
+              <input
+                value={custName}
+                onChange={(e) => setCustName(e.target.value)}
+                required
+                className="mt-1 w-full border border-border bg-background px-3 py-2"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Adresse* (Straße, PLZ, Ort)</span>
+              <textarea
+                value={custAddress}
+                onChange={(e) => setCustAddress(e.target.value)}
+                rows={3}
+                required
+                className="mt-1 w-full border border-border bg-background px-3 py-2"
+                placeholder={"Musterstraße 1\n40217 Düsseldorf"}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">E-Mail*</span>
+              <input
+                type="email"
+                value={custEmail}
+                onChange={(e) => setCustEmail(e.target.value)}
+                required
+                className="mt-1 w-full border border-border bg-background px-3 py-2"
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Telefon</span>
+                <input
+                  value={custPhone}
+                  onChange={(e) => setCustPhone(e.target.value)}
+                  className="mt-1 w-full border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">USt-IdNr.</span>
+                <input
+                  value={custUstId}
+                  onChange={(e) => setCustUstId(e.target.value)}
+                  className="mt-1 w-full border border-border bg-background px-3 py-2"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleSaveCustomer()}
+                disabled={savingCustomer || !custName.trim() || !custEmail.trim() || custAddress.trim().length < 5}
+                className="bg-primary px-4 py-2 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                {savingCustomer ? "Speichert …" : "Adresse speichern"}
+              </button>
+              {offer.status === "pending" && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveCustomer({ delaySendMinutes: 60 })}
+                  disabled={savingCustomer || !custName.trim() || !custEmail.trim() || custAddress.trim().length < 5}
+                  className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-primary hover:border-primary disabled:opacity-60"
+                  title="Speichert und schiebt den automatischen Versand um 60 Minuten"
+                >
+                  Speichern + Versand +60 Min.
+                </button>
+              )}
+            </div>
+            {customerSaveResult && (
+              <p className={`text-xs ${customerSaveResult.ok ? "text-green-800" : "text-red-700"}`}>
+                {customerSaveResult.msg}
+              </p>
+            )}
           </div>
         </div>
 
