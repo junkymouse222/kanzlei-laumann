@@ -30,6 +30,8 @@ type OfferRow = {
   customer_phone: string | null;
   customer_address: string;
   customer_ust_id: string | null;
+  delivery_name?: string | null;
+  delivery_address?: string | null;
   message: string | null;
   subtotal: number | string;
   rabatt_rate?: number | string | null;
@@ -201,7 +203,11 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
             </td>
             <td width="50%" style="vertical-align:top;padding-left:16px;text-align:right;">
               <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Lieferanschrift</div>
-              <div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>
+              ${
+                (offer.delivery_name?.trim() || offer.delivery_address?.trim())
+                  ? `<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;white-space:pre-line;">${escapeHtml([offer.delivery_name, offer.delivery_address].filter(Boolean).join("\n"))}</div>`
+                  : `<div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>`
+              }
             </td>
           </tr></table>
         </td></tr>
