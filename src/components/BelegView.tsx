@@ -46,6 +46,21 @@ const fmtDate = (iso: string) => {
   return d.toLocaleDateString("de-DE");
 };
 
+/** Zeilen explizit mit <br /> — zuverlässiger als whitespace-pre-line (PDF + Browser). */
+function MultilineText({ text }: { text: string }) {
+  const lines = text.split(/\r?\n/);
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span key={i}>
+          {i > 0 ? <br /> : null}
+          {line}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export const belegPrintStyles = `
   @page { margin: 0; size: auto; }
   @media print {
@@ -142,22 +157,23 @@ export function BelegView(props: BelegViewProps) {
           <div className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
             Rechnungsempfänger
           </div>
-          <div className="mt-2 whitespace-pre-line text-sm">
-            {kundeName || "—"}
-            {kundeAnschrift && "\n" + kundeAnschrift}
-            {kundeUstId && "\nUSt-IdNr.: " + kundeUstId}
+          <div className="mt-2 text-sm leading-relaxed">
+            <MultilineText
+              text={[kundeName || "—", kundeAnschrift, kundeUstId ? `USt-IdNr.: ${kundeUstId}` : ""]
+                .filter(Boolean)
+                .join("\n")}
+            />
           </div>
         </div>
-        <div className="text-right">
+        <div>
           <div className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
             Lieferanschrift
           </div>
-          <div className="mt-2 whitespace-pre-line text-sm">
+          <div className="mt-2 text-sm leading-relaxed">
             {hatLiefer ? (
-              <>
-                {lieferName || "—"}
-                {lieferAnschrift && "\n" + lieferAnschrift}
-              </>
+              <MultilineText
+                text={[lieferName || "—", lieferAnschrift || ""].filter(Boolean).join("\n")}
+              />
             ) : (
               <span className="text-muted-foreground">Gleich Rechnungsempfänger</span>
             )}

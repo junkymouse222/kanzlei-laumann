@@ -197,15 +197,15 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
         <!-- Empfängerblock -->
         <tr><td style="padding:28px 40px 0 40px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td width="50%" style="vertical-align:top;padding-right:16px;">
+            <td width="50%" style="vertical-align:top;padding-right:20px;">
               <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Rechnungsempfänger</div>
-              <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;white-space:pre-line;">${escapeHtml([offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : ""].filter(Boolean).join("\n"))}</div>
+              <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">${formatAddressHtml(offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : null)}</div>
             </td>
-            <td width="50%" style="vertical-align:top;padding-left:16px;text-align:right;">
+            <td width="50%" style="vertical-align:top;padding-left:20px;">
               <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Lieferanschrift</div>
               ${
                 (offer.delivery_name?.trim() || offer.delivery_address?.trim())
-                  ? `<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;white-space:pre-line;">${escapeHtml([offer.delivery_name, offer.delivery_address].filter(Boolean).join("\n"))}</div>`
+                  ? `<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">${formatAddressHtml(offer.delivery_name, offer.delivery_address)}</div>`
                   : `<div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>`
               }
             </td>
@@ -398,6 +398,16 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Mehrzeilige Adresse für E-Mail-Clients: echte <br/> statt white-space:pre-line
+ *  (Outlook/Gmail ignorieren pre-line oft → Straße klebt am Namen). */
+function formatAddressHtml(...parts: Array<string | null | undefined>): string {
+  const lines = parts
+    .flatMap((p) => String(p ?? "").split(/\r?\n/))
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.map(escapeHtml).join("<br/>");
 }
 
 export type EmailAttachment = { filename: string; content: string /* base64 */ };
