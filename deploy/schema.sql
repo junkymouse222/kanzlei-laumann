@@ -94,6 +94,9 @@ CREATE TABLE IF NOT EXISTS public.offer_requests (
   customer_phone      text,
   customer_address    text NOT NULL,
   customer_ust_id     text,
+  -- Optional: separate Lieferanschrift (NULL/leer = gleich Rechnungsempfänger)
+  delivery_name       text,
+  delivery_address    text,
   message             text,
 
   status              text NOT NULL DEFAULT 'pending',
