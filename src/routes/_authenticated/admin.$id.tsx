@@ -101,6 +101,8 @@ function AdminDetailPage() {
   const [custPhone, setCustPhone] = useState("");
   const [custAddress, setCustAddress] = useState("");
   const [custUstId, setCustUstId] = useState("");
+  const [deliveryName, setDeliveryName] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerSaveResult, setCustomerSaveResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -119,6 +121,8 @@ function AdminDetailPage() {
       setCustPhone(res.offer.customer_phone ?? "");
       setCustAddress(res.offer.customer_address ?? "");
       setCustUstId(res.offer.customer_ust_id ?? "");
+      setDeliveryName(res.offer.delivery_name ?? "");
+      setDeliveryAddress(res.offer.delivery_address ?? "");
       if (res.offer.bank_inhaber) setBankInhaber(res.offer.bank_inhaber);
       if (res.offer.bank_name) setBankName(res.offer.bank_name);
       if (res.offer.bank_iban) setBankIban(res.offer.bank_iban);
@@ -143,6 +147,8 @@ function AdminDetailPage() {
           customer_phone: custPhone.trim() || null,
           customer_address: custAddress.trim(),
           customer_ust_id: custUstId.trim() || null,
+          delivery_name: deliveryName.trim() || null,
+          delivery_address: deliveryAddress.trim() || null,
           ...(opts?.delaySendMinutes && opts.delaySendMinutes > 0
             ? { scheduled_send_at: new Date(Date.now() + opts.delaySendMinutes * 60_000).toISOString() }
             : {}),
@@ -496,7 +502,7 @@ function AdminDetailPage() {
             )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Adresse und Kontaktdaten hier korrigieren — gespeicherte Werte erscheinen im Angebot/PDF.
+            Adresse, Lieferanschrift und Kontaktdaten hier korrigieren — gespeicherte Werte erscheinen im Angebot/PDF.
           </p>
           <div className="mt-4 space-y-3 text-sm">
             <label className="block">
@@ -518,7 +524,7 @@ function AdminDetailPage() {
               />
             </label>
             <label className="block">
-              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Adresse* (Straße, PLZ, Ort)</span>
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Rechnungsadresse* (Straße, PLZ, Ort)</span>
               <textarea
                 value={custAddress}
                 onChange={(e) => setCustAddress(e.target.value)}
@@ -528,6 +534,33 @@ function AdminDetailPage() {
                 placeholder={"Musterstraße 1\n40217 Düsseldorf"}
               />
             </label>
+            <div className="border-t border-border pt-3">
+              <p className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">
+                Lieferanschrift (optional)
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Leer lassen = gleich Rechnungsempfänger.
+              </p>
+              <label className="mt-3 block">
+                <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Liefername / Firma</span>
+                <input
+                  value={deliveryName}
+                  onChange={(e) => setDeliveryName(e.target.value)}
+                  className="mt-1 w-full border border-border bg-background px-3 py-2"
+                  placeholder="optional"
+                />
+              </label>
+              <label className="mt-3 block">
+                <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Lieferadresse (Straße, PLZ, Ort)</span>
+                <textarea
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  rows={3}
+                  className="mt-1 w-full border border-border bg-background px-3 py-2"
+                  placeholder={"Lager / Anlieferung\nMusterweg 2\n40217 Düsseldorf"}
+                />
+              </label>
+            </div>
             <label className="block">
               <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">E-Mail*</span>
               <input
@@ -641,6 +674,24 @@ function AdminDetailPage() {
             </div>
             {offer.rechnung_sent_at && <div className="flex justify-between"><dt className="text-muted-foreground">Rechnung gesendet</dt><dd>{fmtDate(offer.rechnung_sent_at)}</dd></div>}
             {offer.rechnung_faellig_am && <div className="flex justify-between"><dt className="text-muted-foreground">Fällig am</dt><dd>{new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")}</dd></div>}
+            {offer.tracking_number && (
+              <div className="flex justify-between gap-3 border-t border-border pt-2">
+                <dt className="text-muted-foreground shrink-0">Sendung</dt>
+                <dd className="text-right">
+                  <div className="font-mono text-xs">{offer.tracking_number}</div>
+                  {offer.tracking_url && (
+                    <a
+                      href={offer.tracking_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[0.7rem] text-primary underline break-all"
+                    >
+                      Tracking öffnen
+                    </a>
+                  )}
+                </dd>
+              </div>
+            )}
             {offer.paid_at && <div className="flex justify-between border-t border-border pt-2"><dt className="text-muted-foreground">Bezahlt</dt><dd className="text-green-800 font-medium">{fmtDate(offer.paid_at)}</dd></div>}
             {offer.payment_confirm_sent_at && (
               <div className="flex justify-between">

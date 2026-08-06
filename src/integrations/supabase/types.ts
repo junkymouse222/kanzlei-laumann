@@ -117,6 +117,8 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           customer_ust_id: string | null
+          delivery_address: string | null
+          delivery_name: string | null
           error_message: string | null
           id: string
           lieferkosten: number
@@ -143,6 +145,8 @@ export type Database = {
           status: string
           subtotal: number
           total: number
+          tracking_number: string | null
+          tracking_url: string | null
           updated_at: string
         }
         Insert: {
@@ -161,6 +165,8 @@ export type Database = {
           customer_name: string
           customer_phone?: string | null
           customer_ust_id?: string | null
+          delivery_address?: string | null
+          delivery_name?: string | null
           error_message?: string | null
           id?: string
           lieferkosten?: number
@@ -187,6 +193,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -205,6 +213,8 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           customer_ust_id?: string | null
+          delivery_address?: string | null
+          delivery_name?: string | null
           error_message?: string | null
           id?: string
           lieferkosten?: number
@@ -231,6 +241,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Relationships: []

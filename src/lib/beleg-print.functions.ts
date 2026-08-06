@@ -19,6 +19,8 @@ export type BelegDbOffer = {
   customer_name: string;
   customer_address: string;
   customer_ust_id: string | null;
+  delivery_name: string | null;
+  delivery_address: string | null;
   subtotal: number | string;
   rabatt_rate: number | string | null;
   rabatt: number | string | null;
