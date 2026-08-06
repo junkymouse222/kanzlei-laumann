@@ -145,6 +145,8 @@ export type Database = {
           status: string
           subtotal: number
           total: number
+          tracking_number: string | null
+          tracking_url: string | null
           updated_at: string
         }
         Insert: {
@@ -191,6 +193,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -237,6 +241,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Relationships: []

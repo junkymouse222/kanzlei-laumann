@@ -79,6 +79,8 @@ export type OfferDetail = {
     bank_name: string | null;
     bank_iban: string | null;
     bank_bic: string | null;
+    tracking_number: string | null;
+    tracking_url: string | null;
   };
   items: Array<{
     id: string;
@@ -417,6 +419,22 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
 
+    const { ensureOfferTracking } = await import("@/lib/hausmann-tracking.server");
+    const tracking = await ensureOfferTracking({
+      offer: { ...(offer as any), rechnung_nr },
+      items: (items ?? []) as never,
+    });
+    const { error: saveTrackingErr } = await admin
+      .from("offer_requests")
+      .update({
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+      })
+      .eq("id", data.id);
+    if (saveTrackingErr) {
+      throw new Error(`Tracking konnte nicht gespeichert werden: ${saveTrackingErr.message}`);
+    }
+
     const pdfBytes = await renderInvoicePdf(
       {
         ...(offer as any),
@@ -441,6 +459,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
       bank_name: invoice.bank_name,
       bank_iban: invoice.bank_iban,
       bank_bic: invoice.bank_bic,
+      tracking_number: tracking.tracking_number,
+      tracking_url: tracking.tracking_url,
     });
 
     const send = await sendOfferEmail({
@@ -462,6 +482,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
           bank_name: invoice.bank_name,
           bank_iban: invoice.bank_iban,
           bank_bic: invoice.bank_bic,
+          tracking_number: tracking.tracking_number,
+          tracking_url: tracking.tracking_url,
         })
         .eq("id", data.id);
       throw new Error(send.error);
@@ -480,6 +502,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
       })
       .eq("id", data.id);
 

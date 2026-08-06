@@ -674,6 +674,24 @@ function AdminDetailPage() {
             </div>
             {offer.rechnung_sent_at && <div className="flex justify-between"><dt className="text-muted-foreground">Rechnung gesendet</dt><dd>{fmtDate(offer.rechnung_sent_at)}</dd></div>}
             {offer.rechnung_faellig_am && <div className="flex justify-between"><dt className="text-muted-foreground">Fällig am</dt><dd>{new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")}</dd></div>}
+            {offer.tracking_number && (
+              <div className="flex justify-between gap-3 border-t border-border pt-2">
+                <dt className="text-muted-foreground shrink-0">Sendung</dt>
+                <dd className="text-right">
+                  <div className="font-mono text-xs">{offer.tracking_number}</div>
+                  {offer.tracking_url && (
+                    <a
+                      href={offer.tracking_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[0.7rem] text-primary underline break-all"
+                    >
+                      Tracking öffnen
+                    </a>
+                  )}
+                </dd>
+              </div>
+            )}
             {offer.paid_at && <div className="flex justify-between border-t border-border pt-2"><dt className="text-muted-foreground">Bezahlt</dt><dd className="text-green-800 font-medium">{fmtDate(offer.paid_at)}</dd></div>}
             {offer.payment_confirm_sent_at && (
               <div className="flex justify-between">

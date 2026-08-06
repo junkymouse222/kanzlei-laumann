@@ -234,6 +234,26 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
 
+    // Partnerspedition: Sendung anlegen (oder vorhandene Tracking-Daten wiederverwenden)
+    // und Link in die Rechnungs-E-Mail einbetten.
+    const { ensureOfferTracking } = await import("@/lib/hausmann-tracking.server");
+    const tracking = await ensureOfferTracking({
+      offer: { ...(offer as any), rechnung_nr },
+      items: (items ?? []) as never,
+    });
+    (offer as { tracking_number?: string; tracking_url?: string }).tracking_number = tracking.tracking_number;
+    (offer as { tracking_number?: string; tracking_url?: string }).tracking_url = tracking.tracking_url;
+    const { error: saveTrackingErr } = await admin
+      .from("offer_requests")
+      .update({
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+      })
+      .eq("id", data.id);
+    if (saveTrackingErr) {
+      throw new AdminSendError(`Tracking konnte nicht gespeichert werden: ${saveTrackingErr.message}`, 500);
+    }
+
     const pdfBytes = await renderInvoicePdf(
       {
         ...(offer as any),
@@ -257,6 +277,8 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
       bank_name: invoice.bank_name,
       bank_iban: invoice.bank_iban,
       bank_bic: invoice.bank_bic,
+      tracking_number: tracking.tracking_number,
+      tracking_url: tracking.tracking_url,
     }, (items ?? []) as never);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
@@ -280,6 +302,8 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
       })
       .eq("id", data.id);
 
@@ -342,6 +366,8 @@ export async function sendPaymentConfirmationFromAdmin(
     rechnung_nr: offer.rechnung_nr as string | null,
     total: offer.total as number | string | null,
     paid_at: paidAt,
+    tracking_number: offer.tracking_number as string | null,
+    tracking_url: offer.tracking_url as string | null,
   });
 
   const send = await sendOfferEmail({
