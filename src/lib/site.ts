@@ -52,7 +52,7 @@ export const SITE = {
   /** Aktenzeichen des Insolvenzverfahrens */
   aktenzeichen: "97 IN 290/25",
   /** Stand des Katalogs */
-  katalogStand: "Juli 2026",
+  katalogStand: "April 2026",
 
   /** Öffentlicher Bestandskatalog (PDF in /public) */
   katalogPdf: "/insolvenzkatalog-laumann-2026.pdf",
