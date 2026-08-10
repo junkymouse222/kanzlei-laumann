@@ -251,6 +251,9 @@ CREATE TABLE IF NOT EXISTS public.manual_confirmations (
 );
 
 CREATE INDEX IF NOT EXISTS manual_confirmations_created_idx ON public.manual_confirmations (created_at DESC);
+CREATE INDEX IF NOT EXISTS manual_confirmations_offer_request_idx
+  ON public.manual_confirmations (offer_request_id)
+  WHERE offer_request_id IS NOT NULL;
 
 GRANT INSERT                 ON public.manual_confirmations TO anon, authenticated;
 GRANT SELECT, UPDATE, DELETE ON public.manual_confirmations TO authenticated;
