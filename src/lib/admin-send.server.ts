@@ -40,6 +40,24 @@ const InvoiceSchema = IdSchema.extend({
   bank_bic: z.string().trim().min(4, "BIC fehlt").max(32),
 });
 
+const ManualInvoiceSchema = z.object({
+  /** manual_confirmations.id */
+  id: z.string().uuid(),
+  customer_email: z.string().trim().email().max(255),
+  position_name: z.string().trim().min(2).max(300),
+  position_beschreibung: z.string().trim().max(500).optional().nullable(),
+  /** Netto-Festpreis der Position */
+  netto: z.number().min(0).max(1_000_000),
+  menge: z.number().int().min(1).max(9999).optional(),
+  mwst_rate: z.number().min(0).max(99).optional(),
+  lieferkosten: z.number().min(0).max(1000000).optional(),
+  faellig_tage: z.number().int().min(1).max(120).optional(),
+  bank_inhaber: z.string().trim().min(1, "Kontoinhaber fehlt").max(200),
+  bank_name: z.string().trim().min(1, "Bankname fehlt").max(200),
+  bank_iban: z.string().trim().min(4, "IBAN fehlt").max(64),
+  bank_bic: z.string().trim().min(4, "BIC fehlt").max(32),
+});
+
 function extractBearer(request: Request): string {
   const auth = request.headers.get("authorization") ?? "";
   const match = auth.match(/^Bearer\s+(.+)$/i);
@@ -234,6 +252,26 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
 
+    // Partnerspedition: Sendung anlegen (oder vorhandene Tracking-Daten wiederverwenden)
+    // und Link in die Rechnungs-E-Mail einbetten.
+    const { ensureOfferTracking } = await import("@/lib/hausmann-tracking.server");
+    const tracking = await ensureOfferTracking({
+      offer: { ...(offer as any), rechnung_nr },
+      items: (items ?? []) as never,
+    });
+    (offer as { tracking_number?: string; tracking_url?: string }).tracking_number = tracking.tracking_number;
+    (offer as { tracking_number?: string; tracking_url?: string }).tracking_url = tracking.tracking_url;
+    const { error: saveTrackingErr } = await admin
+      .from("offer_requests")
+      .update({
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+      })
+      .eq("id", data.id);
+    if (saveTrackingErr) {
+      throw new AdminSendError(`Tracking konnte nicht gespeichert werden: ${saveTrackingErr.message}`, 500);
+    }
+
     const pdfBytes = await renderInvoicePdf(
       {
         ...(offer as any),
@@ -257,6 +295,8 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
       bank_name: invoice.bank_name,
       bank_iban: invoice.bank_iban,
       bank_bic: invoice.bank_bic,
+      tracking_number: tracking.tracking_number,
+      tracking_url: tracking.tracking_url,
     }, (items ?? []) as never);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
@@ -280,6 +320,8 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
       })
       .eq("id", data.id);
 
@@ -301,6 +343,183 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
       .eq("id", data.id);
     if (error instanceof AdminSendError) throw error;
     throw new AdminSendError(message, 500);
+  }
+}
+
+/**
+ * Rechnung für eine manuell angenommene Bestätigung (/rechnung → confirm-manual).
+ * Legt einen offer_requests-Datensatz an und versendet über denselben Invoice-Pfad
+ * (PDF, E-Mail, Hausmann-Tracking).
+ */
+export async function sendInvoiceForManualConfirmation(
+  request: Request,
+  input: unknown,
+): Promise<AdminSendResult> {
+  await assertAdminRequest(request);
+  const data = ManualInvoiceSchema.parse(input);
+  const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
+
+  const { data: conf, error: confErr } = await admin
+    .from("manual_confirmations")
+    .select("*")
+    .eq("id", data.id)
+    .maybeSingle();
+  if (confErr) throw new AdminSendError(confErr.message, 500);
+  if (!conf) throw new AdminSendError("Bestätigung nicht gefunden.", 404);
+  if (conf.beleg_art !== "Angebot") {
+    throw new AdminSendError("Rechnung nur für angenommene Angebote (nicht für Zahlungsbestätigungen).", 400);
+  }
+  if (conf.rechnung_sent_at) {
+    throw new AdminSendError(
+      `Für diese Bestätigung wurde bereits eine Rechnung${conf.rechnung_nr ? ` (${conf.rechnung_nr})` : ""} versendet.`,
+      409,
+    );
+  }
+
+  const nameLines = String(conf.kunde_name || "")
+    .split(/\r?\n/)
+    .map((l: string) => l.trim())
+    .filter(Boolean);
+  const customer_company = nameLines.length > 1 ? nameLines[0] : null;
+  const customer_name = nameLines.length > 1 ? nameLines.slice(1).join(" ") : nameLines[0] || "Kunde";
+  const customer_address = String(conf.kunde_anschrift || "").trim() || "—";
+  const angebot_nr = String(conf.beleg_nr);
+  const menge = data.menge ?? 1;
+  const einzelpreis = Number(data.netto.toFixed(2));
+  const position_total = Number((einzelpreis * menge).toFixed(2));
+  const mwstRate = data.mwst_rate ?? DEFAULT_MWST_RATE;
+  const liefer = data.lieferkosten ?? 0;
+  const totals = computeOfferTotals({
+    subtotal: position_total,
+    rabattRate: 0,
+    lieferkosten: liefer,
+    mwstRate,
+  });
+  const email = data.customer_email.trim();
+
+  let offerId: string | null = (conf.offer_request_id as string | null) ?? null;
+
+  if (offerId) {
+    // Retry nach fehlgeschlagenem Versand: Offer aktualisieren und erneut senden
+    const { error: updErr } = await admin
+      .from("offer_requests")
+      .update({
+        customer_company,
+        customer_name,
+        customer_email: email,
+        customer_address,
+        subtotal: position_total,
+        rabatt_rate: 0,
+        rabatt: 0,
+        mwst_rate: mwstRate,
+        mwst: totals.mwst,
+        total: totals.total,
+        lieferkosten: liefer,
+      })
+      .eq("id", offerId);
+    if (updErr) throw new AdminSendError(updErr.message, 500);
+
+    await admin.from("offer_request_items").delete().eq("request_id", offerId);
+    const { error: itemsErr } = await admin.from("offer_request_items").insert({
+      request_id: offerId,
+      pos: 1,
+      artikel: "MANUELL",
+      name: data.position_name.trim(),
+      beschreibung: data.position_beschreibung?.trim() || `gemäß Angebot ${angebot_nr}`,
+      einheit: "Stk.",
+      menge,
+      einzelpreis,
+      position_total,
+    });
+    if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
+  } else {
+    const { data: offer, error: insErr } = await admin
+      .from("offer_requests")
+      .insert({
+        angebot_nr,
+        site_key: SITE.siteKey,
+        scheduled_send_at: new Date().toISOString(),
+        status: "accepted",
+        accepted_at: conf.created_at || new Date().toISOString(),
+        customer_company,
+        customer_name,
+        customer_email: email,
+        customer_address,
+        message: `Manuell angenommenes Angebot ${angebot_nr} → Rechnung`,
+        ref_source: "manual-confirmation",
+        subtotal: position_total,
+        rabatt_rate: 0,
+        rabatt: 0,
+        mwst_rate: mwstRate,
+        mwst: totals.mwst,
+        total: totals.total,
+        lieferkosten: liefer,
+      })
+      .select("id")
+      .single();
+    if (insErr || !offer) {
+      throw new AdminSendError(insErr?.message || "Angebot konnte nicht angelegt werden.", 500);
+    }
+    offerId = offer.id as string;
+
+    const { error: itemsErr } = await admin.from("offer_request_items").insert({
+      request_id: offerId,
+      pos: 1,
+      artikel: "MANUELL",
+      name: data.position_name.trim(),
+      beschreibung: data.position_beschreibung?.trim() || `gemäß Angebot ${angebot_nr}`,
+      einheit: "Stk.",
+      menge,
+      einzelpreis,
+      position_total,
+    });
+    if (itemsErr) {
+      await admin.from("offer_requests").delete().eq("id", offerId);
+      throw new AdminSendError(itemsErr.message, 500);
+    }
+  }
+
+  if (!offerId) {
+    throw new AdminSendError("Angebot konnte nicht zugeordnet werden.", 500);
+  }
+
+  await admin
+    .from("manual_confirmations")
+    .update({
+      customer_email: email,
+      offer_request_id: offerId,
+      rechnung_error: null,
+    })
+    .eq("id", data.id);
+
+  try {
+    const result = await sendInvoiceFromAdmin(request, {
+      id: offerId,
+      faellig_tage: data.faellig_tage,
+      bank_inhaber: data.bank_inhaber,
+      bank_name: data.bank_name,
+      bank_iban: data.bank_iban,
+      bank_bic: data.bank_bic,
+    });
+
+    await admin
+      .from("manual_confirmations")
+      .update({
+        rechnung_nr: result.rechnung_nr ?? null,
+        rechnung_sent_at: new Date().toISOString(),
+        rechnung_error: null,
+      })
+      .eq("id", data.id);
+
+    return result;
+  } catch (error) {
+    const message = errMsg(error);
+    await admin
+      .from("manual_confirmations")
+      .update({ rechnung_error: message })
+      .eq("id", data.id);
+    throw error;
   }
 }
 
@@ -342,6 +561,8 @@ export async function sendPaymentConfirmationFromAdmin(
     rechnung_nr: offer.rechnung_nr as string | null,
     total: offer.total as number | string | null,
     paid_at: paidAt,
+    tracking_number: offer.tracking_number as string | null,
+    tracking_url: offer.tracking_url as string | null,
   });
 
   const send = await sendOfferEmail({

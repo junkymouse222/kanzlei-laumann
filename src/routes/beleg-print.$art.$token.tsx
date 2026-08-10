@@ -89,6 +89,8 @@ function BelegPrintPage() {
           kundeName={kundeName}
           kundeAnschrift={offer.customer_address}
           kundeUstId={offer.customer_ust_id ?? undefined}
+          lieferName={offer.delivery_name?.trim() || undefined}
+          lieferAnschrift={offer.delivery_address?.trim() || undefined}
           positionen={positionen}
           rabattProzent={Number(offer.rabatt_rate ?? 0)}
           mwstSatz={Number(offer.mwst_rate ?? 19)}

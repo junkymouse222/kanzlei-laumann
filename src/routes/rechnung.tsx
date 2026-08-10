@@ -58,6 +58,7 @@ function RechnungPage() {
   });
   const [kundeName, setKundeName] = useState("");
   const [kundeAnschrift, setKundeAnschrift] = useState("");
+  const [kundeEmail, setKundeEmail] = useState("");
   const [kundeUstId, setKundeUstId] = useState("");
   const [lieferName, setLieferName] = useState("");
   const [lieferAnschrift, setLieferAnschrift] = useState("");
@@ -168,7 +169,7 @@ function RechnungPage() {
   const netto = zwischensumme - rabattBetrag + lieferkosten;
   const mwst = netto * (mwstSatz / 100);
   const brutto = netto + mwst;
-  const bestaetigungsUrl = `${SITE.baseUrl}/api/public/hooks/confirm-manual?art=${encodeURIComponent(belegArt)}&nr=${encodeURIComponent(belegNr)}&kunde=${encodeURIComponent(kundeName)}&anschrift=${encodeURIComponent(kundeAnschrift)}&total=${encodeURIComponent(brutto.toFixed(2))}`;
+  const bestaetigungsUrl = `${SITE.baseUrl}/api/public/hooks/confirm-manual?art=${encodeURIComponent(belegArt)}&nr=${encodeURIComponent(belegNr)}&kunde=${encodeURIComponent(kundeName)}&anschrift=${encodeURIComponent(kundeAnschrift)}&email=${encodeURIComponent(kundeEmail.trim())}&total=${encodeURIComponent(brutto.toFixed(2))}`;
 
   const drucken = () => window.print();
 
@@ -241,6 +242,13 @@ function RechnungPage() {
               onChange={(e) => setKundeAnschrift(e.target.value)}
               rows={3}
               placeholder={"Straße\nPLZ Ort"}
+              className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+            />
+            <input
+              type="email"
+              value={kundeEmail}
+              onChange={(e) => setKundeEmail(e.target.value)}
+              placeholder="E-Mail (für späteren Rechnungsversand)"
               className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
             />
             <input

@@ -30,6 +30,10 @@ type OfferRow = {
   customer_phone: string | null;
   customer_address: string;
   customer_ust_id: string | null;
+  delivery_name?: string | null;
+  delivery_address?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
   message: string | null;
   subtotal: number | string;
   rabatt_rate?: number | string | null;
@@ -94,6 +98,8 @@ type BelegOptions = {
     iban: string;
     bic: string;
   };
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
 };
 
 function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions): string {
@@ -195,13 +201,17 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
         <!-- Empfängerblock -->
         <tr><td style="padding:28px 40px 0 40px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td width="50%" style="vertical-align:top;padding-right:16px;">
+            <td width="50%" style="vertical-align:top;padding-right:20px;">
               <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Rechnungsempfänger</div>
-              <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;white-space:pre-line;">${escapeHtml([offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : ""].filter(Boolean).join("\n"))}</div>
+              <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">${formatAddressHtml(offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : null)}</div>
             </td>
-            <td width="50%" style="vertical-align:top;padding-left:16px;text-align:right;">
+            <td width="50%" style="vertical-align:top;padding-left:20px;">
               <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Lieferanschrift</div>
-              <div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>
+              ${
+                (offer.delivery_name?.trim() || offer.delivery_address?.trim())
+                  ? `<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">${formatAddressHtml(offer.delivery_name, offer.delivery_address)}</div>`
+                  : `<div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>`
+              }
             </td>
           </tr></table>
         </td></tr>
@@ -238,6 +248,28 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
 
         <!-- CTA -->
         <tr><td style="padding:8px 40px 8px 40px;">${ctaBlock}</td></tr>
+
+        ${
+          opts.belegArt === "Rechnung" && opts.trackingUrl
+            ? `<tr><td style="padding:8px 40px 0 40px;">
+                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f4ec;border:1px solid #e7e2d4;">
+                   <tr><td style="padding:18px 20px;">
+                     <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Sendungsverfolgung · Spedition Hausmann</div>
+                     <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">
+                       Ihre Sendung ist angelegt${opts.trackingNumber ? ` unter der Nummer <strong>${escapeHtml(opts.trackingNumber)}</strong>` : ""}.
+                       Den aktuellen Status und den Lieferfortschritt finden Sie hier:
+                     </div>
+                     <div style="margin-top:14px;">
+                       <a href="${escapeHtml(opts.trackingUrl)}" style="display:inline-block;padding:12px 22px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#f5f3ee;background:#0f2740;text-decoration:none;">Sendung verfolgen</a>
+                     </div>
+                     <div style="margin-top:10px;font-size:11px;color:#6b6656;word-break:break-all;">
+                       <a href="${escapeHtml(opts.trackingUrl)}" style="color:#0f2740;">${escapeHtml(opts.trackingUrl)}</a>
+                     </div>
+                   </td></tr>
+                 </table>
+               </td></tr>`
+            : ""
+        }
 
         ${bankBlock}
 
@@ -289,6 +321,8 @@ export function renderInvoiceHtml(
       iban: offer.bank_iban,
       bic: offer.bank_bic,
     },
+    trackingNumber: offer.tracking_number,
+    trackingUrl: offer.tracking_url,
   });
 }
 
@@ -317,6 +351,8 @@ export function renderPaymentConfirmationHtml(offer: {
   rechnung_nr?: string | null;
   total?: number | string | null;
   paid_at?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
 }): string {
   const anredeName = escapeHtml(offer.customer_name.trim() || "Kunde");
   const firma = offer.customer_company?.trim()
@@ -331,6 +367,15 @@ export function renderPaymentConfirmationHtml(offer: {
   const paidAt = offer.paid_at
     ? new Date(offer.paid_at).toLocaleDateString("de-DE", { dateStyle: "medium" })
     : new Date().toLocaleDateString("de-DE", { dateStyle: "medium" });
+  const trackingBlock =
+    offer.tracking_url?.trim()
+      ? `<p style="margin:18px 0 0 0;">
+            Den Lieferstatus Ihrer Sendung${offer.tracking_number ? ` (<strong>${escapeHtml(offer.tracking_number)}</strong>)` : ""} können Sie bei unserer Partnerspedition verfolgen:
+            <br/><a href="${escapeHtml(offer.tracking_url.trim())}" style="color:#0f2740;">${escapeHtml(offer.tracking_url.trim())}</a>
+          </p>`
+      : `<p style="margin:18px 0 0 0;">
+            Unsere Spedition wird sich in Kürze bei Ihnen melden, um einen Liefertermin zu vereinbaren.
+          </p>`;
 
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Zahlungseingang bestätigt</title></head>
 <body style="margin:0;padding:0;background:#efece4;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
@@ -361,9 +406,7 @@ export function renderPaymentConfirmationHtml(offer: {
             <strong>${belegLabel} ${belegNr}</strong>${betrag ? ` (${betrag})` : ""}
             vom ${paidAt}.
           </p>
-          <p style="margin:18px 0 0 0;">
-            Unsere Spedition wird sich in Kürze bei Ihnen melden, um einen Liefertermin zu vereinbaren.
-          </p>
+          ${trackingBlock}
           <p style="margin:18px 0 0 0;">
             Bei Rückfragen erreichen Sie uns unter ${escapeHtml(SITE.email)}.
           </p>
@@ -392,6 +435,16 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Mehrzeilige Adresse für E-Mail-Clients: echte <br/> statt white-space:pre-line
+ *  (Outlook/Gmail ignorieren pre-line oft → Straße klebt am Namen). */
+function formatAddressHtml(...parts: Array<string | null | undefined>): string {
+  const lines = parts
+    .flatMap((p) => String(p ?? "").split(/\r?\n/))
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.map(escapeHtml).join("<br/>");
 }
 
 export type EmailAttachment = { filename: string; content: string /* base64 */ };

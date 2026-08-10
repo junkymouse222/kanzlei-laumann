@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS public.offer_requests (
   customer_phone      text,
   customer_address    text NOT NULL,
   customer_ust_id     text,
+  -- Optional: separate Lieferanschrift (NULL/leer = gleich Rechnungsempfänger)
+  delivery_name       text,
+  delivery_address    text,
+  -- Spedition Hausmann (beim Rechnungsversand per API angelegt)
+  tracking_number     text,
+  tracking_url        text,
   message             text,
 
   status              text NOT NULL DEFAULT 'pending',
@@ -233,9 +239,14 @@ CREATE TABLE IF NOT EXISTS public.manual_confirmations (
   beleg_nr       text NOT NULL,
   kunde_name     text,
   kunde_anschrift text,
+  customer_email text,
   total          numeric,
   ip             text,
   user_agent     text,
+  offer_request_id uuid REFERENCES public.offer_requests(id) ON DELETE SET NULL,
+  rechnung_nr    text,
+  rechnung_sent_at timestamptz,
+  rechnung_error text,
   created_at     timestamptz NOT NULL DEFAULT now()
 );
 
