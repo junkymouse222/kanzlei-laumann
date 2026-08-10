@@ -198,9 +198,13 @@ export function BelegView(props: BelegViewProps) {
               <td className="py-3 text-muted-foreground">{i + 1}</td>
               <td className="py-3 pr-3">
                 <div className="font-medium">{x.name}</div>
-                <div className="text-muted-foreground">
-                  Art.-Nr. {x.artikel} · {x.beschreibung}
-                </div>
+                {(x.artikel || x.beschreibung) && (
+                  <div className="text-muted-foreground">
+                    {x.artikel ? `Art.-Nr. ${x.artikel}` : ""}
+                    {x.artikel && x.beschreibung ? " · " : ""}
+                    {x.beschreibung || ""}
+                  </div>
+                )}
               </td>
               <td className="py-3 text-right tabular-nums">{x.menge}</td>
               <td className="py-3">{x.einheit}</td>

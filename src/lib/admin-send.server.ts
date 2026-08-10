@@ -424,7 +424,7 @@ export async function sendInvoiceForManualConfirmation(
     const { error: itemsErr } = await admin.from("offer_request_items").insert({
       request_id: offerId,
       pos: 1,
-      artikel: "MANUELL",
+      artikel: "",
       name: data.position_name.trim(),
       beschreibung: data.position_beschreibung?.trim() || `gemäß Angebot ${angebot_nr}`,
       einheit: "Stk.",
@@ -466,7 +466,7 @@ export async function sendInvoiceForManualConfirmation(
     const { error: itemsErr } = await admin.from("offer_request_items").insert({
       request_id: offerId,
       pos: 1,
-      artikel: "MANUELL",
+      artikel: "",
       name: data.position_name.trim(),
       beschreibung: data.position_beschreibung?.trim() || `gemäß Angebot ${angebot_nr}`,
       einheit: "Stk.",
