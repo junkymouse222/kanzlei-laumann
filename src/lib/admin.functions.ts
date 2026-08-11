@@ -293,6 +293,16 @@ export const resendOfferNow = createServerFn({ method: "POST" })
       .order("pos", { ascending: true });
     if (itemsErr) throw new Error(itemsErr.message);
 
+    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const verwalter = await loadActiveVerwalter();
+    offer.verwalter_name = verwalter.name;
+    offer.verwalter_role = verwalter.role;
+    // Vor PDF speichern — Beleg-Print liest den Briefkopf aus der DB.
+    await admin
+      .from("offer_requests")
+      .update({ verwalter_name: verwalter.name, verwalter_role: verwalter.role })
+      .eq("id", data.id);
+
     await ensureOfferShortLinks(offer as never, { accept: true });
     const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
     const html = renderOfferHtml(offer as never, (items ?? []) as never);
@@ -310,7 +320,13 @@ export const resendOfferNow = createServerFn({ method: "POST" })
     if (!send.ok) {
       await admin
         .from("offer_requests")
-        .update({ status: "failed", offer_html: html, error_message: send.error })
+        .update({
+          status: "failed",
+          offer_html: html,
+          error_message: send.error,
+          verwalter_name: verwalter.name,
+          verwalter_role: verwalter.role,
+        })
         .eq("id", data.id);
       throw new Error(send.error);
     }
@@ -323,6 +339,8 @@ export const resendOfferNow = createServerFn({ method: "POST" })
         offer_html: html,
         resend_message_id: send.messageId,
         error_message: null,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
 
@@ -402,6 +420,10 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
 
     // Bank- und Rechnungsdaten VOR dem PDF-Render speichern, weil Puppeteer
     // die öffentliche /beleg-print-Route öffnet und diese aus dem Datensatz liest.
+    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const verwalter = await loadActiveVerwalter();
+    offer.verwalter_name = verwalter.name;
+    offer.verwalter_role = verwalter.role;
     const { error: saveInvoiceErr } = await admin
       .from("offer_requests")
       .update({
@@ -411,6 +433,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
     if (saveInvoiceErr) throw new Error(`Bankdaten konnten nicht gespeichert werden: ${saveInvoiceErr.message}`);
@@ -444,6 +468,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       } as never,
       (items ?? []) as never,
       invoice,
@@ -461,6 +487,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
       bank_bic: invoice.bank_bic,
       tracking_number: tracking.tracking_number,
       tracking_url: tracking.tracking_url,
+      verwalter_name: verwalter.name,
+      verwalter_role: verwalter.role,
     });
 
     const send = await sendOfferEmail({
@@ -484,6 +512,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
           bank_bic: invoice.bank_bic,
           tracking_number: tracking.tracking_number,
           tracking_url: tracking.tracking_url,
+          verwalter_name: verwalter.name,
+          verwalter_role: verwalter.role,
         })
         .eq("id", data.id);
       throw new Error(send.error);
@@ -504,6 +534,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_bic: invoice.bank_bic,
         tracking_number: tracking.tracking_number,
         tracking_url: tracking.tracking_url,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
 
