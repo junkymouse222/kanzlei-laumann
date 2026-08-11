@@ -245,7 +245,7 @@ export function BelegView(props: BelegViewProps) {
             </tr>
             {rabattProzent > 0 && (
               <tr>
-                <td className="py-1 text-muted-foreground">Rabatt ({rabattProzent}%)</td>
+                <td className="py-1 text-muted-foreground">Neukundenrabatt ({rabattProzent}%)</td>
                 <td className="py-1 text-right tabular-nums">−{fmtEUR(rabattBetrag)}</td>
               </tr>
             )}

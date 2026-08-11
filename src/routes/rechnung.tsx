@@ -278,7 +278,7 @@ function RechnungPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
-              <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">Rabatt (%)</span>
+              <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">Neukundenrabatt (%)</span>
               <input
                 type="number"
                 min={0}
