@@ -166,7 +166,7 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
         <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
           <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
-            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(SITE.email)} · ${opts.datum}
+            ${signer} · ${escapeHtml(SITE.brand)} · ${opts.datum}
           </p>
           ${body}
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
@@ -280,7 +280,7 @@ export function renderPaymentConfirmationHtml(offer: {
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
         <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
           <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
-            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(SITE.email)} · ${paidAt}
+            ${signer} · ${escapeHtml(SITE.brand)} · ${paidAt}
           </p>
           <p style="margin:0 0 16px 0;">Guten Tag ${anredeName},</p>
           <p style="margin:0 0 16px 0;">
@@ -321,7 +321,7 @@ export function renderOfferReminderHtml(
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
         <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
           <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
-            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(SITE.email)} · ${datum}
+            ${signer} · ${escapeHtml(SITE.brand)} · ${datum}
           </p>
           <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
           <p style="margin:0 0 16px 0;">kurz zur Erinnerung: unser Angebot <strong>${escapeHtml(offer.angebot_nr)}</strong> liegt noch bei Ihnen. Falls Sie weiterhin Interesse haben — die Gültigkeit endet am <strong>${gueltigBis}</strong>.</p>
