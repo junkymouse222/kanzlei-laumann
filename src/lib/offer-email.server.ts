@@ -2,21 +2,6 @@
 import logoAsset from "@/assets/kanzlei-logo.png.asset.json";
 import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
 
-// E-Mail-taugliches Logo-Lockup (Tabelle + Inline-Styles), rendert zuverlässig
-// auch in Gmail/Outlook – ohne von blockierten externen Bildern abzuhängen.
-const LOGO_HTML = `
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-  <td style="vertical-align:middle;">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td style="width:54px;height:54px;border:2px solid #1e2c3f;text-align:center;vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:25px;font-weight:600;color:#1e2c3f;line-height:54px;">EL</td>
-    </tr></table>
-  </td>
-  <td style="vertical-align:middle;padding-left:14px;">
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:19px;font-weight:600;letter-spacing:4px;color:#1e2c3f;line-height:1.1;">ERIK&nbsp;LAUMANN</div>
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:9px;letter-spacing:3px;color:#7c8894;margin-top:5px;">RECHTSANWALTSKANZLEI</div>
-  </td>
-</tr></table>`;
-
 const fmtEUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(n));
 
@@ -102,24 +87,33 @@ type BelegOptions = {
   trackingUrl?: string | null;
 };
 
+function customerGreeting(name: string): string {
+  const n = name.trim();
+  return n ? `Guten Tag ${escapeHtml(n)},` : "Guten Tag,";
+}
+
 function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions): string {
   const rows = items
     .slice()
     .sort((a, b) => a.pos - b.pos)
-    .map(
-      (it, idx) => `
-        <tr style="vertical-align:top;">
-          <td style="padding:12px 6px 12px 0;border-bottom:1px solid #e7e2d4;color:#8a8578;font-size:12px;width:24px;">${idx + 1}</td>
-          <td style="padding:12px 12px 12px 0;border-bottom:1px solid #e7e2d4;">
-            <div style="font-family:Georgia,serif;font-weight:600;color:#0f2740;font-size:13px;line-height:1.35;">${escapeHtml(it.name)}</div>
-            ${it.beschreibung || it.artikel ? `<div style="color:#7a7563;font-size:11.5px;margin-top:3px;line-height:1.45;">${it.artikel ? `Art.-Nr. ${escapeHtml(it.artikel)}` : ""}${it.artikel && it.beschreibung ? " · " : ""}${it.beschreibung ? escapeHtml(it.beschreibung) : ""}</div>` : ""}
+    .map((it, idx) => {
+      const meta = [
+        it.artikel ? `Art.-Nr. ${escapeHtml(it.artikel)}` : "",
+        it.beschreibung ? escapeHtml(it.beschreibung) : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return `
+        <tr style="vertical-align:top;border-bottom:1px solid #ddd;">
+          <td style="padding:10px 8px 10px 0;color:#777;font-size:13px;width:22px;">${idx + 1}</td>
+          <td style="padding:10px 12px 10px 0;font-size:13px;line-height:1.45;color:#222;">
+            ${escapeHtml(it.name)}
+            ${meta ? `<div style="color:#777;font-size:12px;margin-top:2px;">${meta}</div>` : ""}
+            <div style="color:#777;font-size:12px;margin-top:2px;">${it.menge} ${escapeHtml(it.einheit)} · je ${fmtEUR(Number(it.einzelpreis))}</div>
           </td>
-          <td style="padding:12px 6px;border-bottom:1px solid #e7e2d4;text-align:right;color:#3a352b;font-size:12px;white-space:nowrap;">${it.menge}</td>
-          <td style="padding:12px 6px;border-bottom:1px solid #e7e2d4;color:#6b6656;font-size:12px;">${escapeHtml(it.einheit)}</td>
-          <td style="padding:12px 6px;border-bottom:1px solid #e7e2d4;text-align:right;color:#3a352b;font-size:12px;white-space:nowrap;">${fmtEUR(Number(it.einzelpreis))}</td>
-          <td style="padding:12px 0 12px 6px;border-bottom:1px solid #e7e2d4;text-align:right;color:#0f2740;font-weight:600;font-size:12px;white-space:nowrap;">${fmtEUR(Number(it.position_total))}</td>
-        </tr>`,
-    )
+          <td style="padding:10px 0;text-align:right;white-space:nowrap;font-size:13px;color:#222;">${fmtEUR(Number(it.position_total))}</td>
+        </tr>`;
+    })
     .join("");
 
   const subtotal = Number(offer.subtotal);
@@ -131,153 +125,122 @@ function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions):
   const mwstRate = Number(offer.mwst_rate);
   const total = Number(offer.total);
 
+  const isOffer = opts.belegArt === "Angebot";
+  const title = isOffer
+    ? "Angebot zur Übernahme von Verwertungsgut"
+    : `Rechnung ${escapeHtml(opts.belegNr)}`;
+  const belegMeta = isOffer
+    ? `Angebot Nr. ${escapeHtml(opts.belegNr)}`
+    : `zu Angebot ${escapeHtml(offer.angebot_nr)} · fällig am ${opts.faelligOderGueltig}`;
+
+  const intro = isOffer
+    ? `<p style="margin:0 0 14px 0;">unter Bezugnahme auf Ihre Anfrage unterbreiten wir Ihnen folgendes Angebot. Die Positionen stammen aus dem Bestand des Insolvenzverfahrens und werden „wie besichtigt“ übergeben; Zwischenverkauf bleibt vorbehalten.</p>`
+    : `<p style="margin:0 0 14px 0;">vielen Dank für die Annahme. Anbei erhalten Sie die Rechnung über <strong>${fmtEUR(total)}</strong>. Bitte überweisen Sie den Betrag bis zum <strong>${opts.faelligOderGueltig}</strong> unter Angabe der Rechnungsnummer <strong>${escapeHtml(opts.belegNr)}</strong>.</p>
+       <p style="margin:0 0 14px 0;">Bei dem angegebenen Konto handelt es sich um ein Mandanten-/Anderkonto der Kanzlei. Ihre Zahlung ist dadurch treuhänderisch geschützt.</p>`;
+
+  const closing = isOffer
+    ? `<p style="margin:0 0 14px 0;">Dieses Angebot ist gültig bis zum ${opts.faelligOderGueltig}. Mit Annahme kommt der Kaufvertrag zustande; die Rechnung folgt unmittelbar danach.</p>`
+    : `<p style="margin:0 0 14px 0;">Sobald der Zahlungseingang gebucht ist, meldet sich unsere Spedition bei Ihnen, um einen Liefertermin zu vereinbaren.</p>`;
+
   const ctaBlock = opts.ctaUrl
     ? opts.ctaDone
-      ? `<div style="margin:32px auto 8px auto;text-align:center;">
-           <div style="display:inline-block;background:#f5f3ee;border:1px solid #c9a55c;padding:14px 28px;">
-             <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#0f2740;">${escapeHtml(opts.ctaDoneLabel)}</div>
-           </div>
-         </div>`
-      : `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:32px auto 8px auto;">
-           <tr><td style="background:#0f2740;padding:0;">
-             <a href="${opts.ctaUrl}" style="display:inline-block;padding:14px 32px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#f5f3ee;text-decoration:none;white-space:nowrap;">${escapeHtml(opts.ctaLabel)}</a>
-           </td></tr>
-         </table>`
+      ? `<p style="margin:20px 0;font-size:13px;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+      : `<p style="margin:20px 0;"><a href="${opts.ctaUrl}" style="display:inline-block;border:1px solid #14283c;color:#14283c;text-decoration:none;padding:11px 20px;font-family:Helvetica,Arial,sans-serif;font-size:12px;">${escapeHtml(opts.ctaLabel)}</a></p>`
     : "";
 
   const bankBlock =
-    opts.belegArt === "Rechnung" && opts.bank
-      ? `<tr><td style="padding:24px 40px 0 40px;">
-           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ece8de;padding-top:20px;">
-             <tr>
-               <td width="50%" style="vertical-align:top;padding-right:16px;font-size:12px;line-height:1.6;">
-                 <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Zahlungsbedingungen</div>
-                 <p style="margin:8px 0 0 0;color:#3a352b;">Bitte überweisen Sie den Rechnungsbetrag bis zum <strong>${opts.faelligOderGueltig}</strong> auf das unten genannte Konto unter Angabe der Rechnungsnummer <strong>${escapeHtml(opts.belegNr)}</strong>.</p>
-                 <p style="margin:10px 0 0 0;color:#6b6656;font-size:11.5px;line-height:1.6;"><strong>Hinweis:</strong> Bei dem angegebenen Konto handelt es sich um ein Mandanten-/Anderkonto der Kanzlei, über das ausschließlich der bestellte Insolvenzverwalter alleinige Handlungs- und Verfügungsvollmacht besitzt. Ihre Zahlung ist dadurch treuhänderisch durch die Kanzlei geschützt und gegen den Zugriff Dritter gesichert.</p>
-               </td>
-               <td width="50%" style="vertical-align:top;padding-left:16px;font-size:12px;line-height:1.7;">
-                 <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Bankverbindung</div>
-                 <div style="margin-top:8px;">Kontoinhaber: <strong>${escapeHtml(opts.bank.inhaber)}</strong></div>
-                 <div>Bank: ${escapeHtml(opts.bank.name)}</div>
-                 <div>IBAN: <span style="font-family:'Courier New',monospace;">${escapeHtml(opts.bank.iban)}</span></div>
-                 <div>BIC: <span style="font-family:'Courier New',monospace;">${escapeHtml(opts.bank.bic)}</span></div>
-               </td>
-             </tr>
-           </table>
-         </td></tr>`
+    !isOffer && opts.bank
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px 0;border:1px solid #e2ddd0;background:#faf8f3;">
+           <tr><td style="padding:16px 18px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.7;color:#222;">
+             <div style="font-size:11px;color:#777;margin-bottom:6px;">Bankverbindung</div>
+             Kontoinhaber: <strong>${escapeHtml(opts.bank.inhaber)}</strong><br/>
+             Bank: ${escapeHtml(opts.bank.name)}<br/>
+             IBAN: <span style="font-family:Consolas,'Courier New',monospace;">${escapeHtml(opts.bank.iban)}</span><br/>
+             BIC: <span style="font-family:Consolas,'Courier New',monospace;">${escapeHtml(opts.bank.bic)}</span><br/>
+             Verwendungszweck: <strong>${escapeHtml(opts.belegNr)}</strong>
+           </td></tr>
+         </table>`
       : "";
 
-  const belegLabel = opts.belegArt.toUpperCase();
-  const dateLabel = opts.belegArt === "Angebot" ? "Gültig bis" : "Fällig am";
+  const trackingBlock =
+    !isOffer && opts.trackingUrl
+      ? `<p style="margin:0 0 14px 0;">Ihre Sendung ist bereits angelegt${
+          opts.trackingNumber ? ` unter der Nummer <strong>${escapeHtml(opts.trackingNumber)}</strong>` : ""
+        }. Status und Lieferfortschritt:</p>
+         <p style="margin:0 0 14px 0;"><a href="${escapeHtml(opts.trackingUrl)}" style="color:#14283c;">${escapeHtml(opts.trackingUrl)}</a></p>`
+      : "";
 
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${belegLabel} ${escapeHtml(opts.belegNr)}</title></head>
-<body style="margin:0;padding:0;background:#efece4;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#efece4;padding:32px 12px;">
+  const deliveryBlock =
+    offer.delivery_name?.trim() || offer.delivery_address?.trim()
+      ? `<p style="margin:0 0 14px 0;font-size:13px;color:#555;"><strong>Lieferanschrift:</strong><br/>${formatAddressHtml(offer.delivery_name, offer.delivery_address)}</p>`
+      : "";
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.belegArt)} ${escapeHtml(opts.belegNr)}</title></head>
+<body style="margin:0;padding:0;background:#f3f1eb;font-family:Georgia,'Times New Roman',serif;color:#1f1a14;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f1eb;padding:28px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="680" cellpadding="0" cellspacing="0" style="max-width:680px;width:100%;background:#ffffff;border:1px solid #e7e2d4;">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;">
 
-        <!-- Kopf mit Logo + Belegnr., Gold-Unterlinie -->
-        <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:top;padding-right:24px;">
-              ${LOGO_HTML}
-              <div style="margin-top:12px;font-size:11px;line-height:1.55;color:#6b6455;">
-                ${escapeHtml(SITE.legalName)}<br/>
-                ${escapeHtml(SITE.addressLine)}<br/>
-                ${escapeHtml(SITE.email)}
-              </div>
+        <tr><td style="padding:40px 48px 0 48px;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.45;color:#14283c;">
+              <strong style="font-size:15px;letter-spacing:0.06em;">ERIK LAUMANN</strong><br/>
+              Rechtsanwalt und Insolvenzverwalter<br/>
+              ${escapeHtml(SITE.street)}<br/>${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
             </td>
-            <td width="200" style="vertical-align:top;text-align:right;white-space:nowrap;">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#8a8578;">${belegLabel}</div>
-              <div style="margin-top:4px;font-family:Georgia,serif;font-size:22px;font-weight:600;color:#0f2740;letter-spacing:0;line-height:1.2;">${escapeHtml(opts.belegNr)}</div>
-              <div style="margin-top:10px;font-size:11px;color:#6b6656;line-height:1.55;white-space:normal;">
-                Datum: ${opts.datum}<br/>
-                ${dateLabel}: ${opts.faelligOderGueltig}
-              </div>
+            <td style="text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#666;line-height:1.5;">
+              ${escapeHtml(SITE.email)}<br/>
+              USt-IdNr. ${escapeHtml(SITE.ustId)}<br/>
+              ${opts.datum}
             </td>
           </tr></table>
+          <div style="margin-top:36px;height:1px;background:#d8d2c3;"></div>
         </td></tr>
 
-        <!-- Empfängerblock -->
-        <tr><td style="padding:28px 40px 0 40px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td width="50%" style="vertical-align:top;padding-right:20px;">
-              <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Rechnungsempfänger</div>
-              <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">${formatAddressHtml(offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : null)}</div>
-            </td>
-            <td width="50%" style="vertical-align:top;padding-left:20px;">
-              <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Lieferanschrift</div>
-              ${
-                (offer.delivery_name?.trim() || offer.delivery_address?.trim())
-                  ? `<div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">${formatAddressHtml(offer.delivery_name, offer.delivery_address)}</div>`
-                  : `<div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>`
-              }
-            </td>
-          </tr></table>
-        </td></tr>
+        <tr><td style="padding:28px 48px 0 48px;font-size:14px;line-height:1.55;color:#333;">
+          <div style="margin-bottom:22px;">
+            ${formatAddressHtml(offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : null)}
+          </div>
 
-        <!-- Positionstabelle -->
-        <tr><td style="padding:28px 40px 0 40px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            <thead>
-              <tr style="border-top:1px solid #d9d4c4;border-bottom:1px solid #d9d4c4;">
-                <th style="padding:10px 6px 10px 0;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Pos.</th>
-                <th style="padding:10px 12px 10px 0;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Bezeichnung</th>
-                <th style="padding:10px 6px;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Menge</th>
-                <th style="padding:10px 6px;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Einh.</th>
-                <th style="padding:10px 6px;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Einzel netto</th>
-                <th style="padding:10px 0 10px 6px;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Summe netto</th>
-              </tr>
-            </thead>
+          <p style="margin:0 0 6px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">${belegMeta}</p>
+          <p style="margin:0 0 18px 0;font-size:17px;font-weight:600;color:#14283c;">${title}</p>
+
+          <p style="margin:0 0 14px 0;">${customerGreeting(offer.customer_name)}</p>
+          ${intro}
+          ${deliveryBlock}
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 8px 0;border-collapse:collapse;">
             <tbody>${rows}</tbody>
           </table>
-        </td></tr>
 
-        <!-- Summenblock rechtsbündig -->
-        <tr><td style="padding:20px 40px 0 40px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" align="right" style="min-width:320px;font-size:13px;">
-            <tr><td style="padding:4px 12px 4px 0;color:#6b6656;">Zwischensumme</td><td style="padding:4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(subtotal)}</td></tr>
-            ${rabattBetrag > 0 ? `<tr><td style="padding:4px 12px 4px 0;color:#8a7a3a;">Rabatt (${rabattRate}%)</td><td style="padding:4px 0;text-align:right;color:#8a7a3a;white-space:nowrap;">−${fmtEUR(rabattBetrag)}</td></tr>` : ""}
-            ${lieferkosten > 0 ? `<tr><td style="padding:4px 12px 4px 0;color:#6b6656;">Lieferkosten</td><td style="padding:4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(lieferkosten)}</td></tr>` : ""}
-            <tr style="border-top:1px solid #d9d4c4;"><td style="padding:6px 12px 4px 0;color:#6b6656;">Netto</td><td style="padding:6px 0 4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(netto)}</td></tr>
-            <tr><td style="padding:4px 12px 4px 0;color:#6b6656;">zzgl. MwSt. (${mwstRate}%)</td><td style="padding:4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(mwst)}</td></tr>
-            <tr style="border-top:1px solid #c9a55c;"><td style="padding:10px 12px 4px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#0f2740;">Gesamt</td><td style="padding:10px 0 4px 0;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:15px;color:#0f2740;white-space:nowrap;">${fmtEUR(total)}</td></tr>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;font-size:13px;">
+            <tr><td style="padding:8px 8px 4px 0;color:#666;">Zwischensumme</td><td style="padding:8px 0 4px 0;text-align:right;">${fmtEUR(subtotal)}</td></tr>
+            ${
+              rabattBetrag > 0
+                ? `<tr><td style="padding:4px 8px;color:#666;">Rabatt (${rabattRate}%)</td><td style="padding:4px 0;text-align:right;">−${fmtEUR(rabattBetrag)}</td></tr>`
+                : ""
+            }
+            ${
+              lieferkosten > 0
+                ? `<tr><td style="padding:4px 8px;color:#666;">Lieferkosten</td><td style="padding:4px 0;text-align:right;">${fmtEUR(lieferkosten)}</td></tr>`
+                : ""
+            }
+            <tr><td style="padding:4px 8px;color:#666;">Netto</td><td style="padding:4px 0;text-align:right;">${fmtEUR(netto)}</td></tr>
+            <tr><td style="padding:4px 8px;color:#666;">zzgl. MwSt. (${mwstRate}%)</td><td style="padding:4px 0;text-align:right;">${fmtEUR(mwst)}</td></tr>
+            <tr><td style="padding:8px 8px 10px 0;font-weight:600;color:#14283c;">Gesamtbetrag</td><td style="padding:8px 0 10px 0;text-align:right;font-weight:600;font-size:15px;color:#14283c;">${fmtEUR(total)}</td></tr>
           </table>
-          <div style="clear:both;"></div>
+
+          ${bankBlock}
+          ${closing}
+          ${trackingBlock}
+          ${ctaBlock}
+
+          <p style="margin:28px 0 0 0;">Mit freundlichen Grüßen</p>
+          <p style="margin:18px 0 0 0;">Erik Laumann<br/><span style="color:#777;font-size:13px;">Rechtsanwalt und Insolvenzverwalter</span></p>
         </td></tr>
 
-        <!-- CTA -->
-        <tr><td style="padding:8px 40px 8px 40px;">${ctaBlock}</td></tr>
-
-        ${
-          opts.belegArt === "Rechnung" && opts.trackingUrl
-            ? `<tr><td style="padding:8px 40px 0 40px;">
-                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f4ec;border:1px solid #e7e2d4;">
-                   <tr><td style="padding:18px 20px;">
-                     <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Sendungsverfolgung · Spedition Hausmann</div>
-                     <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;">
-                       Ihre Sendung ist angelegt${opts.trackingNumber ? ` unter der Nummer <strong>${escapeHtml(opts.trackingNumber)}</strong>` : ""}.
-                       Den aktuellen Status und den Lieferfortschritt finden Sie hier:
-                     </div>
-                     <div style="margin-top:14px;">
-                       <a href="${escapeHtml(opts.trackingUrl)}" style="display:inline-block;padding:12px 22px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#f5f3ee;background:#0f2740;text-decoration:none;">Sendung verfolgen</a>
-                     </div>
-                     <div style="margin-top:10px;font-size:11px;color:#6b6656;word-break:break-all;">
-                       <a href="${escapeHtml(opts.trackingUrl)}" style="color:#0f2740;">${escapeHtml(opts.trackingUrl)}</a>
-                     </div>
-                   </td></tr>
-                 </table>
-               </td></tr>`
-            : ""
-        }
-
-        ${bankBlock}
-
-        <!-- Footer -->
-        <tr><td style="padding:24px 40px 32px 40px;border-top:1px solid #ece8de;">
-          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;line-height:1.7;">
-            ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
-          </p>
+        <tr><td style="padding:28px 48px 36px 48px;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#999;line-height:1.6;">
+          ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
         </td></tr>
 
       </table>
@@ -377,49 +340,48 @@ export function renderPaymentConfirmationHtml(offer: {
             Unsere Spedition wird sich in Kürze bei Ihnen melden, um einen Liefertermin zu vereinbaren.
           </p>`;
 
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Zahlungseingang bestätigt</title></head>
-<body style="margin:0;padding:0;background:#efece4;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#efece4;padding:32px 12px;">
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zahlungseingang bestätigt</title></head>
+<body style="margin:0;padding:0;background:#f3f1eb;font-family:Georgia,'Times New Roman',serif;color:#1f1a14;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f1eb;padding:28px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e7e2d4;">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;">
 
-        <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
-          ${LOGO_HTML}
-          <div style="margin-top:14px;font-size:11px;line-height:1.6;color:#6b6455;">
-            ${escapeHtml(SITE.legalName)} · ${escapeHtml(SITE.addressLine)}<br/>
-            ${escapeHtml(SITE.email)}
-          </div>
+        <tr><td style="padding:40px 48px 0 48px;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.45;color:#14283c;">
+              <strong style="font-size:15px;letter-spacing:0.06em;">ERIK LAUMANN</strong><br/>
+              Rechtsanwalt und Insolvenzverwalter<br/>
+              ${escapeHtml(SITE.street)}<br/>${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+            </td>
+            <td style="text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#666;line-height:1.5;">
+              ${escapeHtml(SITE.email)}<br/>
+              USt-IdNr. ${escapeHtml(SITE.ustId)}<br/>
+              ${paidAt}
+            </td>
+          </tr></table>
+          <div style="margin-top:36px;height:1px;background:#d8d2c3;"></div>
         </td></tr>
 
-        <tr><td style="padding:36px 40px 8px 40px;">
-          <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8a8578;">Zahlungseingang</div>
-          <h1 style="margin:10px 0 0 0;font-family:Georgia,serif;font-size:26px;font-weight:600;color:#0f2740;line-height:1.25;">
-            Zahlungseingang bestätigt
-          </h1>
-        </td></tr>
-
-        <tr><td style="padding:20px 40px 0 40px;font-size:14px;line-height:1.7;color:#3a352b;">
-          <p style="margin:0;">Sehr geehrte/r ${anredeName},</p>
+        <tr><td style="padding:28px 48px 0 48px;font-size:14px;line-height:1.55;color:#333;">
+          <p style="margin:0 0 6px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">${belegLabel} ${belegNr}</p>
+          <p style="margin:0 0 18px 0;font-size:17px;font-weight:600;color:#14283c;">Zahlungseingang bestätigt</p>
+          <p style="margin:0;">Guten Tag ${anredeName},</p>
           ${firma}
-          <p style="margin:18px 0 0 0;">
+          <p style="margin:14px 0 0 0;">
             vielen Dank. Wir bestätigen den Zahlungseingang zu Ihrer
             <strong>${belegLabel} ${belegNr}</strong>${betrag ? ` (${betrag})` : ""}
             vom ${paidAt}.
           </p>
           ${trackingBlock}
-          <p style="margin:18px 0 0 0;">
+          <p style="margin:14px 0 0 0;">
             Bei Rückfragen erreichen Sie uns unter ${escapeHtml(SITE.email)}.
           </p>
-          <p style="margin:28px 0 0 0;">
-            Mit freundlichen Grüßen<br/>
-            <strong>${escapeHtml(SITE.brand)}</strong>
-          </p>
+          <p style="margin:28px 0 0 0;">Mit freundlichen Grüßen</p>
+          <p style="margin:18px 0 0 0;">Erik Laumann<br/><span style="color:#777;font-size:13px;">Rechtsanwalt und Insolvenzverwalter</span></p>
         </td></tr>
 
-        <tr><td style="padding:32px 40px 32px 40px;border-top:1px solid #ece8de;margin-top:24px;">
-          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;line-height:1.7;">
-            ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
-          </p>
+        <tr><td style="padding:28px 48px 36px 48px;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#999;line-height:1.6;">
+          ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
         </td></tr>
 
       </table>
