@@ -301,6 +301,53 @@ export function renderPaymentConfirmationHtml(offer: {
 </body></html>`;
 }
 
+/** Kurze Erinnerungsmail für noch nicht angenommene Angebote. */
+export function renderOfferReminderHtml(
+  offer: OfferRow,
+  opts?: { gueltigBis?: string },
+): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const gueltigBis =
+    opts?.gueltigBis ||
+    new Date(new Date(offer.created_at).getTime() + 7 * 24 * 3600 * 1000).toLocaleDateString("de-DE");
+  const ctaUrl = offer.accept_short_url || offerAcceptUrl(offer.accept_token);
+  const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
+  const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Erinnerung Angebot ${escapeHtml(offer.angebot_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(SITE.email)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">kurz zur Erinnerung: unser Angebot <strong>${escapeHtml(offer.angebot_nr)}</strong> liegt noch bei Ihnen. Falls Sie weiterhin Interesse haben — die Gültigkeit endet am <strong>${gueltigBis}</strong>.</p>
+          <p style="margin:0 0 16px 0;">Das Angebot ist noch einmal als PDF angehängt. Bei Fragen antworten Sie einfach kurz auf diese Mail.</p>
+          ${
+            offer.accepted_at
+              ? `<p style="margin:0 0 16px 0;color:#555;">Angebot bereits angenommen</p>`
+              : ctaUrl
+                ? `<p style="margin:0 0 16px 0;">Wenn es für Sie passt, können Sie hier verbindlich annehmen:<br/><a href="${ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Angebot annehmen</a></p>`
+                : ""
+          }
+          <p style="margin:0 0 16px 0;">Falls kein Interesse mehr besteht, brauchen Sie nichts weiter zu tun.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            USt-IdNr. ${escapeHtml(SITE.ustId)}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 function escapeHtml(s: string): string {
   return String(s)
     .replace(/&/g, "&amp;")

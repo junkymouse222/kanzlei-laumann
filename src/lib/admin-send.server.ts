@@ -5,6 +5,7 @@ import {
   offerAcceptUrl,
   renderInvoiceHtml,
   renderOfferHtml,
+  renderOfferReminderHtml,
   renderPaymentConfirmationHtml,
   sendOfferEmail,
   invoicePayUrl,
@@ -602,4 +603,72 @@ export async function sendPaymentConfirmationFromAdmin(
   }
 
   return { ok: true, messageId: send.messageId, rechnung_nr: offer.rechnung_nr as string | undefined };
+}
+
+/** Erinnerungsmail für gesendete, noch nicht angenommene Angebote. */
+export async function sendOfferReminderFromAdmin(
+  request: Request,
+  input: unknown,
+): Promise<AdminSendResult> {
+  await assertAdminRequest(request);
+  const { id } = IdSchema.parse(input);
+  const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
+
+  const { data: offer, error: offerErr } = await admin
+    .from("offer_requests")
+    .select("*")
+    .eq("id", id)
+    .eq("site_key", SITE.siteKey)
+    .maybeSingle();
+  if (offerErr) throw new AdminSendError(offerErr.message, 500);
+  if (!offer) throw new AdminSendError("Anfrage nicht gefunden.", 404);
+  if (!offer.customer_email) throw new AdminSendError("Keine Kunden-E-Mail hinterlegt.", 400);
+  if (offer.accepted_at) throw new AdminSendError("Angebot wurde bereits angenommen.", 400);
+  if (offer.status !== "sent" && !offer.sent_at) {
+    throw new AdminSendError("Angebot wurde noch nicht versendet — bitte zuerst senden.", 400);
+  }
+
+  const { data: items, error: itemsErr } = await admin
+    .from("offer_request_items")
+    .select("*")
+    .eq("request_id", id)
+    .order("pos", { ascending: true });
+  if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
+
+  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const verwalter = await loadActiveVerwalter();
+  const offerForRender = {
+    ...offer,
+    verwalter_name: (offer.verwalter_name as string | null)?.trim() || verwalter.name,
+    verwalter_role: (offer.verwalter_role as string | null)?.trim() || verwalter.role,
+  };
+
+  await ensureOfferShortLinks(offerForRender as never, { accept: true });
+  const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
+  const html = renderOfferReminderHtml(offerForRender as never);
+  const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
+
+  const send = await sendOfferEmail({
+    to: offer.customer_email as string,
+    subject: `Erinnerung: Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
+    html,
+    attachments: [{ filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) }],
+  });
+  if (!send.ok) throw new AdminSendError(send.error, 502);
+
+  const { error: trackErr } = await admin
+    .from("offer_requests")
+    .update({
+      reminder_sent_at: new Date().toISOString(),
+      reminder_message_id: send.messageId,
+      verwalter_name: offerForRender.verwalter_name,
+      verwalter_role: offerForRender.verwalter_role,
+    })
+    .eq("id", id);
+  if (trackErr) {
+    console.warn("[admin-offer-reminder] tracking update failed:", trackErr.message);
+  }
+
+  return { ok: true, messageId: send.messageId };
 }

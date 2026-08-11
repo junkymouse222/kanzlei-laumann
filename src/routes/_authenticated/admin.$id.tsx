@@ -100,6 +100,9 @@ function AdminDetailPage() {
   const [invoiceResult, setInvoiceResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [paymentConfirming, setPaymentConfirming] = useState(false);
   const [paymentConfirmResult, setPaymentConfirmResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [reminding, setReminding] = useState(false);
+  const [reminderConfirmOpen, setReminderConfirmOpen] = useState(false);
+  const [reminderResult, setReminderResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [custCompany, setCustCompany] = useState("");
   const [custName, setCustName] = useState("");
   const [custEmail, setCustEmail] = useState("");
@@ -276,6 +279,29 @@ function AdminDetailPage() {
     }
   }
 
+  async function handleReminderConfirmed() {
+    setReminderConfirmOpen(false);
+    setReminding(true);
+    setReminderResult(null);
+    try {
+      const res = await postAdminJson<{ ok: true; messageId?: string }>("/api/public/admin/send-offer-reminder", {
+        id,
+      });
+      await load();
+      setReminderResult({
+        ok: true,
+        msg: `Erinnerung versendet${res.messageId ? ` (ID: ${res.messageId})` : ""}.`,
+      });
+    } catch (e) {
+      setReminderResult({
+        ok: false,
+        msg: e instanceof Error ? e.message : "Fehler beim Erinnerungsversand.",
+      });
+    } finally {
+      setReminding(false);
+    }
+  }
+
   async function handlePreviewOffer() {
     setPreviewing("offer");
     try {
@@ -355,6 +381,15 @@ function AdminDetailPage() {
           >
             {resending ? "Wird gesendet …" : "Angebot senden"}
           </button>
+          {!offer.accepted_at && (offer.status === "sent" || !!offer.sent_at) && (
+            <button
+              onClick={() => setReminderConfirmOpen(true)}
+              disabled={reminding}
+              className="border border-border px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:border-primary disabled:opacity-60"
+            >
+              {reminding ? "Wird gesendet …" : offer.reminder_sent_at ? "Erinnerung erneut senden" : "Erinnerung senden"}
+            </button>
+          )}
           <button
             onClick={() => setInvoiceConfirmOpen(true)}
             disabled={invoicing}
@@ -368,6 +403,35 @@ function AdminDetailPage() {
       {sendResult && (
         <div className={`mt-6 border p-4 text-sm ${sendResult.ok ? "border-green-700 bg-green-50 text-green-900" : "border-red-700 bg-red-50 text-red-800"}`}>
           {sendResult.msg}
+        </div>
+      )}
+      {reminderResult && (
+        <div className={`mt-4 border p-4 text-sm ${reminderResult.ok ? "border-green-700 bg-green-50 text-green-900" : "border-red-700 bg-red-50 text-red-800"}`}>
+          {reminderResult.msg}
+        </div>
+      )}
+
+      {reminderConfirmOpen && (
+        <div className="mt-6 border border-border bg-background p-5 text-sm">
+          <p className="mb-2 font-medium text-primary">Erinnerung an {offer.customer_email} senden?</p>
+          <p className="mb-4 text-muted-foreground">
+            Kurze Mail im Stil „Haben Sie noch Interesse? Das Angebot läuft bald ab“ — inkl. Annahme-Link und PDF-Anhang.
+            {offer.reminder_sent_at ? ` Zuletzt erinnert: ${fmtDate(offer.reminder_sent_at)}.` : ""}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleReminderConfirmed}
+              className="bg-primary px-4 py-2 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/90"
+            >
+              Erinnerung jetzt senden
+            </button>
+            <button
+              onClick={() => setReminderConfirmOpen(false)}
+              className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
+            >
+              Abbrechen
+            </button>
+          </div>
         </div>
       )}
 
@@ -671,6 +735,12 @@ function AdminDetailPage() {
             <div className="flex justify-between"><dt className="text-muted-foreground">Erstellt</dt><dd>{fmtDate(offer.created_at)}</dd></div>
             <div className="flex justify-between"><dt className="text-muted-foreground">Geplant</dt><dd>{fmtDate(offer.scheduled_send_at)}</dd></div>
             <div className="flex justify-between"><dt className="text-muted-foreground">Gesendet</dt><dd>{fmtDate(offer.sent_at)}</dd></div>
+            {offer.reminder_sent_at && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Erinnerung</dt>
+                <dd>{fmtDate(offer.reminder_sent_at)}</dd>
+              </div>
+            )}
             {offer.accepted_at && <div className="flex justify-between border-t border-border pt-2"><dt className="text-muted-foreground">Angenommen</dt><dd className="text-green-800">{fmtDate(offer.accepted_at)}</dd></div>}
             {offer.rechnung_nr && <div className="flex justify-between border-t border-border pt-2"><dt className="text-muted-foreground">Rechnung</dt><dd className="font-mono text-xs">{offer.rechnung_nr}</dd></div>}
             <div className="flex justify-between items-center gap-2">

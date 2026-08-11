@@ -132,6 +132,10 @@ CREATE TABLE IF NOT EXISTS public.offer_requests (
   verwalter_name      text,
   verwalter_role      text,
 
+  -- Erinnerungsmail an Kunden (noch nicht angenommen)
+  reminder_sent_at    timestamptz,
+  reminder_message_id text,
+
   subtotal            numeric NOT NULL DEFAULT 0,
   rabatt_rate         numeric NOT NULL DEFAULT 5,
   rabatt              numeric NOT NULL DEFAULT 0,

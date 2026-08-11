@@ -75,6 +75,8 @@ export type OfferDetail = {
     paid_ip: string | null;
     payment_confirm_sent_at: string | null;
     payment_confirm_message_id: string | null;
+    reminder_sent_at: string | null;
+    reminder_message_id: string | null;
     bank_inhaber: string | null;
     bank_name: string | null;
     bank_iban: string | null;
