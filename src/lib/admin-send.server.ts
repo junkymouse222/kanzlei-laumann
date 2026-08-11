@@ -160,7 +160,12 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     // t.ly-Kurzlinks erzeugen/laden und am Datensatz speichern, damit sowohl die
     // E-Mail als auch das (über /beleg-print gerenderte) PDF den Kurzlink zeigen.
     await ensureOfferShortLinks(offerForRender as never, { accept: true });
-    const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
+    if (!(offerForRender as { accept_short_url?: string | null }).accept_short_url) {
+      throw new AdminSendError("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.", 502);
+    }
+    const acceptUrl =
+      ((offerForRender as { accept_short_url?: string | null }).accept_short_url as string | null) ||
+      offerAcceptUrl(offer.accept_token as string | null);
     html = renderOfferHtml(offerForRender as never, (items ?? []) as never);
     const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
     const send = await sendOfferEmail({
@@ -265,6 +270,9 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     // PDF (via /beleg-print) und E-Mail gerendert werden.
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
+    if (!(offer as { pay_short_url?: string | null }).pay_short_url) {
+      throw new AdminSendError("t.ly-Kurzlink für den Zahlungs-Button konnte nicht erzeugt werden.", 502);
+    }
 
     // Partnerspedition: Sendung anlegen (oder vorhandene Tracking-Daten wiederverwenden)
     // und Link in die Rechnungs-E-Mail einbetten.
@@ -645,7 +653,12 @@ export async function sendOfferReminderFromAdmin(
   };
 
   await ensureOfferShortLinks(offerForRender as never, { accept: true });
-  const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
+  if (!(offerForRender as { accept_short_url?: string | null }).accept_short_url) {
+    throw new AdminSendError("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.", 502);
+  }
+  const acceptUrl =
+    ((offerForRender as { accept_short_url?: string | null }).accept_short_url as string | null) ||
+    offerAcceptUrl(offer.accept_token as string | null);
   const html = renderOfferReminderHtml(offerForRender as never);
   const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
 

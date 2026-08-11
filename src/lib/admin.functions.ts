@@ -306,7 +306,12 @@ export const resendOfferNow = createServerFn({ method: "POST" })
       .eq("id", data.id);
 
     await ensureOfferShortLinks(offer as never, { accept: true });
-    const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
+    if (!(offer as { accept_short_url?: string | null }).accept_short_url) {
+      throw new Error("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.");
+    }
+    const acceptUrl =
+      ((offer as { accept_short_url?: string | null }).accept_short_url as string | null) ||
+      offerAcceptUrl(offer.accept_token as string | null);
     const html = renderOfferHtml(offer as never, (items ?? []) as never);
     const pdfBytes = await renderOfferPdf(offer as never, (items ?? []) as never, acceptUrl);
 
@@ -444,6 +449,9 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
     // t.ly-Kurzlink für den Zahlungs-Link erzeugen/laden und persistieren.
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
+    if (!(offer as { pay_short_url?: string | null }).pay_short_url) {
+      throw new Error("t.ly-Kurzlink für den Zahlungs-Button konnte nicht erzeugt werden.");
+    }
 
     const { ensureOfferTracking } = await import("@/lib/hausmann-tracking.server");
     const tracking = await ensureOfferTracking({

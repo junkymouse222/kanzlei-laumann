@@ -69,6 +69,9 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
               .eq("id", id);
 
             await ensureOfferShortLinks(row as never, { accept: true });
+            if (!(row.accept_short_url as string | null | undefined)) {
+              throw new Error("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.");
+            }
             const html = renderOfferHtml(row as never, (items ?? []) as never);
             const pdfBytes = await renderOfferPdf(row as never, (items ?? []) as never);
             const send = await sendOfferEmail({

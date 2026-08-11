@@ -61,6 +61,22 @@ export function invoicePayUrl(token: string | null | undefined): string | null {
   return `${siteBaseUrl()}/api/public/hooks/mark-paid?token=${encodeURIComponent(token)}`;
 }
 
+/**
+ * CTA-URL für E-Mail-HTML: nur Kurzlinker (t.ly), nie die Kanzlei-Domain.
+ * Verhindert Spam-Filter-Treffer durch sichtbare/eigenen Domain-Links im Body.
+ */
+export function emailSafeCtaUrl(shortUrl: string | null | undefined): string | null {
+  const raw = String(shortUrl ?? "").trim();
+  if (!raw) return null;
+  try {
+    const host = new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "t.ly" || host.endsWith(".t.ly")) return raw;
+  } catch {
+    /* ungültige URL */
+  }
+  return null;
+}
+
 export function logoUrl(): string {
   return `${siteBaseUrl()}${logoAsset.url}`;
 }
@@ -131,7 +147,9 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
           ? opts.ctaDone
             ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
             : `<p style="margin:0 0 16px 0;"><a href="${opts.ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Angebot annehmen</a></p>`
-          : ""
+          : opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;">Wenn es passt, antworten Sie einfach kurz auf diese Mail — wir nehmen das Angebot dann für Sie an.</p>`
       }
       <p style="margin:0 0 16px 0;">Danach schicken wir Ihnen umgehend die Rechnung mit den Zahlungsdaten.</p>
     `
@@ -152,7 +170,9 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
           ? opts.ctaDone
             ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
             : `<p style="margin:0 0 16px 0;">Nach der Überweisung können Sie uns hier kurz Bescheid geben:<br/><a href="${opts.ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Zahlung bestätigen</a></p>`
-          : ""
+          : opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;">Nach der Überweisung antworten Sie einfach kurz auf diese Mail — dann wissen wir Bescheid.</p>`
       }
     `;
 
@@ -206,8 +226,8 @@ export function renderInvoiceHtml(
     belegNr: offer.rechnung_nr,
     datum,
     faelligOderGueltig: faellig,
-    // t.ly-Kurzlink bevorzugen, damit in der Mail nur die t.ly-Domain erscheint.
-    ctaUrl: offer.pay_short_url || invoicePayUrl(offer.pay_token),
+    // Nur t.ly — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
+    ctaUrl: emailSafeCtaUrl(offer.pay_short_url),
     ctaDone: !!offer.paid_at,
     ctaLabel: "Zahlung bestätigen",
     ctaDoneLabel: "Zahlung bereits bestätigt",
@@ -233,8 +253,8 @@ export function renderOfferHtml(offer: OfferRow, items: ItemRow[]): string {
     belegNr: offer.angebot_nr,
     datum,
     faelligOderGueltig: gueltigBis,
-    // t.ly-Kurzlink bevorzugen, damit in der Mail nur die t.ly-Domain erscheint.
-    ctaUrl: offer.accept_short_url || offerAcceptUrl(offer.accept_token),
+    // Nur t.ly — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
+    ctaUrl: emailSafeCtaUrl(offer.accept_short_url),
     ctaDone: !!offer.accepted_at,
     ctaLabel: "Angebot annehmen",
     ctaDoneLabel: "Angebot bereits angenommen",
@@ -310,7 +330,7 @@ export function renderOfferReminderHtml(
   const gueltigBis =
     opts?.gueltigBis ||
     new Date(new Date(offer.created_at).getTime() + 7 * 24 * 3600 * 1000).toLocaleDateString("de-DE");
-  const ctaUrl = offer.accept_short_url || offerAcceptUrl(offer.accept_token);
+  const ctaUrl = emailSafeCtaUrl(offer.accept_short_url);
   const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
   const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
 
@@ -331,7 +351,7 @@ export function renderOfferReminderHtml(
               ? `<p style="margin:0 0 16px 0;color:#555;">Angebot bereits angenommen</p>`
               : ctaUrl
                 ? `<p style="margin:0 0 16px 0;">Wenn es für Sie passt, können Sie hier verbindlich annehmen:<br/><a href="${ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Angebot annehmen</a></p>`
-                : ""
+                : `<p style="margin:0 0 16px 0;">Wenn es passt, antworten Sie einfach kurz auf diese Mail — wir nehmen das Angebot dann für Sie an.</p>`
           }
           <p style="margin:0 0 16px 0;">Falls kein Interesse mehr besteht, brauchen Sie nichts weiter zu tun.</p>
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
