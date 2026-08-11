@@ -42,8 +42,8 @@ export const SITE = {
   /** Berufsrechtliche Angaben */
   kammer: "Rechtsanwaltskammer Düsseldorf",
   kammerAnschrift: "Freiligrathplatz 27, 40474 Düsseldorf",
-  /** USt-IdNr. – TESTWERT (checksummen-gültig, nicht real vergeben); vor Live-Gang durch echte Angabe ersetzen */
-  ustId: "DE325177891",
+  /** USt-IdNr. */
+  ustId: "DE124428302",
 
   /** Berufshaftpflichtversicherung – TESTWERTE; vor Live-Gang durch echte Angaben ersetzen */
   insurer: "HDI Versicherung AG",
