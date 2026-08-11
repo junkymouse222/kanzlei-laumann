@@ -164,7 +164,7 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihr Angebot ${offer.angebot_nr as string} — ${verwalter.name} · Kanzlei Laumann`,
+      subject: `Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
       html,
       attachments: [{ filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
@@ -313,7 +313,7 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     }, (items ?? []) as never);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihre Rechnung ${rechnung_nr} — ${verwalter.name} · Kanzlei Laumann`,
+      subject: `Ihre Rechnung ${rechnung_nr} — Kanzlei Laumann`,
       html,
       attachments: [{ filename: `Rechnung-${rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
