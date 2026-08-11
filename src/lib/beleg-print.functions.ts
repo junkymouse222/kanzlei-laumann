@@ -40,6 +40,8 @@ export type BelegDbOffer = {
   bank_name: string | null;
   bank_iban: string | null;
   bank_bic: string | null;
+  verwalter_name: string | null;
+  verwalter_role: string | null;
 };
 
 export type BelegLoadResult = {

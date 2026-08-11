@@ -140,6 +140,8 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
   const mwstRate = mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
   const liefer = lieferkosten ?? Number(offer.lieferkosten ?? 0);
   const totals = computeOfferTotals({ subtotal, rabattRate, lieferkosten: liefer, mwstRate });
+  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const verwalter = await loadActiveVerwalter();
   const offerForRender = {
     ...offer,
     rabatt_rate: rabattRate,
@@ -148,6 +150,8 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     mwst: totals.mwst,
     lieferkosten: liefer,
     total: totals.total,
+    verwalter_name: verwalter.name,
+    verwalter_role: verwalter.role,
   };
 
   let html = "";
@@ -160,7 +164,7 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
+      subject: `Ihr Angebot ${offer.angebot_nr as string} — ${verwalter.name} · Kanzlei Laumann`,
       html,
       attachments: [{ filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
@@ -181,6 +185,8 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
         mwst: totals.mwst,
         lieferkosten: liefer,
         total: totals.total,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", id);
 
@@ -231,6 +237,9 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     paid: !!offer.paid_at,
   };
 
+  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const verwalter = await loadActiveVerwalter();
+
   try {
     // Bank- und Rechnungsdaten VOR dem PDF-Render in die DB schreiben,
     // damit die Puppeteer-/Beleg-Print-Route sie aus offer_requests lesen kann.
@@ -243,9 +252,13 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
     if (saveInvoiceErr) throw new AdminSendError(`Bankdaten konnten nicht gespeichert werden: ${saveInvoiceErr.message}`, 500);
+    (offer as { verwalter_name?: string; verwalter_role?: string }).verwalter_name = verwalter.name;
+    (offer as { verwalter_name?: string; verwalter_role?: string }).verwalter_role = verwalter.role;
 
     // t.ly-Kurzlink für den Zahlungs-Link erzeugen/laden und persistieren, bevor
     // PDF (via /beleg-print) und E-Mail gerendert werden.
@@ -300,7 +313,7 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     }, (items ?? []) as never);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihre Rechnung ${rechnung_nr} — Kanzlei Laumann`,
+      subject: `Ihre Rechnung ${rechnung_nr} — ${verwalter.name} · Kanzlei Laumann`,
       html,
       attachments: [{ filename: `Rechnung-${rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
@@ -322,6 +335,8 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         bank_bic: invoice.bank_bic,
         tracking_number: tracking.tracking_number,
         tracking_url: tracking.tracking_url,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
 
@@ -563,11 +578,14 @@ export async function sendPaymentConfirmationFromAdmin(
     paid_at: paidAt,
     tracking_number: offer.tracking_number as string | null,
     tracking_url: offer.tracking_url as string | null,
+    verwalter_name: offer.verwalter_name as string | null,
+    verwalter_role: offer.verwalter_role as string | null,
   });
+  const signerName = ((offer.verwalter_name as string | null) || "Kanzlei Laumann").trim();
 
   const send = await sendOfferEmail({
     to: offer.customer_email as string,
-    subject: `Zahlungseingang bestätigt — ${belegRef} — Kanzlei Laumann`,
+    subject: `Zahlungseingang bestätigt — ${belegRef} — ${signerName}`,
     html,
   });
 

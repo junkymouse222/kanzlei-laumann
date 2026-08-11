@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { computeOfferTotals } from "@/lib/offer-totals";
+import { listBankAccounts } from "@/lib/settings.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/$id")({
   head: () => ({
@@ -92,6 +93,10 @@ function AdminDetailPage() {
   const [bankName, setBankName] = useState("");
   const [bankIban, setBankIban] = useState("");
   const [bankBic, setBankBic] = useState("");
+  const [bankAccounts, setBankAccounts] = useState<
+    Array<{ id: string; label: string; inhaber: string; bank_name: string; iban: string; bic: string; is_default: boolean }>
+  >([]);
+  const [selectedBankId, setSelectedBankId] = useState("");
   const [invoiceResult, setInvoiceResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [paymentConfirming, setPaymentConfirming] = useState(false);
   const [paymentConfirmResult, setPaymentConfirmResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -165,6 +170,34 @@ function AdminDetailPage() {
   useEffect(() => {
     load();
   }, [id]);
+
+  useEffect(() => {
+    listBankAccounts()
+      .then((res) => {
+        setBankAccounts(res.banks);
+        const def = res.banks.find((b) => b.is_default) || res.banks[0];
+        if (def && !bankInhaber && !bankIban) {
+          setSelectedBankId(def.id);
+          setBankInhaber(def.inhaber);
+          setBankName(def.bank_name);
+          setBankIban(def.iban);
+          setBankBic(def.bic);
+        }
+      })
+      .catch(() => {
+        /* optional */
+      });
+  }, [id]);
+
+  function applyBankAccount(bankId: string) {
+    setSelectedBankId(bankId);
+    const b = bankAccounts.find((x) => x.id === bankId);
+    if (!b) return;
+    setBankInhaber(b.inhaber);
+    setBankName(b.bank_name);
+    setBankIban(b.iban);
+    setBankBic(b.bic);
+  }
 
   async function handleResendConfirmed() {
     setConfirmOpen(false);
@@ -440,6 +473,31 @@ function AdminDetailPage() {
                 className="border border-border bg-background px-3 py-2 text-sm"
               />
             </label>
+            <label className="flex flex-col gap-1 md:col-span-2">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">
+                Gespeichertes Bankkonto
+              </span>
+              <select
+                value={selectedBankId}
+                onChange={(e) => applyBankAccount(e.target.value)}
+                className="border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— manuell eintragen —</option>
+                {bankAccounts.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                    {b.is_default ? " (Standard)" : ""} — {b.iban}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground">
+                Konten unter{" "}
+                <Link to="/admin/einstellungen" className="underline">
+                  Einstellungen
+                </Link>{" "}
+                verwalten.
+              </span>
+            </label>
             <label className="flex flex-col gap-1">
               <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Kontoinhaber</span>
               <input value={bankInhaber} onChange={(e) => setBankInhaber(e.target.value)} className="border border-border bg-background px-3 py-2 text-sm" />
@@ -460,7 +518,6 @@ function AdminDetailPage() {
 
           <p className="mt-4 border-l-4 border-gold bg-parchment/60 px-3 py-2 text-xs text-primary">
             <strong>Achtung:</strong> Bankverbindung je Mandat prüfen — Anderkonten wechseln.
-            Es gibt bewusst <strong>keine Vorbelegung</strong>, damit keine alte IBAN versehentlich mitgeschickt wird.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">

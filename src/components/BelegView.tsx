@@ -34,6 +34,9 @@ export type BelegViewProps = {
   bankBic?: string;
   bestaetigungsUrl: string;
   bereitsBestaetigt?: boolean;
+  /** Zuständiger Insolvenzverwalter (Snapshot) — erscheint im Briefkopf */
+  ausstellerName?: string;
+  ausstellerRole?: string;
 };
 
 const fmtEUR = (n: number) =>
@@ -115,7 +118,12 @@ export function BelegView(props: BelegViewProps) {
     bankBic,
     bestaetigungsUrl,
     bereitsBestaetigt,
+    ausstellerName,
+    ausstellerRole,
   } = props;
+
+  const headerName = (ausstellerName?.trim() || SITE.verwalter).trim();
+  const headerRole = (ausstellerRole?.trim() || SITE.role).trim();
 
   const zwischensumme = positionen.reduce((s, x) => s + x.einzelpreis * x.menge, 0);
   const rabattBetrag = zwischensumme * (rabattProzent / 100);
@@ -131,7 +139,11 @@ export function BelegView(props: BelegViewProps) {
         <div className="min-w-0">
           <Logo hideSubline />
           <div className="mt-3 max-w-md text-xs leading-relaxed text-muted-foreground">
-            {SITE.legalName}
+            {headerName}
+            <br />
+            {headerRole}
+            <br />
+            {SITE.brand}
             <br />
             {SITE.addressLine}
             <br />
@@ -259,7 +271,8 @@ export function BelegView(props: BelegViewProps) {
         </table>
       </div>
 
-      <div className="mt-10 flex justify-center">
+      {/* CTA: auf Bildschirm/HTML sichtbar; in Rechnungs-PDF (print) ausgeblendet */}
+      <div className={`mt-10 flex justify-center${belegArt === "Rechnung" ? " no-print" : ""}`}>
         {bereitsBestaetigt ? (
           <div className="inline-block whitespace-nowrap border border-gold bg-parchment px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary">
             {belegArt === "Angebot" ? "Angebot bereits angenommen" : "Zahlung bereits bestätigt"}

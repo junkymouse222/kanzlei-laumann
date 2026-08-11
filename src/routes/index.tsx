@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import heroImg from "@/assets/kanzlei-hero.jpg";
 import goldmannImg from "@/assets/anwalt-goldmann.jpg";
+import kopmannImg from "@/assets/anwaeltin-weber.jpg";
 import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/")({
@@ -129,38 +130,52 @@ function Index() {
         </div>
       </section>
 
-      {/* Der Verwalter */}
+      {/* Die Verwalter */}
       <section className="bg-primary text-primary-foreground">
-        <div className="container-prose grid gap-12 py-24 md:grid-cols-2 md:items-center md:py-32">
-          <div className="order-2 md:order-1">
-            <p className="text-[0.7rem] uppercase tracking-[0.24em] text-gold">Der Insolvenzverwalter</p>
-            <h2 className="mt-4 font-serif text-4xl text-primary-foreground md:text-5xl">
-              Erik Laumann
-            </h2>
-            <span className="rule-gold mt-6" />
-            <p className="mt-8 text-base leading-relaxed text-primary-foreground/80">
-              „Als gerichtlich bestellter Insolvenzverwalter obliegt mir die
-              bestmögliche Verwertung der Insolvenzmasse im Interesse aller
-              Gläubiger. Jede Anfrage wird vertraulich behandelt — verbindlich
-              wird ein Erwerb erst mit meiner schriftlichen Bestätigung."
-            </p>
-            <p className="mt-6 text-sm leading-relaxed text-primary-foreground/60">
-              Rechtsanwalt · Insolvenzverwaltung · Mitglied der {SITE.kammer}
-            </p>
-            <Link to="/anwaelte" className="mt-10 inline-block border-b border-gold pb-1 text-xs uppercase tracking-[0.22em] text-gold hover:text-gold-soft">
-              Mehr über den Verwalter
-            </Link>
+        <div className="container-prose py-24 md:py-32">
+          <p className="text-[0.7rem] uppercase tracking-[0.24em] text-gold">Die Insolvenzverwalter</p>
+          <h2 className="mt-4 max-w-2xl font-serif text-4xl text-primary-foreground md:text-5xl">
+            Erik Laumann &amp; Claudia Kopmann
+          </h2>
+          <span className="rule-gold mt-6" />
+          <p className="mt-8 max-w-2xl text-base leading-relaxed text-primary-foreground/80">
+            Als gerichtlich bestellte Insolvenzverwalter verantworten wir die
+            bestmögliche Verwertung der Insolvenzmasse im Interesse aller
+            Gläubiger. Jede Anfrage wird vertraulich behandelt — verbindlich
+            wird ein Erwerb erst mit unserer schriftlichen Bestätigung.
+          </p>
+          <div className="mt-12 grid gap-8 sm:grid-cols-2">
+            <div>
+              <img
+                src={goldmannImg}
+                alt="Portrait Erik Laumann"
+                className="aspect-[4/5] w-full object-cover grayscale-[15%]"
+                width={1024}
+                height={1280}
+                loading="lazy"
+              />
+              <p className="mt-4 font-serif text-2xl">Erik Laumann</p>
+              <p className="mt-1 text-sm text-primary-foreground/60">Rechtsanwalt · Insolvenzverwalter</p>
+            </div>
+            <div>
+              <img
+                src={kopmannImg}
+                alt="Portrait Claudia Kopmann"
+                className="aspect-[4/5] w-full object-cover grayscale-[15%]"
+                width={1024}
+                height={1280}
+                loading="lazy"
+              />
+              <p className="mt-4 font-serif text-2xl">Claudia Kopmann</p>
+              <p className="mt-1 text-sm text-primary-foreground/60">Rechtsanwältin · Insolvenzverwalterin</p>
+            </div>
           </div>
-          <div className="order-1 md:order-2">
-            <img
-              src={goldmannImg}
-              alt="Portrait Erik Laumann"
-              className="aspect-[4/5] w-full object-cover grayscale-[15%]"
-              width={1024}
-              height={1280}
-              loading="lazy"
-            />
-          </div>
+          <Link
+            to="/anwaelte"
+            className="mt-10 inline-block border-b border-gold pb-1 text-xs uppercase tracking-[0.22em] text-gold hover:text-gold-soft"
+          >
+            Mehr über die Verwalter
+          </Link>
         </div>
       </section>
 

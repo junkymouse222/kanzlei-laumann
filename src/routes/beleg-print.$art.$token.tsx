@@ -101,6 +101,8 @@ function BelegPrintPage() {
           bankBic={offer.bank_bic ?? ""}
           bestaetigungsUrl={bestaetigungsUrl}
           bereitsBestaetigt={bereitsBestaetigt}
+          ausstellerName={offer.verwalter_name ?? undefined}
+          ausstellerRole={offer.verwalter_role ?? undefined}
         />
       </section>
     </>

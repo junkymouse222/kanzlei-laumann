@@ -28,6 +28,8 @@ type OfferRow = {
   accepted_at?: string | null;
   accept_short_url?: string | null;
   pay_short_url?: string | null;
+  verwalter_name?: string | null;
+  verwalter_role?: string | null;
 };
 
 type ItemRow = {
@@ -82,6 +84,8 @@ type BelegOptions = {
   };
   trackingNumber?: string | null;
   trackingUrl?: string | null;
+  verwalterName?: string | null;
+  verwalterRole?: string | null;
 };
 
 function customerGreeting(name: string): string {
@@ -134,18 +138,7 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
     : `
       <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
       <p style="margin:0 0 16px 0;">vielen Dank nochmals. Anbei die Rechnung <strong>${escapeHtml(opts.belegNr)}</strong> als PDF (zu Angebot ${escapeHtml(offer.angebot_nr)}).</p>
-      <p style="margin:0 0 16px 0;">Bitte überweisen Sie den Betrag bis zum <strong>${opts.faelligOderGueltig}</strong> unter Angabe der Rechnungsnummer. Die Bankverbindung finden Sie in der PDF — hier noch einmal zum Abtippen:</p>
-      ${
-        opts.bank
-          ? `<p style="margin:0 0 16px 0;line-height:1.7;">
-              Kontoinhaber: ${escapeHtml(opts.bank.inhaber)}<br/>
-              Bank: ${escapeHtml(opts.bank.name)}<br/>
-              IBAN: ${escapeHtml(opts.bank.iban)}<br/>
-              BIC: ${escapeHtml(opts.bank.bic)}
-            </p>`
-          : ""
-      }
-      <p style="margin:0 0 16px 0;">Das Konto ist ein Anderkonto der Kanzlei — Ihre Zahlung ist damit treuhänderisch abgesichert.</p>
+      <p style="margin:0 0 16px 0;">Bitte überweisen Sie den Betrag bis zum <strong>${opts.faelligOderGueltig}</strong> unter Angabe der Rechnungsnummer. Alle Zahlungsdaten finden Sie in der angehängten PDF.</p>
       ${
         trackingUrl
           ? `<p style="margin:0 0 16px 0;">Die Sendung ist bei der Spedition Hausmann schon angelegt${
@@ -163,6 +156,9 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
       }
     `;
 
+  const signer = escapeHtml(opts.verwalterName || SITE.verwalter);
+  const signerRole = escapeHtml(opts.verwalterRole || SITE.role);
+
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.belegArt)} ${escapeHtml(opts.belegNr)}</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
@@ -170,12 +166,13 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
         <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
           <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
-            Erik Laumann · ${escapeHtml(SITE.email)} · ${opts.datum}
+            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(SITE.email)} · ${opts.datum}
           </p>
           ${body}
-          <p style="margin:28px 0 0 0;">Viele Grüße<br/>Erik Laumann</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
-            Rechtsanwalt und Insolvenzverwalter<br/>
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
             ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
@@ -223,6 +220,8 @@ export function renderInvoiceHtml(
     },
     trackingNumber: offer.tracking_number,
     trackingUrl: offer.tracking_url,
+    verwalterName: offer.verwalter_name,
+    verwalterRole: offer.verwalter_role,
   });
 }
 
@@ -240,6 +239,8 @@ export function renderOfferHtml(offer: OfferRow, items: ItemRow[]): string {
     ctaLabel: "Angebot annehmen",
     ctaDoneLabel: "Angebot bereits angenommen",
     ctaHint: "Ein Klick genügt · rechtsverbindlich",
+    verwalterName: offer.verwalter_name,
+    verwalterRole: offer.verwalter_role,
   });
 }
 
@@ -253,6 +254,8 @@ export function renderPaymentConfirmationHtml(offer: {
   paid_at?: string | null;
   tracking_number?: string | null;
   tracking_url?: string | null;
+  verwalter_name?: string | null;
+  verwalter_role?: string | null;
 }): string {
   const anredeName = escapeHtml(offer.customer_name.trim() || "Kunde");
   const belegNr = escapeHtml(offer.rechnung_nr || offer.angebot_nr);
@@ -260,6 +263,8 @@ export function renderPaymentConfirmationHtml(offer: {
   const paidAt = offer.paid_at
     ? new Date(offer.paid_at).toLocaleDateString("de-DE", { dateStyle: "medium" })
     : new Date().toLocaleDateString("de-DE", { dateStyle: "medium" });
+  const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
+  const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
   const trackingUrl = normalizeHausmannTrackingUrl(offer.tracking_url);
   const trackingBlock = trackingUrl
     ? `<p style="margin:0 0 16px 0;">Den Lieferstatus${
@@ -275,7 +280,7 @@ export function renderPaymentConfirmationHtml(offer: {
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
         <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
           <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
-            Erik Laumann · ${escapeHtml(SITE.email)} · ${paidAt}
+            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(SITE.email)} · ${paidAt}
           </p>
           <p style="margin:0 0 16px 0;">Guten Tag ${anredeName},</p>
           <p style="margin:0 0 16px 0;">
@@ -283,9 +288,10 @@ export function renderPaymentConfirmationHtml(offer: {
           </p>
           ${trackingBlock}
           <p style="margin:0 0 16px 0;">Bei Fragen einfach kurz auf diese Mail antworten.</p>
-          <p style="margin:28px 0 0 0;">Viele Grüße<br/>Erik Laumann</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
-            Rechtsanwalt und Insolvenzverwalter<br/>
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
             ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
           </p>
         </td></tr>

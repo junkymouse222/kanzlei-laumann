@@ -9,80 +9,45 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as RechnungRouteImport } from './routes/rechnung'
-import { Route as KontaktRouteImport } from './routes/kontakt'
-import { Route as KanzleiRouteImport } from './routes/kanzlei'
-import { Route as ImpressumRouteImport } from './routes/impressum'
-import { Route as FileuploadRouteImport } from './routes/fileupload'
-import { Route as FachgebieteRouteImport } from './routes/fachgebiete'
-import { Route as DatenschutzRouteImport } from './routes/datenschutz'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AnwaelteRouteImport } from './routes/anwaelte'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AnwaelteRouteImport } from './routes/anwaelte'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as DatenschutzRouteImport } from './routes/datenschutz'
+import { Route as FachgebieteRouteImport } from './routes/fachgebiete'
+import { Route as FileuploadRouteImport } from './routes/fileupload'
+import { Route as ImpressumRouteImport } from './routes/impressum'
+import { Route as KanzleiRouteImport } from './routes/kanzlei'
+import { Route as KontaktRouteImport } from './routes/kontakt'
+import { Route as RechnungRouteImport } from './routes/rechnung'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AngebotAnfordernIndexRouteImport } from './routes/angebot-anfordern.index'
 import { Route as AngebotAnfordernDankeRouteImport } from './routes/angebot-anfordern.danke'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
-import { Route as JuliAngeboteFilenameRouteImport } from './routes/juli.angebote.$filename'
-import { Route as BelegPrintArtTokenRouteImport } from './routes/beleg-print.$art.$token'
-import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin.traffic'
-import { Route as AuthenticatedAdminManuellRouteImport } from './routes/_authenticated/admin.manuell'
 import { Route as AuthenticatedAdminIdRouteImport } from './routes/_authenticated/admin.$id'
-import { Route as ApiPublicHooksTrackRouteImport } from './routes/api/public/hooks/track'
-import { Route as ApiPublicHooksSendScheduledOffersRouteImport } from './routes/api/public/hooks/send-scheduled-offers'
-import { Route as ApiPublicHooksMarkPaidRouteImport } from './routes/api/public/hooks/mark-paid'
-import { Route as ApiPublicHooksConfirmManualRouteImport } from './routes/api/public/hooks/confirm-manual'
-import { Route as ApiPublicHooksAcceptOfferRouteImport } from './routes/api/public/hooks/accept-offer'
-import { Route as ApiPublicAdminSendPaymentConfirmationRouteImport } from './routes/api/public/admin/send-payment-confirmation'
-import { Route as ApiPublicAdminSendOfferRouteImport } from './routes/api/public/admin/send-offer'
-import { Route as ApiPublicAdminSendManualInvoiceRouteImport } from './routes/api/public/admin/send-manual-invoice'
+import { Route as AuthenticatedAdminEinstellungenRouteImport } from './routes/_authenticated/admin.einstellungen'
+import { Route as AuthenticatedAdminManuellRouteImport } from './routes/_authenticated/admin.manuell'
+import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin.traffic'
+import { Route as BelegPrintArtTokenRouteImport } from './routes/beleg-print.$art.$token'
+import { Route as JuliAngeboteFilenameRouteImport } from './routes/juli.angebote.$filename'
 import { Route as ApiPublicAdminSendInvoiceRouteImport } from './routes/api/public/admin/send-invoice'
+import { Route as ApiPublicAdminSendManualInvoiceRouteImport } from './routes/api/public/admin/send-manual-invoice'
+import { Route as ApiPublicAdminSendOfferRouteImport } from './routes/api/public/admin/send-offer'
+import { Route as ApiPublicAdminSendPaymentConfirmationRouteImport } from './routes/api/public/admin/send-payment-confirmation'
+import { Route as ApiPublicHooksAcceptOfferRouteImport } from './routes/api/public/hooks/accept-offer'
+import { Route as ApiPublicHooksConfirmManualRouteImport } from './routes/api/public/hooks/confirm-manual'
+import { Route as ApiPublicHooksMarkPaidRouteImport } from './routes/api/public/hooks/mark-paid'
+import { Route as ApiPublicHooksSendScheduledOffersRouteImport } from './routes/api/public/hooks/send-scheduled-offers'
+import { Route as ApiPublicHooksTrackRouteImport } from './routes/api/public/hooks/track'
 
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RechnungRoute = RechnungRouteImport.update({
-  id: '/rechnung',
-  path: '/rechnung',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KontaktRoute = KontaktRouteImport.update({
-  id: '/kontakt',
-  path: '/kontakt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KanzleiRoute = KanzleiRouteImport.update({
-  id: '/kanzlei',
-  path: '/kanzlei',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ImpressumRoute = ImpressumRouteImport.update({
-  id: '/impressum',
-  path: '/impressum',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FileuploadRoute = FileuploadRouteImport.update({
-  id: '/fileupload',
-  path: '/fileupload',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FachgebieteRoute = FachgebieteRouteImport.update({
-  id: '/fachgebiete',
-  path: '/fachgebiete',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DatenschutzRoute = DatenschutzRouteImport.update({
-  id: '/datenschutz',
-  path: '/datenschutz',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnwaelteRoute = AnwaelteRouteImport.update({
@@ -90,14 +55,55 @@ const AnwaelteRoute = AnwaelteRouteImport.update({
   path: '/anwaelte',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const DatenschutzRoute = DatenschutzRouteImport.update({
+  id: '/datenschutz',
+  path: '/datenschutz',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FachgebieteRoute = FachgebieteRouteImport.update({
+  id: '/fachgebiete',
+  path: '/fachgebiete',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FileuploadRoute = FileuploadRouteImport.update({
+  id: '/fileupload',
+  path: '/fileupload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImpressumRoute = ImpressumRouteImport.update({
+  id: '/impressum',
+  path: '/impressum',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KanzleiRoute = KanzleiRouteImport.update({
+  id: '/kanzlei',
+  path: '/kanzlei',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KontaktRoute = KontaktRouteImport.update({
+  id: '/kontakt',
+  path: '/kontakt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RechnungRoute = RechnungRouteImport.update({
+  id: '/rechnung',
+  path: '/rechnung',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AngebotAnfordernIndexRoute = AngebotAnfordernIndexRouteImport.update({
   id: '/angebot-anfordern/',
@@ -109,30 +115,20 @@ const AngebotAnfordernDankeRoute = AngebotAnfordernDankeRouteImport.update({
   path: '/angebot-anfordern/danke',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const JuliAngeboteFilenameRoute = JuliAngeboteFilenameRouteImport.update({
-  id: '/juli/angebote/$filename',
-  path: '/juli/angebote/$filename',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedAdminIdRoute = AuthenticatedAdminIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const BelegPrintArtTokenRoute = BelegPrintArtTokenRouteImport.update({
-  id: '/beleg-print/$art/$token',
-  path: '/beleg-print/$art/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedAdminTrafficRoute =
-  AuthenticatedAdminTrafficRouteImport.update({
-    id: '/traffic',
-    path: '/traffic',
+const AuthenticatedAdminEinstellungenRoute =
+  AuthenticatedAdminEinstellungenRouteImport.update({
+    id: '/einstellungen',
+    path: '/einstellungen',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminManuellRoute =
@@ -141,31 +137,43 @@ const AuthenticatedAdminManuellRoute =
     path: '/manuell',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminIdRoute = AuthenticatedAdminIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
-const ApiPublicHooksTrackRoute = ApiPublicHooksTrackRouteImport.update({
-  id: '/api/public/hooks/track',
-  path: '/api/public/hooks/track',
+const AuthenticatedAdminTrafficRoute =
+  AuthenticatedAdminTrafficRouteImport.update({
+    id: '/traffic',
+    path: '/traffic',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const BelegPrintArtTokenRoute = BelegPrintArtTokenRouteImport.update({
+  id: '/beleg-print/$art/$token',
+  path: '/beleg-print/$art/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHooksSendScheduledOffersRoute =
-  ApiPublicHooksSendScheduledOffersRouteImport.update({
-    id: '/api/public/hooks/send-scheduled-offers',
-    path: '/api/public/hooks/send-scheduled-offers',
+const JuliAngeboteFilenameRoute = JuliAngeboteFilenameRouteImport.update({
+  id: '/juli/angebote/$filename',
+  path: '/juli/angebote/$filename',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAdminSendInvoiceRoute =
+  ApiPublicAdminSendInvoiceRouteImport.update({
+    id: '/api/public/admin/send-invoice',
+    path: '/api/public/admin/send-invoice',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicHooksMarkPaidRoute = ApiPublicHooksMarkPaidRouteImport.update({
-  id: '/api/public/hooks/mark-paid',
-  path: '/api/public/hooks/mark-paid',
+const ApiPublicAdminSendManualInvoiceRoute =
+  ApiPublicAdminSendManualInvoiceRouteImport.update({
+    id: '/api/public/admin/send-manual-invoice',
+    path: '/api/public/admin/send-manual-invoice',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicAdminSendOfferRoute = ApiPublicAdminSendOfferRouteImport.update({
+  id: '/api/public/admin/send-offer',
+  path: '/api/public/admin/send-offer',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHooksConfirmManualRoute =
-  ApiPublicHooksConfirmManualRouteImport.update({
-    id: '/api/public/hooks/confirm-manual',
-    path: '/api/public/hooks/confirm-manual',
+const ApiPublicAdminSendPaymentConfirmationRoute =
+  ApiPublicAdminSendPaymentConfirmationRouteImport.update({
+    id: '/api/public/admin/send-payment-confirmation',
+    path: '/api/public/admin/send-payment-confirmation',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksAcceptOfferRoute =
@@ -174,29 +182,28 @@ const ApiPublicHooksAcceptOfferRoute =
     path: '/api/public/hooks/accept-offer',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicAdminSendPaymentConfirmationRoute =
-  ApiPublicAdminSendPaymentConfirmationRouteImport.update({
-    id: '/api/public/admin/send-payment-confirmation',
-    path: '/api/public/admin/send-payment-confirmation',
+const ApiPublicHooksConfirmManualRoute =
+  ApiPublicHooksConfirmManualRouteImport.update({
+    id: '/api/public/hooks/confirm-manual',
+    path: '/api/public/hooks/confirm-manual',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicAdminSendOfferRoute = ApiPublicAdminSendOfferRouteImport.update({
-  id: '/api/public/admin/send-offer',
-  path: '/api/public/admin/send-offer',
+const ApiPublicHooksMarkPaidRoute = ApiPublicHooksMarkPaidRouteImport.update({
+  id: '/api/public/hooks/mark-paid',
+  path: '/api/public/hooks/mark-paid',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicAdminSendManualInvoiceRoute =
-  ApiPublicAdminSendManualInvoiceRouteImport.update({
-    id: '/api/public/admin/send-manual-invoice',
-    path: '/api/public/admin/send-manual-invoice',
+const ApiPublicHooksSendScheduledOffersRoute =
+  ApiPublicHooksSendScheduledOffersRouteImport.update({
+    id: '/api/public/hooks/send-scheduled-offers',
+    path: '/api/public/hooks/send-scheduled-offers',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicAdminSendInvoiceRoute =
-  ApiPublicAdminSendInvoiceRouteImport.update({
-    id: '/api/public/admin/send-invoice',
-    path: '/api/public/admin/send-invoice',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const ApiPublicHooksTrackRoute = ApiPublicHooksTrackRouteImport.update({
+  id: '/api/public/hooks/track',
+  path: '/api/public/hooks/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -214,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/angebot-anfordern/danke': typeof AngebotAnfordernDankeRoute
   '/angebot-anfordern/': typeof AngebotAnfordernIndexRoute
   '/admin/$id': typeof AuthenticatedAdminIdRoute
+  '/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
   '/admin/manuell': typeof AuthenticatedAdminManuellRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
@@ -244,6 +252,7 @@ export interface FileRoutesByTo {
   '/angebot-anfordern/danke': typeof AngebotAnfordernDankeRoute
   '/angebot-anfordern': typeof AngebotAnfordernIndexRoute
   '/admin/$id': typeof AuthenticatedAdminIdRoute
+  '/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
   '/admin/manuell': typeof AuthenticatedAdminManuellRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
@@ -277,6 +286,7 @@ export interface FileRoutesById {
   '/angebot-anfordern/danke': typeof AngebotAnfordernDankeRoute
   '/angebot-anfordern/': typeof AngebotAnfordernIndexRoute
   '/_authenticated/admin/$id': typeof AuthenticatedAdminIdRoute
+  '/_authenticated/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
   '/_authenticated/admin/manuell': typeof AuthenticatedAdminManuellRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/angebot-anfordern/danke'
     | '/angebot-anfordern/'
     | '/admin/$id'
+    | '/admin/einstellungen'
     | '/admin/manuell'
     | '/admin/traffic'
     | '/beleg-print/$art/$token'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/angebot-anfordern/danke'
     | '/angebot-anfordern'
     | '/admin/$id'
+    | '/admin/einstellungen'
     | '/admin/manuell'
     | '/admin/traffic'
     | '/beleg-print/$art/$token'
@@ -372,6 +384,7 @@ export interface FileRouteTypes {
     | '/angebot-anfordern/danke'
     | '/angebot-anfordern/'
     | '/_authenticated/admin/$id'
+    | '/_authenticated/admin/einstellungen'
     | '/_authenticated/admin/manuell'
     | '/_authenticated/admin/traffic'
     | '/beleg-print/$art/$token'
@@ -418,74 +431,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rechnung': {
-      id: '/rechnung'
-      path: '/rechnung'
-      fullPath: '/rechnung'
-      preLoaderRoute: typeof RechnungRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kontakt': {
-      id: '/kontakt'
-      path: '/kontakt'
-      fullPath: '/kontakt'
-      preLoaderRoute: typeof KontaktRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kanzlei': {
-      id: '/kanzlei'
-      path: '/kanzlei'
-      fullPath: '/kanzlei'
-      preLoaderRoute: typeof KanzleiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/impressum': {
-      id: '/impressum'
-      path: '/impressum'
-      fullPath: '/impressum'
-      preLoaderRoute: typeof ImpressumRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fileupload': {
-      id: '/fileupload'
-      path: '/fileupload'
-      fullPath: '/fileupload'
-      preLoaderRoute: typeof FileuploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fachgebiete': {
-      id: '/fachgebiete'
-      path: '/fachgebiete'
-      fullPath: '/fachgebiete'
-      preLoaderRoute: typeof FachgebieteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/datenschutz': {
-      id: '/datenschutz'
-      path: '/datenschutz'
-      fullPath: '/datenschutz'
-      preLoaderRoute: typeof DatenschutzRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/anwaelte': {
-      id: '/anwaelte'
-      path: '/anwaelte'
-      fullPath: '/anwaelte'
-      preLoaderRoute: typeof AnwaelteRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -495,12 +445,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/anwaelte': {
+      id: '/anwaelte'
+      path: '/anwaelte'
+      fullPath: '/anwaelte'
+      preLoaderRoute: typeof AnwaelteRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/datenschutz': {
+      id: '/datenschutz'
+      path: '/datenschutz'
+      fullPath: '/datenschutz'
+      preLoaderRoute: typeof DatenschutzRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fachgebiete': {
+      id: '/fachgebiete'
+      path: '/fachgebiete'
+      fullPath: '/fachgebiete'
+      preLoaderRoute: typeof FachgebieteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fileupload': {
+      id: '/fileupload'
+      path: '/fileupload'
+      fullPath: '/fileupload'
+      preLoaderRoute: typeof FileuploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/impressum': {
+      id: '/impressum'
+      path: '/impressum'
+      fullPath: '/impressum'
+      preLoaderRoute: typeof ImpressumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kanzlei': {
+      id: '/kanzlei'
+      path: '/kanzlei'
+      fullPath: '/kanzlei'
+      preLoaderRoute: typeof KanzleiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kontakt': {
+      id: '/kontakt'
+      path: '/kontakt'
+      fullPath: '/kontakt'
+      preLoaderRoute: typeof KontaktRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rechnung': {
+      id: '/rechnung'
+      path: '/rechnung'
+      fullPath: '/rechnung'
+      preLoaderRoute: typeof RechnungRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/angebot-anfordern/': {
       id: '/angebot-anfordern/'
@@ -516,46 +536,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AngebotAnfordernDankeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin': {
-      id: '/_authenticated/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/juli/angebote/$filename': {
-      id: '/juli/angebote/$filename'
-      path: '/juli/angebote/$filename'
-      fullPath: '/juli/angebote/$filename'
-      preLoaderRoute: typeof JuliAngeboteFilenameRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/beleg-print/$art/$token': {
-      id: '/beleg-print/$art/$token'
-      path: '/beleg-print/$art/$token'
-      fullPath: '/beleg-print/$art/$token'
-      preLoaderRoute: typeof BelegPrintArtTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/admin/traffic': {
-      id: '/_authenticated/admin/traffic'
-      path: '/traffic'
-      fullPath: '/admin/traffic'
-      preLoaderRoute: typeof AuthenticatedAdminTrafficRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/manuell': {
-      id: '/_authenticated/admin/manuell'
-      path: '/manuell'
-      fullPath: '/admin/manuell'
-      preLoaderRoute: typeof AuthenticatedAdminManuellRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/$id': {
@@ -565,60 +550,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/api/public/hooks/track': {
-      id: '/api/public/hooks/track'
-      path: '/api/public/hooks/track'
-      fullPath: '/api/public/hooks/track'
-      preLoaderRoute: typeof ApiPublicHooksTrackRouteImport
+    '/_authenticated/admin/einstellungen': {
+      id: '/_authenticated/admin/einstellungen'
+      path: '/einstellungen'
+      fullPath: '/admin/einstellungen'
+      preLoaderRoute: typeof AuthenticatedAdminEinstellungenRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/manuell': {
+      id: '/_authenticated/admin/manuell'
+      path: '/manuell'
+      fullPath: '/admin/manuell'
+      preLoaderRoute: typeof AuthenticatedAdminManuellRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/traffic': {
+      id: '/_authenticated/admin/traffic'
+      path: '/traffic'
+      fullPath: '/admin/traffic'
+      preLoaderRoute: typeof AuthenticatedAdminTrafficRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/beleg-print/$art/$token': {
+      id: '/beleg-print/$art/$token'
+      path: '/beleg-print/$art/$token'
+      fullPath: '/beleg-print/$art/$token'
+      preLoaderRoute: typeof BelegPrintArtTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/send-scheduled-offers': {
-      id: '/api/public/hooks/send-scheduled-offers'
-      path: '/api/public/hooks/send-scheduled-offers'
-      fullPath: '/api/public/hooks/send-scheduled-offers'
-      preLoaderRoute: typeof ApiPublicHooksSendScheduledOffersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/mark-paid': {
-      id: '/api/public/hooks/mark-paid'
-      path: '/api/public/hooks/mark-paid'
-      fullPath: '/api/public/hooks/mark-paid'
-      preLoaderRoute: typeof ApiPublicHooksMarkPaidRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/confirm-manual': {
-      id: '/api/public/hooks/confirm-manual'
-      path: '/api/public/hooks/confirm-manual'
-      fullPath: '/api/public/hooks/confirm-manual'
-      preLoaderRoute: typeof ApiPublicHooksConfirmManualRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/accept-offer': {
-      id: '/api/public/hooks/accept-offer'
-      path: '/api/public/hooks/accept-offer'
-      fullPath: '/api/public/hooks/accept-offer'
-      preLoaderRoute: typeof ApiPublicHooksAcceptOfferRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/admin/send-payment-confirmation': {
-      id: '/api/public/admin/send-payment-confirmation'
-      path: '/api/public/admin/send-payment-confirmation'
-      fullPath: '/api/public/admin/send-payment-confirmation'
-      preLoaderRoute: typeof ApiPublicAdminSendPaymentConfirmationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/admin/send-offer': {
-      id: '/api/public/admin/send-offer'
-      path: '/api/public/admin/send-offer'
-      fullPath: '/api/public/admin/send-offer'
-      preLoaderRoute: typeof ApiPublicAdminSendOfferRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/admin/send-manual-invoice': {
-      id: '/api/public/admin/send-manual-invoice'
-      path: '/api/public/admin/send-manual-invoice'
-      fullPath: '/api/public/admin/send-manual-invoice'
-      preLoaderRoute: typeof ApiPublicAdminSendManualInvoiceRouteImport
+    '/juli/angebote/$filename': {
+      id: '/juli/angebote/$filename'
+      path: '/juli/angebote/$filename'
+      fullPath: '/juli/angebote/$filename'
+      preLoaderRoute: typeof JuliAngeboteFilenameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/admin/send-invoice': {
@@ -628,11 +592,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAdminSendInvoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/admin/send-manual-invoice': {
+      id: '/api/public/admin/send-manual-invoice'
+      path: '/api/public/admin/send-manual-invoice'
+      fullPath: '/api/public/admin/send-manual-invoice'
+      preLoaderRoute: typeof ApiPublicAdminSendManualInvoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/admin/send-offer': {
+      id: '/api/public/admin/send-offer'
+      path: '/api/public/admin/send-offer'
+      fullPath: '/api/public/admin/send-offer'
+      preLoaderRoute: typeof ApiPublicAdminSendOfferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/admin/send-payment-confirmation': {
+      id: '/api/public/admin/send-payment-confirmation'
+      path: '/api/public/admin/send-payment-confirmation'
+      fullPath: '/api/public/admin/send-payment-confirmation'
+      preLoaderRoute: typeof ApiPublicAdminSendPaymentConfirmationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/accept-offer': {
+      id: '/api/public/hooks/accept-offer'
+      path: '/api/public/hooks/accept-offer'
+      fullPath: '/api/public/hooks/accept-offer'
+      preLoaderRoute: typeof ApiPublicHooksAcceptOfferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/confirm-manual': {
+      id: '/api/public/hooks/confirm-manual'
+      path: '/api/public/hooks/confirm-manual'
+      fullPath: '/api/public/hooks/confirm-manual'
+      preLoaderRoute: typeof ApiPublicHooksConfirmManualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/mark-paid': {
+      id: '/api/public/hooks/mark-paid'
+      path: '/api/public/hooks/mark-paid'
+      fullPath: '/api/public/hooks/mark-paid'
+      preLoaderRoute: typeof ApiPublicHooksMarkPaidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/send-scheduled-offers': {
+      id: '/api/public/hooks/send-scheduled-offers'
+      path: '/api/public/hooks/send-scheduled-offers'
+      fullPath: '/api/public/hooks/send-scheduled-offers'
+      preLoaderRoute: typeof ApiPublicHooksSendScheduledOffersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/track': {
+      id: '/api/public/hooks/track'
+      path: '/api/public/hooks/track'
+      fullPath: '/api/public/hooks/track'
+      preLoaderRoute: typeof ApiPublicHooksTrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminIdRoute: typeof AuthenticatedAdminIdRoute
+  AuthenticatedAdminEinstellungenRoute: typeof AuthenticatedAdminEinstellungenRoute
   AuthenticatedAdminManuellRoute: typeof AuthenticatedAdminManuellRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -640,6 +661,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIdRoute: AuthenticatedAdminIdRoute,
+  AuthenticatedAdminEinstellungenRoute: AuthenticatedAdminEinstellungenRoute,
   AuthenticatedAdminManuellRoute: AuthenticatedAdminManuellRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
@@ -691,13 +713,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

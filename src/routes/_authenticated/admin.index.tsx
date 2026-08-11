@@ -122,6 +122,12 @@ function AdminListPage() {
           >
             Manuelle Bestätigungen
           </Link>
+          <Link
+            to="/admin/einstellungen"
+            className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            Einstellungen
+          </Link>
           <button
             onClick={handleSignOut}
             className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"

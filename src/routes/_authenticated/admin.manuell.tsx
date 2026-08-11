@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { listManualConfirmations, type ManualConfirmationRow } from "@/lib/admin.functions";
+import { listBankAccounts, type BankAccountRow } from "@/lib/settings.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { SITE } from "@/lib/site";
 
@@ -93,6 +94,8 @@ function ManualConfirmationsPage() {
   const [form, setForm] = useState<InvoiceForm | null>(null);
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [banks, setBanks] = useState<BankAccountRow[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState("");
 
   async function load() {
     setLoading(true);
@@ -109,14 +112,44 @@ function ManualConfirmationsPage() {
 
   useEffect(() => {
     load();
+    listBankAccounts()
+      .then((r) => setBanks(r.banks))
+      .catch(() => undefined);
   }, []);
+
+  function applyBankToForm(bankId: string) {
+    setSelectedBankId(bankId);
+    const b = banks.find((x) => x.id === bankId);
+    if (!b || !form) return;
+    setForm({
+      ...form,
+      bank_inhaber: b.inhaber,
+      bank_name: b.bank_name,
+      bank_iban: b.iban,
+      bank_bic: b.bic,
+    });
+  }
 
   const filtered = filter === "all" ? rows : rows.filter((r) => r.beleg_art === filter);
   const activeRow = sendForId ? rows.find((r) => r.id === sendForId) : null;
 
   function openSend(row: ManualConfirmationRow) {
     setSendForId(row.id);
-    setForm(emptyForm(row));
+    const base = emptyForm(row);
+    const def = banks.find((b) => b.is_default) || banks[0];
+    if (def) {
+      setSelectedBankId(def.id);
+      setForm({
+        ...base,
+        bank_inhaber: def.inhaber,
+        bank_name: def.bank_name,
+        bank_iban: def.iban,
+        bank_bic: def.bic,
+      });
+    } else {
+      setSelectedBankId("");
+      setForm(base);
+    }
     setSendMsg(null);
   }
 
@@ -337,8 +370,25 @@ function ManualConfirmationsPage() {
             <p className="text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
               Bankverbindung (Anderkonto) *
             </p>
+            <select
+              value={selectedBankId}
+              onChange={(e) => applyBankToForm(e.target.value)}
+              className="mt-3 w-full border border-border bg-background px-3 py-2 text-sm"
+            >
+              <option value="">— manuell eintragen —</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                  {b.is_default ? " (Standard)" : ""} — {b.iban}
+                </option>
+              ))}
+            </select>
             <p className="mt-1 text-xs text-muted-foreground">
-              Keine Vorbelegung — bitte aktuelles Anderkonto für dieses Mandat eintragen.
+              Konten unter{" "}
+              <Link to="/admin/einstellungen" className="underline">
+                Einstellungen
+              </Link>{" "}
+              verwalten.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <input
