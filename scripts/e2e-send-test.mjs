@@ -103,7 +103,7 @@ console.log("PDF Angebot…");
 const offerPdf = await pdfMod.renderOfferPdf(offerForRender, items, acceptUrl);
 const offerSend = await emailMod.sendOfferEmail({
   to: TO,
-  subject: `Ihr Angebot ${angebot_nr} — ${verwalter.name} · Kanzlei Laumann`,
+  subject: `Ihr Angebot ${angebot_nr} — Kanzlei Laumann`,
   html: offerHtml,
   attachments: [{ filename: `Angebot-${angebot_nr}.pdf`, content: pdfMod.toBase64(offerPdf) }],
 });
@@ -167,7 +167,7 @@ if (!invHtml.includes("Zahlung bestätigen")) throw new Error("CTA fehlt in HTML
 
 const invSend = await emailMod.sendOfferEmail({
   to: TO,
-  subject: `Ihre Rechnung ${rechnung_nr} — ${verwalter.name} · Kanzlei Laumann`,
+  subject: `Ihre Rechnung ${rechnung_nr} — Kanzlei Laumann`,
   html: invHtml,
   attachments: [{ filename: `Rechnung-${rechnung_nr}.pdf`, content: pdfMod.toBase64(invPdf) }],
 });

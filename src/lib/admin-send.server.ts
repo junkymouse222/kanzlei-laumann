@@ -581,11 +581,9 @@ export async function sendPaymentConfirmationFromAdmin(
     verwalter_name: offer.verwalter_name as string | null,
     verwalter_role: offer.verwalter_role as string | null,
   });
-  const signerName = ((offer.verwalter_name as string | null) || "Kanzlei Laumann").trim();
-
   const send = await sendOfferEmail({
     to: offer.customer_email as string,
-    subject: `Zahlungseingang bestätigt — ${belegRef} — ${signerName}`,
+    subject: `Zahlungseingang bestätigt — ${belegRef} — Kanzlei Laumann`,
     html,
   });
 
