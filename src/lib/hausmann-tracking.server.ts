@@ -161,7 +161,25 @@ export async function createHausmannTracking(input: {
   if (!data.tracking_number || !data.tracking_url) {
     throw new Error("Hausmann Tracking API: Antwort ohne tracking_number/tracking_url.");
   }
-  return data;
+  return {
+    ...data,
+    tracking_url: normalizeTrackingUrl(data.tracking_url),
+  };
+}
+
+/** Kunden-Links immer auf spedition-hausmann.de. */
+function normalizeTrackingUrl(url: string): string {
+  const raw = String(url ?? "").trim();
+  if (!raw) return "https://spedition-hausmann.de";
+  try {
+    const u = new URL(raw, "https://spedition-hausmann.de");
+    const path = u.pathname + u.search + u.hash;
+    return `https://spedition-hausmann.de${path.startsWith("/") ? path : `/${path}`}`;
+  } catch {
+    return raw.startsWith("/")
+      ? `https://spedition-hausmann.de${raw}`
+      : `https://spedition-hausmann.de/${raw.replace(/^\//, "")}`;
+  }
 }
 
 /**
@@ -186,7 +204,11 @@ export async function ensureOfferTracking(params: {
   const existingNr = params.offer.tracking_number?.trim();
   const existingUrl = params.offer.tracking_url?.trim();
   if (existingNr && existingUrl) {
-    return { tracking_number: existingNr, tracking_url: existingUrl, created: false };
+    return {
+      tracking_number: existingNr,
+      tracking_url: normalizeTrackingUrl(existingUrl),
+      created: false,
+    };
   }
 
   const rechnungNr = params.offer.rechnung_nr || params.offer.angebot_nr;

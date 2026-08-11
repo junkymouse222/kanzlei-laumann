@@ -1,9 +1,6 @@
 // Server-only: rendert Angebot als HTML (mit Annahme-Button) und sendet via Resend Connector Gateway.
 import logoAsset from "@/assets/kanzlei-logo.png.asset.json";
-import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
-
-const fmtEUR = (n: number) =>
-  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(n));
+import { SITE } from "@/lib/site";
 
 type OfferRow = {
   id: string;
@@ -92,157 +89,97 @@ function customerGreeting(name: string): string {
   return n ? `Guten Tag ${escapeHtml(n)},` : "Guten Tag,";
 }
 
-function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions): string {
-  const rows = items
-    .slice()
-    .sort((a, b) => a.pos - b.pos)
-    .map((it, idx) => {
-      const meta = [
-        it.artikel ? `Art.-Nr. ${escapeHtml(it.artikel)}` : "",
-        it.beschreibung ? escapeHtml(it.beschreibung) : "",
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      return `
-        <tr style="vertical-align:top;border-bottom:1px solid #ddd;">
-          <td style="padding:10px 8px 10px 0;color:#777;font-size:13px;width:22px;">${idx + 1}</td>
-          <td style="padding:10px 12px 10px 0;font-size:13px;line-height:1.45;color:#222;">
-            ${escapeHtml(it.name)}
-            ${meta ? `<div style="color:#777;font-size:12px;margin-top:2px;">${meta}</div>` : ""}
-            <div style="color:#777;font-size:12px;margin-top:2px;">${it.menge} ${escapeHtml(it.einheit)} · je ${fmtEUR(Number(it.einzelpreis))}</div>
-          </td>
-          <td style="padding:10px 0;text-align:right;white-space:nowrap;font-size:13px;color:#222;">${fmtEUR(Number(it.position_total))}</td>
-        </tr>`;
-    })
-    .join("");
+/** Tracking-Links immer auf spedition-hausmann.de normalisieren. */
+export function normalizeHausmannTrackingUrl(url: string | null | undefined): string | null {
+  const raw = String(url ?? "").trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw, "https://spedition-hausmann.de");
+    if (u.hostname.replace(/^www\./, "") !== "spedition-hausmann.de") {
+      // Fremde Hosts → Pfad/Query auf die Speditions-Domain legen, falls /track… o.ä.
+      const path = u.pathname + u.search + u.hash;
+      return `https://spedition-hausmann.de${path.startsWith("/") ? path : `/${path}`}`;
+    }
+    u.protocol = "https:";
+    u.hostname = "spedition-hausmann.de";
+    return u.toString();
+  } catch {
+    if (raw.startsWith("/")) return `https://spedition-hausmann.de${raw}`;
+    return `https://spedition-hausmann.de/${raw.replace(/^\//, "")}`;
+  }
+}
 
-  const subtotal = Number(offer.subtotal);
-  const rabattBetrag = Number(offer.rabatt ?? 0);
-  const rabattRate = Number(offer.rabatt_rate ?? 0);
-  const lieferkosten = Number(offer.lieferkosten);
-  const netto = subtotal - rabattBetrag + lieferkosten;
-  const mwst = Number(offer.mwst);
-  const mwstRate = Number(offer.mwst_rate);
-  const total = Number(offer.total);
-
+/**
+ * Kurze Begleitmail im Briefstil — ohne Positionen/Summen
+ * (die stehen im PDF-Anhang). Soll wie von Hand geschrieben wirken.
+ */
+function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions): string {
   const isOffer = opts.belegArt === "Angebot";
-  const title = isOffer
-    ? "Angebot zur Übernahme von Verwertungsgut"
-    : `Rechnung ${escapeHtml(opts.belegNr)}`;
-  const belegMeta = isOffer
-    ? `Angebot Nr. ${escapeHtml(opts.belegNr)}`
-    : `zu Angebot ${escapeHtml(offer.angebot_nr)} · fällig am ${opts.faelligOderGueltig}`;
+  const trackingUrl = normalizeHausmannTrackingUrl(opts.trackingUrl);
 
-  const intro = isOffer
-    ? `<p style="margin:0 0 14px 0;">unter Bezugnahme auf Ihre Anfrage unterbreiten wir Ihnen folgendes Angebot. Die Positionen stammen aus dem Bestand des Insolvenzverfahrens und werden „wie besichtigt“ übergeben; Zwischenverkauf bleibt vorbehalten.</p>`
-    : `<p style="margin:0 0 14px 0;">vielen Dank für die Annahme. Anbei erhalten Sie die Rechnung über <strong>${fmtEUR(total)}</strong>. Bitte überweisen Sie den Betrag bis zum <strong>${opts.faelligOderGueltig}</strong> unter Angabe der Rechnungsnummer <strong>${escapeHtml(opts.belegNr)}</strong>.</p>
-       <p style="margin:0 0 14px 0;">Bei dem angegebenen Konto handelt es sich um ein Mandanten-/Anderkonto der Kanzlei. Ihre Zahlung ist dadurch treuhänderisch geschützt.</p>`;
-
-  const closing = isOffer
-    ? `<p style="margin:0 0 14px 0;">Dieses Angebot ist gültig bis zum ${opts.faelligOderGueltig}. Mit Annahme kommt der Kaufvertrag zustande; die Rechnung folgt unmittelbar danach.</p>`
-    : `<p style="margin:0 0 14px 0;">Sobald der Zahlungseingang gebucht ist, meldet sich unsere Spedition bei Ihnen, um einen Liefertermin zu vereinbaren.</p>`;
-
-  const ctaBlock = opts.ctaUrl
-    ? opts.ctaDone
-      ? `<p style="margin:20px 0;font-size:13px;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
-      : `<p style="margin:20px 0;"><a href="${opts.ctaUrl}" style="display:inline-block;border:1px solid #14283c;color:#14283c;text-decoration:none;padding:11px 20px;font-family:Helvetica,Arial,sans-serif;font-size:12px;">${escapeHtml(opts.ctaLabel)}</a></p>`
-    : "";
-
-  const bankBlock =
-    !isOffer && opts.bank
-      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px 0;border:1px solid #e2ddd0;background:#faf8f3;">
-           <tr><td style="padding:16px 18px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.7;color:#222;">
-             <div style="font-size:11px;color:#777;margin-bottom:6px;">Bankverbindung</div>
-             Kontoinhaber: <strong>${escapeHtml(opts.bank.inhaber)}</strong><br/>
-             Bank: ${escapeHtml(opts.bank.name)}<br/>
-             IBAN: <span style="font-family:Consolas,'Courier New',monospace;">${escapeHtml(opts.bank.iban)}</span><br/>
-             BIC: <span style="font-family:Consolas,'Courier New',monospace;">${escapeHtml(opts.bank.bic)}</span><br/>
-             Verwendungszweck: <strong>${escapeHtml(opts.belegNr)}</strong>
-           </td></tr>
-         </table>`
-      : "";
-
-  const trackingBlock =
-    !isOffer && opts.trackingUrl
-      ? `<p style="margin:0 0 14px 0;">Ihre Sendung ist bereits angelegt${
-          opts.trackingNumber ? ` unter der Nummer <strong>${escapeHtml(opts.trackingNumber)}</strong>` : ""
-        }. Status und Lieferfortschritt:</p>
-         <p style="margin:0 0 14px 0;"><a href="${escapeHtml(opts.trackingUrl)}" style="color:#14283c;">${escapeHtml(opts.trackingUrl)}</a></p>`
-      : "";
-
-  const deliveryBlock =
-    offer.delivery_name?.trim() || offer.delivery_address?.trim()
-      ? `<p style="margin:0 0 14px 0;font-size:13px;color:#555;"><strong>Lieferanschrift:</strong><br/>${formatAddressHtml(offer.delivery_name, offer.delivery_address)}</p>`
-      : "";
+  const body = isOffer
+    ? `
+      <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+      <p style="margin:0 0 16px 0;">anbei unser Angebot <strong>${escapeHtml(opts.belegNr)}</strong> als PDF. Schauen Sie es gerne in Ruhe durch — wenn etwas unklar ist, antworten Sie einfach kurz auf diese Mail.</p>
+      <p style="margin:0 0 16px 0;">Das Angebot gilt bis zum ${opts.faelligOderGueltig}. Wenn es für Sie passt, können Sie es hier verbindlich annehmen:</p>
+      ${
+        opts.ctaUrl
+          ? opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;"><a href="${opts.ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Angebot annehmen</a></p>`
+          : ""
+      }
+      <p style="margin:0 0 16px 0;">Danach schicken wir Ihnen umgehend die Rechnung mit den Zahlungsdaten.</p>
+    `
+    : `
+      <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+      <p style="margin:0 0 16px 0;">vielen Dank nochmals. Anbei die Rechnung <strong>${escapeHtml(opts.belegNr)}</strong> als PDF (zu Angebot ${escapeHtml(offer.angebot_nr)}).</p>
+      <p style="margin:0 0 16px 0;">Bitte überweisen Sie den Betrag bis zum <strong>${opts.faelligOderGueltig}</strong> unter Angabe der Rechnungsnummer. Die Bankverbindung finden Sie in der PDF — hier noch einmal zum Abtippen:</p>
+      ${
+        opts.bank
+          ? `<p style="margin:0 0 16px 0;line-height:1.7;">
+              Kontoinhaber: ${escapeHtml(opts.bank.inhaber)}<br/>
+              Bank: ${escapeHtml(opts.bank.name)}<br/>
+              IBAN: ${escapeHtml(opts.bank.iban)}<br/>
+              BIC: ${escapeHtml(opts.bank.bic)}
+            </p>`
+          : ""
+      }
+      <p style="margin:0 0 16px 0;">Das Konto ist ein Anderkonto der Kanzlei — Ihre Zahlung ist damit treuhänderisch abgesichert.</p>
+      ${
+        trackingUrl
+          ? `<p style="margin:0 0 16px 0;">Die Sendung ist bei der Spedition Hausmann schon angelegt${
+              opts.trackingNumber ? ` (${escapeHtml(opts.trackingNumber)})` : ""
+            }. Hier können Sie den Status verfolgen:<br/>
+            <a href="${escapeHtml(trackingUrl)}" style="color:#1a2b3d;">${escapeHtml(trackingUrl)}</a></p>`
+          : `<p style="margin:0 0 16px 0;">Sobald die Zahlung da ist, meldet sich die Spedition Hausmann (spedition-hausmann.de) bei Ihnen zum Liefertermin.</p>`
+      }
+      ${
+        opts.ctaUrl
+          ? opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;">Nach der Überweisung können Sie uns hier kurz Bescheid geben:<br/><a href="${opts.ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Zahlung bestätigen</a></p>`
+          : ""
+      }
+    `;
 
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.belegArt)} ${escapeHtml(opts.belegNr)}</title></head>
-<body style="margin:0;padding:0;background:#f3f1eb;font-family:Georgia,'Times New Roman',serif;color:#1f1a14;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f1eb;padding:28px 12px;">
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
     <tr><td align="center">
-      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;">
-
-        <tr><td style="padding:40px 48px 0 48px;">
-          <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.45;color:#14283c;">
-              <strong style="font-size:15px;letter-spacing:0.06em;">ERIK LAUMANN</strong><br/>
-              Rechtsanwalt und Insolvenzverwalter<br/>
-              ${escapeHtml(SITE.street)}<br/>${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
-            </td>
-            <td style="text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#666;line-height:1.5;">
-              ${escapeHtml(SITE.email)}<br/>
-              USt-IdNr. ${escapeHtml(SITE.ustId)}<br/>
-              ${opts.datum}
-            </td>
-          </tr></table>
-          <div style="margin-top:36px;height:1px;background:#d8d2c3;"></div>
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            Erik Laumann · ${escapeHtml(SITE.email)} · ${opts.datum}
+          </p>
+          ${body}
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>Erik Laumann</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            Rechtsanwalt und Insolvenzverwalter<br/>
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            USt-IdNr. ${escapeHtml(SITE.ustId)}
+          </p>
         </td></tr>
-
-        <tr><td style="padding:28px 48px 0 48px;font-size:14px;line-height:1.55;color:#333;">
-          <div style="margin-bottom:22px;">
-            ${formatAddressHtml(offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : null)}
-          </div>
-
-          <p style="margin:0 0 6px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">${belegMeta}</p>
-          <p style="margin:0 0 18px 0;font-size:17px;font-weight:600;color:#14283c;">${title}</p>
-
-          <p style="margin:0 0 14px 0;">${customerGreeting(offer.customer_name)}</p>
-          ${intro}
-          ${deliveryBlock}
-
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 8px 0;border-collapse:collapse;">
-            <tbody>${rows}</tbody>
-          </table>
-
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;font-size:13px;">
-            <tr><td style="padding:8px 8px 4px 0;color:#666;">Zwischensumme</td><td style="padding:8px 0 4px 0;text-align:right;">${fmtEUR(subtotal)}</td></tr>
-            ${
-              rabattBetrag > 0
-                ? `<tr><td style="padding:4px 8px;color:#666;">Rabatt (${rabattRate}%)</td><td style="padding:4px 0;text-align:right;">−${fmtEUR(rabattBetrag)}</td></tr>`
-                : ""
-            }
-            ${
-              lieferkosten > 0
-                ? `<tr><td style="padding:4px 8px;color:#666;">Lieferkosten</td><td style="padding:4px 0;text-align:right;">${fmtEUR(lieferkosten)}</td></tr>`
-                : ""
-            }
-            <tr><td style="padding:4px 8px;color:#666;">Netto</td><td style="padding:4px 0;text-align:right;">${fmtEUR(netto)}</td></tr>
-            <tr><td style="padding:4px 8px;color:#666;">zzgl. MwSt. (${mwstRate}%)</td><td style="padding:4px 0;text-align:right;">${fmtEUR(mwst)}</td></tr>
-            <tr><td style="padding:8px 8px 10px 0;font-weight:600;color:#14283c;">Gesamtbetrag</td><td style="padding:8px 0 10px 0;text-align:right;font-weight:600;font-size:15px;color:#14283c;">${fmtEUR(total)}</td></tr>
-          </table>
-
-          ${bankBlock}
-          ${closing}
-          ${trackingBlock}
-          ${ctaBlock}
-
-          <p style="margin:28px 0 0 0;">Mit freundlichen Grüßen</p>
-          <p style="margin:18px 0 0 0;">Erik Laumann<br/><span style="color:#777;font-size:13px;">Rechtsanwalt und Insolvenzverwalter</span></p>
-        </td></tr>
-
-        <tr><td style="padding:28px 48px 36px 48px;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#999;line-height:1.6;">
-          ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
-        </td></tr>
-
       </table>
     </td></tr>
   </table>
@@ -318,72 +255,40 @@ export function renderPaymentConfirmationHtml(offer: {
   tracking_url?: string | null;
 }): string {
   const anredeName = escapeHtml(offer.customer_name.trim() || "Kunde");
-  const firma = offer.customer_company?.trim()
-    ? `<div style="margin-top:4px;font-size:13px;color:#6b6656;">${escapeHtml(offer.customer_company.trim())}</div>`
-    : "";
   const belegNr = escapeHtml(offer.rechnung_nr || offer.angebot_nr);
   const belegLabel = offer.rechnung_nr ? "Rechnung" : "Angebot";
-  const betrag =
-    offer.total != null && Number.isFinite(Number(offer.total))
-      ? fmtEUR(Number(offer.total))
-      : null;
   const paidAt = offer.paid_at
     ? new Date(offer.paid_at).toLocaleDateString("de-DE", { dateStyle: "medium" })
     : new Date().toLocaleDateString("de-DE", { dateStyle: "medium" });
-  const trackingBlock =
-    offer.tracking_url?.trim()
-      ? `<p style="margin:18px 0 0 0;">
-            Den Lieferstatus Ihrer Sendung${offer.tracking_number ? ` (<strong>${escapeHtml(offer.tracking_number)}</strong>)` : ""} können Sie bei unserer Partnerspedition verfolgen:
-            <br/><a href="${escapeHtml(offer.tracking_url.trim())}" style="color:#0f2740;">${escapeHtml(offer.tracking_url.trim())}</a>
-          </p>`
-      : `<p style="margin:18px 0 0 0;">
-            Unsere Spedition wird sich in Kürze bei Ihnen melden, um einen Liefertermin zu vereinbaren.
-          </p>`;
+  const trackingUrl = normalizeHausmannTrackingUrl(offer.tracking_url);
+  const trackingBlock = trackingUrl
+    ? `<p style="margin:0 0 16px 0;">Den Lieferstatus${
+        offer.tracking_number ? ` (${escapeHtml(offer.tracking_number)})` : ""
+      } können Sie bei der Spedition Hausmann verfolgen:<br/>
+        <a href="${escapeHtml(trackingUrl)}" style="color:#1a2b3d;">${escapeHtml(trackingUrl)}</a></p>`
+    : `<p style="margin:0 0 16px 0;">Die Spedition Hausmann (spedition-hausmann.de) meldet sich in Kürze bei Ihnen, um einen Liefertermin zu vereinbaren.</p>`;
 
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zahlungseingang bestätigt</title></head>
-<body style="margin:0;padding:0;background:#f3f1eb;font-family:Georgia,'Times New Roman',serif;color:#1f1a14;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f1eb;padding:28px 12px;">
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
     <tr><td align="center">
-      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;">
-
-        <tr><td style="padding:40px 48px 0 48px;">
-          <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.45;color:#14283c;">
-              <strong style="font-size:15px;letter-spacing:0.06em;">ERIK LAUMANN</strong><br/>
-              Rechtsanwalt und Insolvenzverwalter<br/>
-              ${escapeHtml(SITE.street)}<br/>${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
-            </td>
-            <td style="text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#666;line-height:1.5;">
-              ${escapeHtml(SITE.email)}<br/>
-              USt-IdNr. ${escapeHtml(SITE.ustId)}<br/>
-              ${paidAt}
-            </td>
-          </tr></table>
-          <div style="margin-top:36px;height:1px;background:#d8d2c3;"></div>
-        </td></tr>
-
-        <tr><td style="padding:28px 48px 0 48px;font-size:14px;line-height:1.55;color:#333;">
-          <p style="margin:0 0 6px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">${belegLabel} ${belegNr}</p>
-          <p style="margin:0 0 18px 0;font-size:17px;font-weight:600;color:#14283c;">Zahlungseingang bestätigt</p>
-          <p style="margin:0;">Guten Tag ${anredeName},</p>
-          ${firma}
-          <p style="margin:14px 0 0 0;">
-            vielen Dank. Wir bestätigen den Zahlungseingang zu Ihrer
-            <strong>${belegLabel} ${belegNr}</strong>${betrag ? ` (${betrag})` : ""}
-            vom ${paidAt}.
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            Erik Laumann · ${escapeHtml(SITE.email)} · ${paidAt}
+          </p>
+          <p style="margin:0 0 16px 0;">Guten Tag ${anredeName},</p>
+          <p style="margin:0 0 16px 0;">
+            vielen Dank — der Zahlungseingang zu Ihrer ${belegLabel} ${belegNr} ist bei uns eingegangen.
           </p>
           ${trackingBlock}
-          <p style="margin:14px 0 0 0;">
-            Bei Rückfragen erreichen Sie uns unter ${escapeHtml(SITE.email)}.
+          <p style="margin:0 0 16px 0;">Bei Fragen einfach kurz auf diese Mail antworten.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>Erik Laumann</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            Rechtsanwalt und Insolvenzverwalter<br/>
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
           </p>
-          <p style="margin:28px 0 0 0;">Mit freundlichen Grüßen</p>
-          <p style="margin:18px 0 0 0;">Erik Laumann<br/><span style="color:#777;font-size:13px;">Rechtsanwalt und Insolvenzverwalter</span></p>
         </td></tr>
-
-        <tr><td style="padding:28px 48px 36px 48px;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#999;line-height:1.6;">
-          ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
-        </td></tr>
-
       </table>
     </td></tr>
   </table>
@@ -397,16 +302,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-/** Mehrzeilige Adresse für E-Mail-Clients: echte <br/> statt white-space:pre-line
- *  (Outlook/Gmail ignorieren pre-line oft → Straße klebt am Namen). */
-function formatAddressHtml(...parts: Array<string | null | undefined>): string {
-  const lines = parts
-    .flatMap((p) => String(p ?? "").split(/\r?\n/))
-    .map((l) => l.trim())
-    .filter(Boolean);
-  return lines.map(escapeHtml).join("<br/>");
 }
 
 export type EmailAttachment = { filename: string; content: string /* base64 */ };
