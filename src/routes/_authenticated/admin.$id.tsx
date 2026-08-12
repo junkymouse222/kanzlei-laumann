@@ -6,10 +6,23 @@ import {
   previewInvoicePdf,
   updateOfferStatus,
   updateOfferCustomer,
+  updateOfferItems,
   type OfferDetail,
 } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { computeOfferTotals } from "@/lib/offer-totals";
+import { PRODUKTE } from "@/lib/katalog";
+
+type EditItem = {
+  id: string;
+  pos: number;
+  artikel: string;
+  name: string;
+  beschreibung: string | null;
+  einheit: string;
+  einzelpreis: number;
+  menge: number;
+};
 
 export const Route = createFileRoute("/_authenticated/admin/$id")({
   head: () => ({
@@ -103,6 +116,9 @@ function AdminDetailPage() {
   const [custUstId, setCustUstId] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerSaveResult, setCustomerSaveResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [editItems, setEditItems] = useState<EditItem[]>([]);
+  const [savingItems, setSavingItems] = useState(false);
+  const [itemsSaveResult, setItemsSaveResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -119,6 +135,19 @@ function AdminDetailPage() {
       setCustPhone(res.offer.customer_phone ?? "");
       setCustAddress(res.offer.customer_address ?? "");
       setCustUstId(res.offer.customer_ust_id ?? "");
+      setEditItems(
+        res.items.map((it) => ({
+          id: it.id,
+          pos: it.pos,
+          artikel: it.artikel,
+          name: it.name,
+          beschreibung: it.beschreibung,
+          einheit: it.einheit,
+          einzelpreis: Number(it.einzelpreis),
+          menge: Number(it.menge),
+        })),
+      );
+      setItemsSaveResult(null);
       if (res.offer.bank_inhaber) setBankInhaber(res.offer.bank_inhaber);
       if (res.offer.bank_name) setBankName(res.offer.bank_name);
       if (res.offer.bank_iban) setBankIban(res.offer.bank_iban);
@@ -127,6 +156,33 @@ function AdminDetailPage() {
       setError(e instanceof Error ? e.message : "Laden fehlgeschlagen.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveItems() {
+    setSavingItems(true);
+    setItemsSaveResult(null);
+    try {
+      await updateOfferItems({
+        data: {
+          id,
+          items: editItems.map((it) => ({
+            id: it.id,
+            einzelpreis: Number(it.einzelpreis),
+            menge: Number(it.menge),
+            name: it.name.trim() || undefined,
+          })),
+          rabatt_rate: offerRabatt,
+          mwst_rate: offerMwst,
+          lieferkosten: offerLieferkosten,
+        },
+      });
+      setItemsSaveResult({ ok: true, msg: "Preise und Summen gespeichert — bereit zum Versand." });
+      await load();
+    } catch (e) {
+      setItemsSaveResult({ ok: false, msg: e instanceof Error ? e.message : "Speichern fehlgeschlagen." });
+    } finally {
+      setSavingItems(false);
     }
   }
 
@@ -171,6 +227,21 @@ function AdminDetailPage() {
     setResending(true);
     setSendResult(null);
     try {
+      // Offene Preisänderungen zuerst persistieren, damit Versand die neuen Beträge nutzt.
+      await updateOfferItems({
+        data: {
+          id,
+          items: editItems.map((it) => ({
+            id: it.id,
+            einzelpreis: Number(it.einzelpreis),
+            menge: Number(it.menge),
+            name: it.name.trim() || undefined,
+          })),
+          rabatt_rate: offerRabatt,
+          mwst_rate: offerMwst,
+          lieferkosten: offerLieferkosten,
+        },
+      });
       const res = await postAdminJson<{ ok: true; messageId?: string }>("/api/public/admin/send-offer", {
         id,
         rabatt_rate: offerRabatt,
@@ -246,10 +317,25 @@ function AdminDetailPage() {
   async function handlePreviewOffer() {
     setPreviewing("offer");
     try {
+      await updateOfferItems({
+        data: {
+          id,
+          items: editItems.map((it) => ({
+            id: it.id,
+            einzelpreis: Number(it.einzelpreis),
+            menge: Number(it.menge),
+            name: it.name.trim() || undefined,
+          })),
+          rabatt_rate: offerRabatt,
+          mwst_rate: offerMwst,
+          lieferkosten: offerLieferkosten,
+        },
+      });
       const res = await previewOfferPdf({
         data: { id, rabatt_rate: offerRabatt, mwst_rate: offerMwst, lieferkosten: offerLieferkosten },
       });
       openBase64Pdf(res.base64, res.filename);
+      await load();
     } catch (e) {
       setSendResult({ ok: false, msg: e instanceof Error ? e.message : "Fehler beim PDF-Erstellen." });
     } finally {
@@ -287,7 +373,16 @@ function AdminDetailPage() {
   if (error) return <section className="container-prose py-16 text-sm text-red-700">{error}</section>;
   if (!detail) return null;
 
-  const { offer, items } = detail;
+  const { offer } = detail;
+  const draftSubtotal = Number(
+    editItems.reduce((s, it) => s + Number(it.einzelpreis) * Number(it.menge), 0).toFixed(2),
+  );
+  const draftTotals = computeOfferTotals({
+    subtotal: draftSubtotal,
+    rabattRate: offerRabatt,
+    lieferkosten: offerLieferkosten,
+    mwstRate: offerMwst,
+  });
 
   return (
     <section className="container-prose py-16">
@@ -340,7 +435,7 @@ function AdminDetailPage() {
 
       {confirmOpen && (() => {
         const preview = computeOfferTotals({
-          subtotal: offer.subtotal,
+          subtotal: draftSubtotal,
           rabattRate: offerRabatt,
           lieferkosten: offerLieferkosten,
           mwstRate: offerMwst,
@@ -388,7 +483,7 @@ function AdminDetailPage() {
           </div>
 
           <div className="mt-4 grid gap-1 md:ml-auto md:w-72 text-xs">
-            <Row label="Zwischensumme" value={fmtEUR(offer.subtotal)} />
+            <Row label="Zwischensumme" value={fmtEUR(draftSubtotal)} />
             {preview.rabatt > 0 && <Row label={`Neukundenrabatt (${offerRabatt}%)`} value={`−${fmtEUR(preview.rabatt)}`} />}
             {offerLieferkosten > 0 && <Row label="Lieferkosten" value={fmtEUR(offerLieferkosten)} />}
             <Row label={`zzgl. ${offerMwst}% MwSt.`} value={fmtEUR(preview.mwst)} />
@@ -711,6 +806,9 @@ function AdminDetailPage() {
 
       <h2 className="mt-10 text-2xl">Positionen</h2>
       <span className="rule-gold mt-4" />
+      <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+        Einzelpreise und Mengen hier anpassen (z.&nbsp;B. Kundenangebot „ich biete 400&nbsp;€“), speichern und anschließend das Angebot versenden.
+      </p>
       <div className="mt-6 overflow-x-auto border border-border">
         <table className="w-full text-sm">
           <thead>
@@ -719,37 +817,153 @@ function AdminDetailPage() {
               <th className="p-3 text-left">Artikel</th>
               <th className="p-3 text-left">Bezeichnung</th>
               <th className="p-3 text-right">Menge</th>
-              <th className="p-3 text-right">Einzelpreis</th>
+              <th className="p-3 text-right">Einzelpreis € netto</th>
               <th className="p-3 text-right">Gesamt</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => (
-              <tr key={it.id} className="border-b border-border">
-                <td className="p-3">{it.pos}</td>
-                <td className="p-3 font-mono text-xs">{it.artikel}</td>
-                <td className="p-3">
-                  <div>{it.name}</div>
-                  {it.beschreibung && <div className="text-xs text-muted-foreground">{it.beschreibung}</div>}
-                </td>
-                <td className="p-3 text-right">{it.menge} {it.einheit}</td>
-                <td className="p-3 text-right">{fmtEUR(it.einzelpreis)}</td>
-                <td className="p-3 text-right font-medium">{fmtEUR(it.position_total)}</td>
-              </tr>
-            ))}
+            {editItems.map((it) => {
+              const lineTotal = Number((Number(it.einzelpreis) * Number(it.menge)).toFixed(2));
+              const katalogPreis = PRODUKTE.find((p) => p.artikel === it.artikel)?.einzelpreis;
+              const priceChanged =
+                katalogPreis != null && Math.abs(katalogPreis - Number(it.einzelpreis)) > 0.001;
+              return (
+                <tr key={it.id} className="border-b border-border align-top">
+                  <td className="p-3">{it.pos}</td>
+                  <td className="p-3 font-mono text-xs">{it.artikel}</td>
+                  <td className="p-3">
+                    <input
+                      type="text"
+                      value={it.name}
+                      onChange={(e) =>
+                        setEditItems((prev) =>
+                          prev.map((x) => (x.id === it.id ? { ...x, name: e.target.value } : x)),
+                        )
+                      }
+                      className="w-full min-w-[12rem] border border-border bg-background px-2 py-1.5 text-sm"
+                    />
+                    {it.beschreibung && (
+                      <div className="mt-1 text-xs text-muted-foreground">{it.beschreibung}</div>
+                    )}
+                    {priceChanged && katalogPreis != null && (
+                      <div className="mt-1 text-[0.65rem] text-amber-800">
+                        Katalogpreis: {fmtEUR(katalogPreis)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 text-right">
+                    <div className="inline-flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={it.menge}
+                        onChange={(e) =>
+                          setEditItems((prev) =>
+                            prev.map((x) =>
+                              x.id === it.id
+                                ? { ...x, menge: Math.max(1, Math.floor(Number(e.target.value) || 1)) }
+                                : x,
+                            ),
+                          )
+                        }
+                        className="w-16 border border-border bg-background px-2 py-1.5 text-right tabular-nums"
+                      />
+                      <span className="text-xs text-muted-foreground">{it.einheit}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-right">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={it.einzelpreis}
+                      onChange={(e) =>
+                        setEditItems((prev) =>
+                          prev.map((x) =>
+                            x.id === it.id
+                              ? { ...x, einzelpreis: Math.max(0, Number(e.target.value) || 0) }
+                              : x,
+                          ),
+                        )
+                      }
+                      className="ml-auto w-28 border border-border bg-background px-2 py-1.5 text-right tabular-nums"
+                    />
+                  </td>
+                  <td className="p-3 text-right font-medium tabular-nums">{fmtEUR(lineTotal)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-end gap-4">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Neukundenrabatt (%)</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={0.5}
+            value={offerRabatt}
+            onChange={(e) => setOfferRabatt(Number(e.target.value) || 0)}
+            className="w-24 border border-border bg-background px-3 py-2"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">MwSt (%)</span>
+          <input
+            type="number"
+            min={0}
+            max={99}
+            step={0.5}
+            value={offerMwst}
+            onChange={(e) => setOfferMwst(Number(e.target.value) || 0)}
+            className="w-24 border border-border bg-background px-3 py-2"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Lieferkosten (€ netto)</span>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={offerLieferkosten}
+            onChange={(e) => setOfferLieferkosten(Number(e.target.value) || 0)}
+            className="w-28 border border-border bg-background px-3 py-2"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={handleSaveItems}
+          disabled={savingItems || editItems.length === 0}
+          className="bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+        >
+          {savingItems ? "Speichern …" : "Preise speichern"}
+        </button>
+      </div>
+      {itemsSaveResult && (
+        <div
+          className={`mt-3 border p-3 text-sm ${
+            itemsSaveResult.ok
+              ? "border-green-700 bg-green-50 text-green-900"
+              : "border-red-700 bg-red-50 text-red-800"
+          }`}
+        >
+          {itemsSaveResult.msg}
+        </div>
+      )}
+
       <div className="mt-6 grid gap-2 md:ml-auto md:w-80 text-sm">
-        <Row label="Zwischensumme" value={fmtEUR(offer.subtotal)} />
-        {Number(offer.rabatt) > 0 && (
-          <Row label={`Neukundenrabatt (${Number(offer.rabatt_rate)}%)`} value={`−${fmtEUR(Number(offer.rabatt))}`} />
+        <Row label="Zwischensumme" value={fmtEUR(draftSubtotal)} />
+        {draftTotals.rabatt > 0 && (
+          <Row label={`Neukundenrabatt (${offerRabatt}%)`} value={`−${fmtEUR(draftTotals.rabatt)}`} />
         )}
-        <Row label="Lieferkosten" value={fmtEUR(offer.lieferkosten)} />
-        <Row label={`zzgl. ${Number(offer.mwst_rate)}% MwSt.`} value={fmtEUR(offer.mwst)} />
+        <Row label="Lieferkosten" value={fmtEUR(offerLieferkosten)} />
+        <Row label={`zzgl. ${offerMwst}% MwSt.`} value={fmtEUR(draftTotals.mwst)} />
         <div className="border-t border-border pt-2 font-semibold">
-          <Row label="Gesamtbetrag" value={fmtEUR(offer.total)} />
+          <Row label="Gesamtbetrag" value={fmtEUR(draftTotals.total)} />
         </div>
       </div>
 

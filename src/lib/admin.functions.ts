@@ -181,6 +181,137 @@ export const updateOfferCustomer = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const UpdateOfferItemsSchema = z.object({
+  id: z.string().uuid(),
+  items: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        einzelpreis: z.number().min(0).max(1_000_000),
+        menge: z.number().int().min(1).max(9999),
+        name: z.string().trim().min(1).max(300).optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
+  /** Optional: Neukundenrabatt % — sonst bestehender Wert. */
+  rabatt_rate: z.number().min(0).max(100).optional(),
+  /** Optional: Lieferkosten netto — sonst aus Versandregel neu berechnet. */
+  lieferkosten: z.number().min(0).max(1_000_000).optional(),
+  mwst_rate: z.number().min(0).max(99).optional(),
+});
+
+/**
+ * Positionen (Preise/Menge) einer Anfrage anpassen und Summen neu berechnen.
+ * Damit kann z. B. ein Kundenangebot („ich biete 400 €“) vor dem Versand
+ * als Festpreis eingetragen und versendet werden.
+ */
+export const updateOfferItems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateOfferItemsSchema.parse(input))
+  .handler(
+    async ({
+      context,
+      data,
+    }): Promise<{
+      ok: true;
+      subtotal: number;
+      rabatt: number;
+      mwst: number;
+      total: number;
+      lieferkosten: number;
+    }> => {
+      await assertAdmin(context.supabase as never, context.userId);
+      const { SITE } = await import("@/lib/site");
+      const { round2 } = await import("@/lib/offer-totals");
+      const client = context.supabase as any;
+
+      const { data: offer, error: offerErr } = await client
+        .from("offer_requests")
+        .select("id, rabatt_rate, mwst_rate, lieferkosten, status")
+        .eq("id", data.id)
+        .eq("site_key", SITE.siteKey)
+        .maybeSingle();
+      if (offerErr) throw new Error(offerErr.message);
+      if (!offer) throw new Error("Anfrage nicht gefunden.");
+
+      const { data: existingItems, error: itemsErr } = await client
+        .from("offer_request_items")
+        .select("id")
+        .eq("request_id", data.id);
+      if (itemsErr) throw new Error(itemsErr.message);
+      const existingIds = new Set((existingItems ?? []).map((r: { id: string }) => r.id));
+      for (const it of data.items) {
+        if (!existingIds.has(it.id)) {
+          throw new Error("Position gehört nicht zu dieser Anfrage.");
+        }
+      }
+      if (data.items.length !== existingIds.size) {
+        throw new Error("Alle Positionen müssen übermittelt werden (keine Löschung hier).");
+      }
+
+      let subtotal = 0;
+      for (const it of data.items) {
+        const einzelpreis = round2(it.einzelpreis);
+        const menge = it.menge;
+        const position_total = round2(einzelpreis * menge);
+        subtotal = round2(subtotal + position_total);
+        const patch: Record<string, unknown> = {
+          einzelpreis,
+          menge,
+          position_total,
+        };
+        if (it.name !== undefined) patch.name = it.name.trim();
+        const { error: upErr } = await client
+          .from("offer_request_items")
+          .update(patch)
+          .eq("id", it.id)
+          .eq("request_id", data.id);
+        if (upErr) throw new Error(upErr.message);
+      }
+
+      const rabattRate =
+        data.rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
+      const mwstRate = data.mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
+      const lieferkosten =
+        data.lieferkosten !== undefined
+          ? round2(data.lieferkosten)
+          : subtotal >= SITE.versandFreiAbNetto
+            ? 0
+            : SITE.versandPauschale;
+      const totals = computeOfferTotals({
+        subtotal,
+        rabattRate,
+        lieferkosten,
+        mwstRate,
+      });
+
+      const { error: offerUpErr } = await client
+        .from("offer_requests")
+        .update({
+          subtotal,
+          rabatt_rate: rabattRate,
+          rabatt: totals.rabatt,
+          mwst_rate: mwstRate,
+          mwst: totals.mwst,
+          lieferkosten,
+          total: totals.total,
+        })
+        .eq("id", data.id)
+        .eq("site_key", SITE.siteKey);
+      if (offerUpErr) throw new Error(offerUpErr.message);
+
+      return {
+        ok: true,
+        subtotal,
+        rabatt: totals.rabatt,
+        mwst: totals.mwst,
+        total: totals.total,
+        lieferkosten,
+      };
+    },
+  );
+
 const UpdateStatusSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(OFFER_STATUS).optional(),
@@ -514,13 +645,18 @@ export const previewOfferPdf = createServerFn({ method: "POST" })
       .eq("request_id", data.id)
       .order("pos", { ascending: true });
     const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
-    const subtotal = Number(offer.subtotal);
+    const subtotal = Number(
+      ((items ?? []) as Array<{ position_total?: number | string }>)
+        .reduce((s, it) => s + Number(it.position_total || 0), 0)
+        .toFixed(2),
+    );
     const rabattRate = data.rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
     const mwstRate = data.mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
     const liefer = data.lieferkosten ?? Number(offer.lieferkosten ?? 0);
     const totals = computeOfferTotals({ subtotal, rabattRate, lieferkosten: liefer, mwstRate });
     const offerForRender = {
       ...offer,
+      subtotal,
       rabatt_rate: rabattRate,
       rabatt: totals.rabatt,
       mwst_rate: mwstRate,
