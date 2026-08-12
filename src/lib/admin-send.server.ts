@@ -135,8 +135,16 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     .order("pos", { ascending: true });
   if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
 
-  // Rabatt/MwSt/Lieferkosten optional aus dem Backend übernehmen und Summen neu berechnen.
-  const subtotal = Number(offer.subtotal);
+  // Subtotal immer aus aktuellen Positionen (Admin kann Preise vor Versand anpassen).
+  const subtotal = Number(
+    ((items ?? []) as Array<{ position_total?: number | string; einzelpreis?: number | string; menge?: number | string }>)
+      .reduce((s, it) => {
+        const pt = Number(it.position_total);
+        if (Number.isFinite(pt)) return s + pt;
+        return s + Number(it.einzelpreis || 0) * Number(it.menge || 0);
+      }, 0)
+      .toFixed(2),
+  );
   const rabattRate = rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
   const mwstRate = mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
   const liefer = lieferkosten ?? Number(offer.lieferkosten ?? 0);
@@ -145,6 +153,7 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
   const verwalter = await loadActiveVerwalter();
   const offerForRender = {
     ...offer,
+    subtotal,
     rabatt_rate: rabattRate,
     rabatt: totals.rabatt,
     mwst_rate: mwstRate,
@@ -185,6 +194,7 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
         offer_html: html,
         resend_message_id: send.messageId,
         error_message: null,
+        subtotal,
         rabatt_rate: rabattRate,
         rabatt: totals.rabatt,
         mwst_rate: mwstRate,
