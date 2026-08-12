@@ -390,5 +390,6 @@ CREATE POLICY "Admins manage bank_accounts"
 INSERT INTO public.app_settings (site_key, key, value)
 VALUES
   ('laumann', 'active_verwalter_name', 'Erik Laumann'),
-  ('laumann', 'active_verwalter_role', 'Rechtsanwalt · Insolvenzverwalter')
+  ('laumann', 'active_verwalter_role', 'Rechtsanwalt · Insolvenzverwalter'),
+  ('laumann', 'auto_send_offers', 'false')
 ON CONFLICT (site_key, key) DO NOTHING;

@@ -55,7 +55,13 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
     const rabattRate = DEFAULT_NEUKUNDEN_RABATT;
     const { rabatt, mwst, total } = computeOfferTotals({ subtotal, rabattRate, lieferkosten, mwstRate });
 
-    const scheduledSendAt = computeScheduledSendAt();
+    const { loadAutoSendOffersEnabled } = await import("@/lib/settings.functions");
+    const autoSend = await loadAutoSendOffersEnabled();
+    // Bei manuellem Modus: weit in die Zukunft legen, damit der Cron sie nicht
+    // nachholt, falls Auto später wieder aktiviert wird (Admin sendet manuell).
+    const scheduledSendAt = autoSend
+      ? computeScheduledSendAt()
+      : new Date("2099-01-01T00:00:00.000Z");
 
     const year = new Date().getFullYear();
     const angebotNr = `${year}-${String(Math.floor(Math.random() * 9000) + 1000)}`;

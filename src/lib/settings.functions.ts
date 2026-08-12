@@ -30,6 +30,29 @@ export type ActiveVerwalter = {
   role: string;
 };
 
+const AUTO_SEND_KEY = "auto_send_offers";
+
+function parseBoolSetting(value: string | undefined, fallback: boolean): boolean {
+  if (value == null || value === "") return fallback;
+  const v = value.trim().toLowerCase();
+  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
+  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
+  return fallback;
+}
+
+/** Server-seitig: ob der Cron fällige Angebote automatisch versenden darf. Default: aus. */
+export async function loadAutoSendOffersEnabled(): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = supabaseAdmin as any;
+  const { data } = await admin
+    .from("app_settings")
+    .select("value")
+    .eq("site_key", SITE.siteKey)
+    .eq("key", AUTO_SEND_KEY)
+    .maybeSingle();
+  return parseBoolSetting((data as { value?: string } | null)?.value, false);
+}
+
 /** Server-seitig (Service Role): aktiver Verwalter für Versand/PDF. */
 export async function loadActiveVerwalter(): Promise<ActiveVerwalter> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -69,8 +92,29 @@ export const getAdminSettings = createServerFn({ method: "GET" })
         name: map.get("active_verwalter_name")?.trim() || SITE.verwalter,
         role: map.get("active_verwalter_role")?.trim() || SITE.role,
       },
+      autoSendOffers: parseBoolSetting(map.get(AUTO_SEND_KEY), false),
       banks: (banks ?? []) as BankAccountRow[],
     };
+  });
+
+export const saveAutoSendOffers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ enabled: z.boolean() }).parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const { error } = await admin.from("app_settings").upsert(
+      {
+        site_key: SITE.siteKey,
+        key: AUTO_SEND_KEY,
+        value: data.enabled ? "true" : "false",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "site_key,key" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const, enabled: data.enabled };
   });
 
 export const saveActiveVerwalter = createServerFn({ method: "POST" })

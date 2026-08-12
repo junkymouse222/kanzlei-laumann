@@ -23,7 +23,18 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
         const { renderOfferHtml, sendOfferEmail } = await import("@/lib/offer-email.server");
         const { renderOfferPdf, toBase64 } = await import("@/lib/pdf.server");
         const { ensureOfferShortLinks } = await import("@/lib/tly.server");
-        const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+        const { loadActiveVerwalter, loadAutoSendOffersEnabled } = await import("@/lib/settings.functions");
+
+        const autoSend = await loadAutoSendOffersEnabled();
+        if (!autoSend) {
+          return Response.json({
+            ok: true,
+            processed: 0,
+            skipped: true,
+            reason: "Automatischer Angebotsversand ist deaktiviert (Einstellungen).",
+            results: [],
+          });
+        }
 
         const nowIso = new Date().toISOString();
         const verwalter = await loadActiveVerwalter();

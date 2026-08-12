@@ -4,6 +4,7 @@ import {
   deleteBankAccount,
   getAdminSettings,
   saveActiveVerwalter,
+  saveAutoSendOffers,
   upsertBankAccount,
   type BankAccountRow,
 } from "@/lib/settings.functions";
@@ -27,6 +28,9 @@ function EinstellungenPage() {
   const [verwalterRole, setVerwalterRole] = useState("");
   const [savingVerwalter, setSavingVerwalter] = useState(false);
 
+  const [autoSendOffers, setAutoSendOffers] = useState(false);
+  const [savingAutoSend, setSavingAutoSend] = useState(false);
+
   const [banks, setBanks] = useState<BankAccountRow[]>([]);
   const [label, setLabel] = useState("");
   const [inhaber, setInhaber] = useState("");
@@ -43,6 +47,7 @@ function EinstellungenPage() {
       const res = await getAdminSettings();
       setVerwalterName(res.verwalter.name);
       setVerwalterRole(res.verwalter.role);
+      setAutoSendOffers(res.autoSendOffers);
       setBanks(res.banks);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Laden fehlgeschlagen.");
@@ -54,6 +59,25 @@ function EinstellungenPage() {
   useEffect(() => {
     load();
   }, []);
+
+  async function handleSaveAutoSend() {
+    setSavingAutoSend(true);
+    setMsg(null);
+    try {
+      const next = !autoSendOffers;
+      await saveAutoSendOffers({ data: { enabled: next } });
+      setAutoSendOffers(next);
+      setMsg(
+        next
+          ? "Automatischer Angebotsversand ist eingeschaltet — fällige Anfragen werden per Cron versendet."
+          : "Automatischer Angebotsversand ist aus — Angebote nur noch manuell im Admin senden.",
+      );
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setSavingAutoSend(false);
+    }
+  }
 
   async function handleSaveVerwalter() {
     setSavingVerwalter(true);
@@ -137,7 +161,7 @@ function EinstellungenPage() {
           <h1 className="mt-2 text-4xl">Einstellungen</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            Zuständigen Insolvenzverwalter und Bankkonten für den Rechnungsversand verwalten.
+            Verwalter, automatischen Versand und Bankkonten verwalten.
           </p>
         </div>
         <Link to="/admin" className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary">
@@ -151,6 +175,37 @@ function EinstellungenPage() {
 
       {!loading && !error && (
         <>
+          <div className="mt-10 border border-border p-6">
+            <h2 className="font-serif text-2xl text-primary">Automatischer Angebotsversand</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Wenn ausgeschaltet, bleiben neue Kundenanfragen offen und Sie senden das Angebot manuell im Admin.
+              Einschalten aktiviert wieder den Cron-Versand nach dem geplanten Zeitpunkt.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <span
+                className={`inline-flex border px-3 py-1.5 text-xs uppercase tracking-widest ${
+                  autoSendOffers
+                    ? "border-green-700 bg-green-50 text-green-800"
+                    : "border-border bg-parchment text-muted-foreground"
+                }`}
+              >
+                {autoSendOffers ? "Aktiv" : "Aus (manuell)"}
+              </span>
+              <button
+                type="button"
+                disabled={savingAutoSend}
+                onClick={handleSaveAutoSend}
+                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+              >
+                {savingAutoSend
+                  ? "Speichern …"
+                  : autoSendOffers
+                    ? "Automatik ausschalten"
+                    : "Automatik einschalten"}
+              </button>
+            </div>
+          </div>
+
           <div className="mt-10 border border-border p-6">
             <h2 className="font-serif text-2xl text-primary">Zuständiger Insolvenzverwalter</h2>
             <p className="mt-2 text-sm text-muted-foreground">

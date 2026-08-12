@@ -198,7 +198,13 @@ function AdminListPage() {
                     )}
                   </td>
                   <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
-                    {r.sent_at ? `gesendet ${fmtDate(r.sent_at)}` : `geplant ${fmtDate(r.scheduled_send_at)}`}
+                    {r.sent_at
+                      ? `gesendet ${fmtDate(r.sent_at)}`
+                      : r.status === "pending" && new Date(r.scheduled_send_at).getFullYear() >= 2099
+                        ? "offen — manuell senden"
+                        : r.sent_at
+                          ? `gesendet ${fmtDate(r.sent_at)}`
+                          : `geplant ${fmtDate(r.scheduled_send_at)}`}
                   </td>
                   <td className="p-3 text-right font-medium">{fmtEUR(r.total)}</td>
                   <td className="p-3 text-right">
