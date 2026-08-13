@@ -186,7 +186,7 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
 
     if (!send.ok) throw new AdminSendError(send.error, 502);
 
-    await admin
+    const { data: updated, error: upErr } = await admin
       .from("offer_requests")
       .update({
         status: "sent",
@@ -204,12 +204,20 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
         verwalter_name: verwalter.name,
         verwalter_role: verwalter.role,
       })
-      .eq("id", id);
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (upErr) throw new AdminSendError(upErr.message, 500);
+    if (!updated) throw new AdminSendError("Status konnte nicht gespeichert werden.", 500);
 
     return { ok: true, messageId: send.messageId };
   } catch (error) {
     const message = errMsg(error);
-    await admin.from("offer_requests").update({ status: "failed", offer_html: html || null, error_message: message }).eq("id", id);
+    const { error: failErr } = await admin
+      .from("offer_requests")
+      .update({ status: "failed", offer_html: html || null, error_message: message })
+      .eq("id", id);
+    if (failErr) console.error("[sendOfferFromAdmin] failed-status update:", failErr.message);
     if (error instanceof AdminSendError) throw error;
     throw new AdminSendError(message, 500);
   }
@@ -339,9 +347,18 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
 
     if (!send.ok) throw new AdminSendError(send.error, 502);
 
-    await admin
+    // Rechnungsversand = verbindlicher Abschluss: Angebotsstatus auf „accepted“,
+    // falls der Kunde noch nicht formell angenommen hat (damit die Liste mitzieht).
+    const acceptPatch: Record<string, unknown> = {};
+    if (!offer.accepted_at && offer.status !== "accepted") {
+      acceptPatch.status = "accepted";
+      acceptPatch.accepted_at = new Date().toISOString();
+    }
+
+    const { data: updated, error: upErr } = await admin
       .from("offer_requests")
       .update({
+        ...acceptPatch,
         rechnung_nr,
         rechnung_status: "sent",
         rechnung_sent_at: new Date().toISOString(),
@@ -357,12 +374,16 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         verwalter_name: verwalter.name,
         verwalter_role: verwalter.role,
       })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("id, status, rechnung_status")
+      .maybeSingle();
+    if (upErr) throw new AdminSendError(upErr.message, 500);
+    if (!updated) throw new AdminSendError("Rechnungsstatus konnte nicht gespeichert werden.", 500);
 
     return { ok: true, messageId: send.messageId, rechnung_nr };
   } catch (error) {
     const message = errMsg(error);
-    await admin
+    const { error: failErr } = await admin
       .from("offer_requests")
       .update({
         rechnung_nr,
@@ -375,6 +396,7 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         bank_bic: invoice.bank_bic,
       })
       .eq("id", data.id);
+    if (failErr) console.error("[sendInvoiceFromAdmin] failed-status update:", failErr.message);
     if (error instanceof AdminSendError) throw error;
     throw new AdminSendError(message, 500);
   }

@@ -102,10 +102,19 @@ async function handlePost(request: Request): Promise<Response> {
     null;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await (supabaseAdmin as any)
+  const { data: updated, error: upErr } = await (supabaseAdmin as any)
     .from("offer_requests")
     .update({ accepted_at: new Date().toISOString(), accepted_ip: ip, status: "accepted" })
-    .eq("id", offer.id);
+    .eq("id", offer.id)
+    .select("id")
+    .maybeSingle();
+  if (upErr || !updated) {
+    console.error("[accept-offer] status update failed", upErr?.message ?? "no row");
+    return new Response("Annahme konnte nicht gespeichert werden. Bitte erneut versuchen.", {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
 
   return render("ok", { angebotNr: offer.angebot_nr });
 }
