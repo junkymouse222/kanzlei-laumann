@@ -360,12 +360,15 @@ export const updateOfferStatus = createServerFn({ method: "POST" })
     }
     if (Object.keys(patch).length === 0) return { ok: true };
     const { SITE } = await import("@/lib/site");
-    const { error } = await client
+    const { data: updated, error } = await client
       .from("offer_requests")
       .update(patch)
       .eq("id", data.id)
-      .eq("site_key", SITE.siteKey);
+      .eq("site_key", SITE.siteKey)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!updated) throw new Error("Status konnte nicht gespeichert werden (Anfrage nicht gefunden).");
     return { ok: true };
   });
 
@@ -660,9 +663,16 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
       throw new Error(send.error);
     }
 
-    await admin
+    const acceptPatch: Record<string, unknown> = {};
+    if (!offer.accepted_at && offer.status !== "accepted") {
+      acceptPatch.status = "accepted";
+      acceptPatch.accepted_at = new Date().toISOString();
+    }
+
+    const { data: updated, error: upErr } = await admin
       .from("offer_requests")
       .update({
+        ...acceptPatch,
         rechnung_nr,
         rechnung_status: "sent",
         rechnung_sent_at: new Date().toISOString(),
@@ -678,7 +688,11 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         verwalter_name: verwalter.name,
         verwalter_role: verwalter.role,
       })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (upErr) throw new Error(upErr.message);
+    if (!updated) throw new Error("Rechnungsstatus konnte nicht gespeichert werden.");
 
     return { ok: true, messageId: send.messageId, rechnung_nr };
   });
