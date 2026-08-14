@@ -118,10 +118,14 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
       const { renderOfferRequestConfirmationHtml, sendOfferEmail } = await import(
         "@/lib/offer-email.server"
       );
+      const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+      const contact = await loadActiveVerwalter();
       const html = renderOfferRequestConfirmationHtml({
         customer_name: data.customer_name,
         angebot_nr: angebotNr,
         itemNames: resolved.map((r) => r.name),
+        contactName: contact.name,
+        contactRole: contact.role,
       });
       const send = await sendOfferEmail({
         to: data.customer_email,
