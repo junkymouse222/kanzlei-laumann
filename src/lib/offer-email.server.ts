@@ -492,6 +492,61 @@ export function renderOfferReminderHtml(
 </body></html>`;
 }
 
+/** Kurze Zahlungserinnerung für versendete, noch unbezahlte Rechnungen. */
+export function renderInvoiceReminderHtml(
+  offer: OfferRow & {
+    rechnung_nr: string;
+    rechnung_faellig_am?: string | null;
+    total?: number | string | null;
+  },
+): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const faellig = offer.rechnung_faellig_am
+    ? new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")
+    : null;
+  const ctaUrl = emailSafeCtaUrl(offer.pay_short_url);
+  const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
+  const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
+  const totalStr =
+    offer.total != null && Number.isFinite(Number(offer.total))
+      ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(offer.total))
+      : null;
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Erinnerung Rechnung ${escapeHtml(offer.rechnung_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">kurz zur Erinnerung: unsere Rechnung <strong>${escapeHtml(offer.rechnung_nr)}</strong>${
+            totalStr ? ` über <strong>${escapeHtml(totalStr)}</strong>` : ""
+          } ist noch offen${faellig ? ` (fällig am <strong>${faellig}</strong>)` : ""}.</p>
+          <p style="margin:0 0 16px 0;">Die Rechnung ist noch einmal als PDF angehängt — dort finden Sie alle Zahlungsdaten. Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer.</p>
+          ${
+            offer.paid_at
+              ? `<p style="margin:0 0 16px 0;color:#555;">Zahlung bereits bestätigt</p>`
+              : ctaUrl
+                ? `<p style="margin:0 0 16px 0;">Nach der Überweisung können Sie uns hier kurz Bescheid geben:<br/><a href="${ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Zahlung bestätigen</a></p>`
+                : `<p style="margin:0 0 16px 0;">Nach der Überweisung antworten Sie einfach kurz auf diese Mail — dann wissen wir Bescheid.</p>`
+          }
+          <p style="margin:0 0 16px 0;">Falls die Zahlung bereits unterwegs ist, vielen Dank — dann können Sie diese Erinnerung ignorieren.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 function escapeHtml(s: string): string {
   return String(s)
     .replace(/&/g, "&amp;")

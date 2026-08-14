@@ -116,6 +116,9 @@ function AdminDetailPage() {
   const [reminding, setReminding] = useState(false);
   const [reminderConfirmOpen, setReminderConfirmOpen] = useState(false);
   const [reminderResult, setReminderResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [invoiceReminding, setInvoiceReminding] = useState(false);
+  const [invoiceReminderConfirmOpen, setInvoiceReminderConfirmOpen] = useState(false);
+  const [invoiceReminderResult, setInvoiceReminderResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [custCompany, setCustCompany] = useState("");
   const [custName, setCustName] = useState("");
   const [custEmail, setCustEmail] = useState("");
@@ -373,6 +376,32 @@ function AdminDetailPage() {
     }
   }
 
+  async function handleInvoiceReminderConfirmed() {
+    setInvoiceReminderConfirmOpen(false);
+    setInvoiceReminding(true);
+    setInvoiceReminderResult(null);
+    try {
+      const res = await postAdminJson<{ ok: true; messageId?: string; rechnung_nr?: string }>(
+        "/api/public/admin/send-invoice-reminder",
+        { id },
+      );
+      await load();
+      setInvoiceReminderResult({
+        ok: true,
+        msg: `Zahlungserinnerung${res.rechnung_nr ? ` zu ${res.rechnung_nr}` : ""} versendet${
+          res.messageId ? ` (ID: ${res.messageId})` : ""
+        }.`,
+      });
+    } catch (e) {
+      setInvoiceReminderResult({
+        ok: false,
+        msg: e instanceof Error ? e.message : "Fehler beim Versand der Zahlungserinnerung.",
+      });
+    } finally {
+      setInvoiceReminding(false);
+    }
+  }
+
   async function handlePreviewOffer() {
     setPreviewing("offer");
     try {
@@ -492,6 +521,21 @@ function AdminDetailPage() {
           >
             {invoicing ? "Wird gesendet …" : offer.rechnung_status === "sent" ? "Rechnung erneut senden" : "Rechnung senden"}
           </button>
+          {(offer.rechnung_status === "sent" || !!offer.rechnung_sent_at) &&
+            !offer.paid_at &&
+            offer.rechnung_status !== "paid" && (
+              <button
+                onClick={() => setInvoiceReminderConfirmOpen(true)}
+                disabled={invoiceReminding}
+                className="border border-border px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:border-primary disabled:opacity-60"
+              >
+                {invoiceReminding
+                  ? "Wird gesendet …"
+                  : offer.invoice_reminder_sent_at
+                    ? "Zahlungserinnerung erneut"
+                    : "Zahlungserinnerung"}
+              </button>
+            )}
         </div>
       </div>
 
@@ -503,6 +547,17 @@ function AdminDetailPage() {
       {reminderResult && (
         <div className={`mt-4 border p-4 text-sm ${reminderResult.ok ? "border-green-700 bg-green-50 text-green-900" : "border-red-700 bg-red-50 text-red-800"}`}>
           {reminderResult.msg}
+        </div>
+      )}
+      {invoiceReminderResult && (
+        <div
+          className={`mt-4 border p-4 text-sm ${
+            invoiceReminderResult.ok
+              ? "border-green-700 bg-green-50 text-green-900"
+              : "border-red-700 bg-red-50 text-red-800"
+          }`}
+        >
+          {invoiceReminderResult.msg}
         </div>
       )}
 
@@ -522,6 +577,38 @@ function AdminDetailPage() {
             </button>
             <button
               onClick={() => setReminderConfirmOpen(false)}
+              className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {invoiceReminderConfirmOpen && (
+        <div className="mt-6 border border-border bg-background p-5 text-sm">
+          <p className="mb-2 font-medium text-primary">
+            Zahlungserinnerung an {offer.customer_email} senden?
+          </p>
+          <p className="mb-4 text-muted-foreground">
+            Kurze Mail zur offenen Rechnung{offer.rechnung_nr ? ` ${offer.rechnung_nr}` : ""}
+            {offer.rechnung_faellig_am
+              ? ` (fällig am ${new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")})`
+              : ""}{" "}
+            — inkl. Zahlungs-Link und PDF-Anhang.
+            {offer.invoice_reminder_sent_at
+              ? ` Zuletzt erinnert: ${fmtDate(offer.invoice_reminder_sent_at)}.`
+              : ""}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleInvoiceReminderConfirmed}
+              className="bg-primary px-4 py-2 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/90"
+            >
+              Zahlungserinnerung jetzt senden
+            </button>
+            <button
+              onClick={() => setInvoiceReminderConfirmOpen(false)}
               className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
             >
               Abbrechen
@@ -834,6 +921,12 @@ function AdminDetailPage() {
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Erinnerung</dt>
                 <dd>{fmtDate(offer.reminder_sent_at)}</dd>
+              </div>
+            )}
+            {offer.invoice_reminder_sent_at && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Zahlungserinnerung</dt>
+                <dd>{fmtDate(offer.invoice_reminder_sent_at)}</dd>
               </div>
             )}
             {offer.accepted_at && <div className="flex justify-between border-t border-border pt-2"><dt className="text-muted-foreground">Angenommen</dt><dd className="text-green-800">{fmtDate(offer.accepted_at)}</dd></div>}
