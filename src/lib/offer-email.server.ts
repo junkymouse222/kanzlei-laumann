@@ -407,6 +407,44 @@ export function renderOfferRequestConfirmationHtml(opts: {
 </body></html>`;
 }
 
+/**
+ * Dankesmail nach verbindlicher Angebotsannahme durch den Kunden.
+ * Hinweis: Rechnung/Zahlung/Versand inkl. Tracking folgen in Kürze.
+ */
+export function renderOfferAcceptedConfirmationHtml(opts: {
+  customer_name: string;
+  angebot_nr: string;
+}): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const signer = SITE.verwalter;
+  const signerRole = SITE.role;
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Angebot angenommen ${escapeHtml(opts.angebot_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${escapeHtml(signer)} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(opts.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">vielen Dank — wir haben Ihre Annahme zu Angebot <strong>${escapeHtml(opts.angebot_nr)}</strong> erhalten.</p>
+          <p style="margin:0 0 16px 0;">In Kürze erhalten Sie die Rechnung mit allen Informationen zu Zahlung und Versand sowie die Tracking-Nummer für Ihre Sendung.</p>
+          <p style="margin:0 0 16px 0;">Bei Rückfragen antworten Sie einfach kurz auf diese Mail.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${escapeHtml(signerRole)}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 /** Kurze Erinnerungsmail für noch nicht angenommene Angebote. */
 export function renderOfferReminderHtml(
   offer: OfferRow,
