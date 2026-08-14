@@ -6,6 +6,7 @@ import {
   renderInvoiceHtml,
   renderOfferHtml,
   renderOfferReminderHtml,
+  renderInvoiceReminderHtml,
   renderPaymentConfirmationHtml,
   sendOfferEmail,
   invoicePayUrl,
@@ -716,4 +717,96 @@ export async function sendOfferReminderFromAdmin(
   }
 
   return { ok: true, messageId: send.messageId };
+}
+
+/** Zahlungserinnerung für versendete, noch unbezahlte Rechnungen. */
+export async function sendInvoiceReminderFromAdmin(
+  request: Request,
+  input: unknown,
+): Promise<AdminSendResult> {
+  await assertAdminRequest(request);
+  const { id } = IdSchema.parse(input);
+  const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
+
+  const { data: offer, error: offerErr } = await admin
+    .from("offer_requests")
+    .select("*")
+    .eq("id", id)
+    .eq("site_key", SITE.siteKey)
+    .maybeSingle();
+  if (offerErr) throw new AdminSendError(offerErr.message, 500);
+  if (!offer) throw new AdminSendError("Anfrage nicht gefunden.", 404);
+  if (!offer.customer_email) throw new AdminSendError("Keine Kunden-E-Mail hinterlegt.", 400);
+  if (!offer.rechnung_nr) throw new AdminSendError("Noch keine Rechnung vorhanden.", 400);
+  if (offer.rechnung_status !== "sent" && !offer.rechnung_sent_at) {
+    throw new AdminSendError("Rechnung wurde noch nicht versendet — bitte zuerst senden.", 400);
+  }
+  if (offer.paid_at || offer.rechnung_status === "paid") {
+    throw new AdminSendError("Rechnung ist bereits als bezahlt markiert.", 400);
+  }
+  if (!offer.bank_inhaber || !offer.bank_name || !offer.bank_iban || !offer.bank_bic) {
+    throw new AdminSendError("Bankdaten fehlen — bitte zuerst die Rechnung (erneut) senden.", 400);
+  }
+  if (!offer.pay_token) {
+    throw new AdminSendError("Rechnung hat kein Zahlungs-Token.", 400);
+  }
+
+  const { data: items, error: itemsErr } = await admin
+    .from("offer_request_items")
+    .select("*")
+    .eq("request_id", id)
+    .order("pos", { ascending: true });
+  if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
+
+  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const verwalter = await loadActiveVerwalter();
+  const offerForRender = {
+    ...offer,
+    verwalter_name: (offer.verwalter_name as string | null)?.trim() || verwalter.name,
+    verwalter_role: (offer.verwalter_role as string | null)?.trim() || verwalter.role,
+  };
+
+  await ensureOfferShortLinks(offerForRender as never, { pay: true });
+  if (!(offerForRender as { pay_short_url?: string | null }).pay_short_url) {
+    throw new AdminSendError("t.ly-Kurzlink für den Zahlungs-Button konnte nicht erzeugt werden.", 502);
+  }
+
+  const invoice = {
+    rechnung_nr: offer.rechnung_nr as string,
+    datum: offer.rechnung_sent_at ? new Date(offer.rechnung_sent_at as string) : new Date(),
+    faellig_am: offer.rechnung_faellig_am
+      ? new Date(offer.rechnung_faellig_am as string)
+      : new Date(Date.now() + 14 * 24 * 3600 * 1000),
+    bank_inhaber: offer.bank_inhaber as string,
+    bank_name: offer.bank_name as string,
+    bank_iban: offer.bank_iban as string,
+    bank_bic: offer.bank_bic as string,
+  };
+
+  const html = renderInvoiceReminderHtml(offerForRender as never);
+  const pdfBytes = await renderInvoicePdf(offerForRender as never, (items ?? []) as never, invoice);
+
+  const send = await sendOfferEmail({
+    to: offer.customer_email as string,
+    subject: `Erinnerung: Ihre Rechnung ${offer.rechnung_nr as string} — Kanzlei Laumann`,
+    html,
+    attachments: [{ filename: `Rechnung-${offer.rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
+  });
+  if (!send.ok) throw new AdminSendError(send.error, 502);
+
+  const { error: trackErr } = await admin
+    .from("offer_requests")
+    .update({
+      invoice_reminder_sent_at: new Date().toISOString(),
+      invoice_reminder_message_id: send.messageId,
+      verwalter_name: offerForRender.verwalter_name,
+      verwalter_role: offerForRender.verwalter_role,
+    })
+    .eq("id", id);
+  if (trackErr) {
+    console.warn("[admin-invoice-reminder] tracking update failed:", trackErr.message);
+  }
+
+  return { ok: true, messageId: send.messageId, rechnung_nr: offer.rechnung_nr as string };
 }

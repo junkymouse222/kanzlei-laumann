@@ -40,6 +40,7 @@ import { Route as ApiPublicAdminSendPaymentConfirmationRouteImport } from './rou
 import { Route as ApiPublicAdminSendOfferReminderRouteImport } from './routes/api/public/admin/send-offer-reminder'
 import { Route as ApiPublicAdminSendOfferRouteImport } from './routes/api/public/admin/send-offer'
 import { Route as ApiPublicAdminSendManualInvoiceRouteImport } from './routes/api/public/admin/send-manual-invoice'
+import { Route as ApiPublicAdminSendInvoiceReminderRouteImport } from './routes/api/public/admin/send-invoice-reminder'
 import { Route as ApiPublicAdminSendInvoiceRouteImport } from './routes/api/public/admin/send-invoice'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -205,6 +206,12 @@ const ApiPublicAdminSendManualInvoiceRoute =
     path: '/api/public/admin/send-manual-invoice',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicAdminSendInvoiceReminderRoute =
+  ApiPublicAdminSendInvoiceReminderRouteImport.update({
+    id: '/api/public/admin/send-invoice-reminder',
+    path: '/api/public/admin/send-invoice-reminder',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAdminSendInvoiceRoute =
   ApiPublicAdminSendInvoiceRouteImport.update({
     id: '/api/public/admin/send-invoice',
@@ -235,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/juli/angebote/$filename': typeof JuliAngeboteFilenameRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/admin/send-invoice': typeof ApiPublicAdminSendInvoiceRoute
+  '/api/public/admin/send-invoice-reminder': typeof ApiPublicAdminSendInvoiceReminderRoute
   '/api/public/admin/send-manual-invoice': typeof ApiPublicAdminSendManualInvoiceRoute
   '/api/public/admin/send-offer': typeof ApiPublicAdminSendOfferRoute
   '/api/public/admin/send-offer-reminder': typeof ApiPublicAdminSendOfferReminderRoute
@@ -267,6 +275,7 @@ export interface FileRoutesByTo {
   '/juli/angebote/$filename': typeof JuliAngeboteFilenameRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/admin/send-invoice': typeof ApiPublicAdminSendInvoiceRoute
+  '/api/public/admin/send-invoice-reminder': typeof ApiPublicAdminSendInvoiceReminderRoute
   '/api/public/admin/send-manual-invoice': typeof ApiPublicAdminSendManualInvoiceRoute
   '/api/public/admin/send-offer': typeof ApiPublicAdminSendOfferRoute
   '/api/public/admin/send-offer-reminder': typeof ApiPublicAdminSendOfferReminderRoute
@@ -302,6 +311,7 @@ export interface FileRoutesById {
   '/juli/angebote/$filename': typeof JuliAngeboteFilenameRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/admin/send-invoice': typeof ApiPublicAdminSendInvoiceRoute
+  '/api/public/admin/send-invoice-reminder': typeof ApiPublicAdminSendInvoiceReminderRoute
   '/api/public/admin/send-manual-invoice': typeof ApiPublicAdminSendManualInvoiceRoute
   '/api/public/admin/send-offer': typeof ApiPublicAdminSendOfferRoute
   '/api/public/admin/send-offer-reminder': typeof ApiPublicAdminSendOfferReminderRoute
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/juli/angebote/$filename'
     | '/admin/'
     | '/api/public/admin/send-invoice'
+    | '/api/public/admin/send-invoice-reminder'
     | '/api/public/admin/send-manual-invoice'
     | '/api/public/admin/send-offer'
     | '/api/public/admin/send-offer-reminder'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/juli/angebote/$filename'
     | '/admin'
     | '/api/public/admin/send-invoice'
+    | '/api/public/admin/send-invoice-reminder'
     | '/api/public/admin/send-manual-invoice'
     | '/api/public/admin/send-offer'
     | '/api/public/admin/send-offer-reminder'
@@ -403,6 +415,7 @@ export interface FileRouteTypes {
     | '/juli/angebote/$filename'
     | '/_authenticated/admin/'
     | '/api/public/admin/send-invoice'
+    | '/api/public/admin/send-invoice-reminder'
     | '/api/public/admin/send-manual-invoice'
     | '/api/public/admin/send-offer'
     | '/api/public/admin/send-offer-reminder'
@@ -432,6 +445,7 @@ export interface RootRouteChildren {
   BelegPrintArtTokenRoute: typeof BelegPrintArtTokenRoute
   JuliAngeboteFilenameRoute: typeof JuliAngeboteFilenameRoute
   ApiPublicAdminSendInvoiceRoute: typeof ApiPublicAdminSendInvoiceRoute
+  ApiPublicAdminSendInvoiceReminderRoute: typeof ApiPublicAdminSendInvoiceReminderRoute
   ApiPublicAdminSendManualInvoiceRoute: typeof ApiPublicAdminSendManualInvoiceRoute
   ApiPublicAdminSendOfferRoute: typeof ApiPublicAdminSendOfferRoute
   ApiPublicAdminSendOfferReminderRoute: typeof ApiPublicAdminSendOfferReminderRoute
@@ -662,6 +676,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAdminSendManualInvoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/admin/send-invoice-reminder': {
+      id: '/api/public/admin/send-invoice-reminder'
+      path: '/api/public/admin/send-invoice-reminder'
+      fullPath: '/api/public/admin/send-invoice-reminder'
+      preLoaderRoute: typeof ApiPublicAdminSendInvoiceReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/admin/send-invoice': {
       id: '/api/public/admin/send-invoice'
       path: '/api/public/admin/send-invoice'
@@ -720,6 +741,8 @@ const rootRouteChildren: RootRouteChildren = {
   BelegPrintArtTokenRoute: BelegPrintArtTokenRoute,
   JuliAngeboteFilenameRoute: JuliAngeboteFilenameRoute,
   ApiPublicAdminSendInvoiceRoute: ApiPublicAdminSendInvoiceRoute,
+  ApiPublicAdminSendInvoiceReminderRoute:
+    ApiPublicAdminSendInvoiceReminderRoute,
   ApiPublicAdminSendManualInvoiceRoute: ApiPublicAdminSendManualInvoiceRoute,
   ApiPublicAdminSendOfferRoute: ApiPublicAdminSendOfferRoute,
   ApiPublicAdminSendOfferReminderRoute: ApiPublicAdminSendOfferReminderRoute,
