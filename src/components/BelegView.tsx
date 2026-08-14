@@ -186,10 +186,13 @@ export function BelegView(props: BelegViewProps) {
           </div>
           <div className="mt-2 text-sm leading-relaxed">
             <MultilineText
-              text={[kundeName || "—", kundeAnschrift, kundeUstId ? `USt-IdNr.: ${kundeUstId}` : ""]
-                .filter(Boolean)
-                .join("\n")}
+              text={[kundeName || "—", kundeAnschrift].filter(Boolean).join("\n")}
             />
+            {kundeUstId ? (
+              <div className="whitespace-nowrap">
+                USt-IdNr.: <span className="tabular-nums">{kundeUstId}</span>
+              </div>
+            ) : null}
           </div>
         </div>
         <div>
