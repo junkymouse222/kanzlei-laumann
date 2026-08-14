@@ -163,8 +163,6 @@ export function BelegView(props: BelegViewProps) {
             {SITE.addressLine}
             <br />
             {SITE.email}
-            <br />
-            USt-IdNr. {SITE.ustId}
           </div>
         </div>
         <div className="shrink-0 whitespace-nowrap text-right">
@@ -343,6 +341,8 @@ export function BelegView(props: BelegViewProps) {
       <div className="beleg-footer mt-8 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
         {SITE.brand} · {SITE.addressLine}
         {SITE.phone ? ` · ${SITE.phone}` : ""}
+        {" · "}
+        USt-IdNr. {SITE.ustId}
       </div>
     </article>
   );
