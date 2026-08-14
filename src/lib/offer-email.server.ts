@@ -321,6 +321,55 @@ export function renderPaymentConfirmationHtml(offer: {
 </body></html>`;
 }
 
+/**
+ * Sofort-Bestätigung nach Eingang einer Angebotsanfrage (noch kein PDF).
+ * Signiert als Claudia Kopmann — sie meldet sich anschließend mit dem Angebot.
+ */
+export function renderOfferRequestConfirmationHtml(opts: {
+  customer_name: string;
+  angebot_nr: string;
+  itemNames?: string[];
+}): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const signer = "Claudia Kopmann";
+  const signerRole = "Rechtsanwältin · Insolvenzverwalterin";
+  const items = (opts.itemNames ?? []).map((n) => n.trim()).filter(Boolean);
+  const itemsBlock =
+    items.length > 0
+      ? `<p style="margin:0 0 16px 0;">Ihre Anfrage betrifft: <strong>${items
+          .slice(0, 8)
+          .map((n) => escapeHtml(n))
+          .join(", ")}${items.length > 8 ? " …" : ""}</strong>.</p>`
+      : "";
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Anfrage eingegangen ${escapeHtml(opts.angebot_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${escapeHtml(signer)} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(opts.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">vielen Dank — Ihre Anfrage ist bei uns eingegangen (Referenz <strong>${escapeHtml(opts.angebot_nr)}</strong>).</p>
+          ${itemsBlock}
+          <p style="margin:0 0 16px 0;">Wir prüfen jetzt, ob die gewünschten Artikel vorrätig sind. Sollten sie verfügbar sein, erhalten Sie in Kürze ein verbindliches Angebot. Falls einzelne Positionen nicht lieferbar sind, sagen wir Ihnen das natürlich umgehend.</p>
+          <p style="margin:0 0 16px 0;">Frau Claudia Kopmann meldet sich anschließend mit dem Angebot bei Ihnen.</p>
+          <p style="margin:0 0 16px 0;">Bei Rückfragen antworten Sie einfach kurz auf diese Mail.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${escapeHtml(signerRole)}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 /** Kurze Erinnerungsmail für noch nicht angenommene Angebote. */
 export function renderOfferReminderHtml(
   offer: OfferRow,

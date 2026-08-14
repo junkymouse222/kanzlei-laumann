@@ -112,6 +112,29 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
       throw new Error("Anfrage konnte nicht gespeichert werden.");
     }
 
+    // Sofort-Bestätigung an den Kunden (kein PDF) — Fehler hier sollen die
+    // Anfrage nicht scheitern lassen; der Datensatz ist bereits gespeichert.
+    try {
+      const { renderOfferRequestConfirmationHtml, sendOfferEmail } = await import(
+        "@/lib/offer-email.server"
+      );
+      const html = renderOfferRequestConfirmationHtml({
+        customer_name: data.customer_name,
+        angebot_nr: angebotNr,
+        itemNames: resolved.map((r) => r.name),
+      });
+      const send = await sendOfferEmail({
+        to: data.customer_email,
+        subject: `Ihre Anfrage ${angebotNr} ist eingegangen — Kanzlei Laumann`,
+        html,
+      });
+      if (!send.ok) {
+        console.error("[offer] confirmation email failed", send.error);
+      }
+    } catch (e) {
+      console.error("[offer] confirmation email error", e);
+    }
+
     return {
       ok: true as const,
       id: requestId,
