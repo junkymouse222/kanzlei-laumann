@@ -334,8 +334,12 @@ export function BelegView(props: BelegViewProps) {
         </div>
       )}
 
-      <div className="beleg-footer mt-8 border-t border-border pt-4 text-[0.65rem] uppercase tracking-[0.15em] text-muted-foreground">
-        {SITE_FOOTER_LINE} · USt-IdNr. {SITE.ustId}
+      <div className="beleg-footer mt-8 border-t border-border pt-4 text-[0.65rem] text-muted-foreground">
+        <span className="uppercase tracking-[0.12em]">{SITE_FOOTER_LINE}</span>
+        <span className="mx-1.5 text-border">·</span>
+        <span className="whitespace-nowrap tabular-nums tracking-normal">
+          USt-IdNr. {SITE.ustId}
+        </span>
       </div>
     </article>
   );
