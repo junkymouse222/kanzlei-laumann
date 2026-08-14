@@ -73,7 +73,7 @@ export const belegPrintStyles = `
       position: absolute;
       inset: 0;
       margin: 0;
-      padding: 16mm 18mm 20mm 18mm;
+      padding: 14mm 16mm 14mm 16mm;
       width: 100%;
       min-height: 100%;
       box-sizing: border-box;
@@ -81,6 +81,21 @@ export const belegPrintStyles = `
     .no-print { display: none !important; }
     .print-only { display: inline; }
     .site-footer { display: none !important; }
+    /* Zahlung + Footer zusammenhalten, weniger Leerraum → 1 Seite bei wenigen Positionen */
+    .beleg-pay {
+      margin-top: 1.1rem !important;
+      padding-top: 0.85rem !important;
+      gap: 1rem !important;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .beleg-pay p { margin-top: 0.4rem !important; }
+    .beleg-footer {
+      margin-top: 0.9rem !important;
+      padding-top: 0.55rem !important;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
     .accept-btn {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -290,22 +305,7 @@ export function BelegView(props: BelegViewProps) {
       </div>
 
       {belegArt === "Rechnung" && (
-        <div className="mt-8 grid gap-6 border-t border-border pt-6 text-xs sm:grid-cols-2">
-          <div>
-            <div className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">Zahlungsbedingungen</div>
-            <p className="mt-2 leading-relaxed">
-              Bitte überweisen Sie den Rechnungsbetrag bis zum{" "}
-              <strong>{fmtDate(gueltigOderFaellig)}</strong> auf das
-              unten genannte Konto unter Angabe der Rechnungsnummer <strong>{belegNr}</strong>.
-            </p>
-            <p className="mt-3 leading-relaxed text-muted-foreground">
-              <strong>Hinweis:</strong> Bei dem angegebenen Konto handelt es sich um ein
-              Mandanten-/Anderkonto der Kanzlei, über das ausschließlich der bestellte
-              Insolvenzverwalter alleinige Handlungs- und Verfügungsvollmacht besitzt. Ihre
-              Zahlung ist dadurch treuhänderisch durch die Kanzlei geschützt und gegen den
-              Zugriff Dritter gesichert.
-            </p>
-          </div>
+        <div className="beleg-pay mt-8 grid gap-6 border-t border-border pt-6 text-xs sm:grid-cols-2">
           <div>
             <div className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">Bankverbindung</div>
             <div className="mt-2 space-y-0.5 leading-relaxed">
@@ -314,11 +314,27 @@ export function BelegView(props: BelegViewProps) {
               <div>IBAN: <span className="tabular-nums">{bankIban}</span></div>
               <div>BIC: <span className="tabular-nums">{bankBic}</span></div>
             </div>
+            <div className="mt-4 text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">Zahlungsbedingungen</div>
+            <p className="mt-2 leading-relaxed">
+              Bitte überweisen Sie den Rechnungsbetrag bis zum{" "}
+              <strong>{fmtDate(gueltigOderFaellig)}</strong> auf das
+              genannte Konto unter Angabe der Rechnungsnummer <strong>{belegNr}</strong>.
+            </p>
+          </div>
+          <div>
+            <div className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">Hinweis</div>
+            <p className="mt-2 leading-relaxed text-muted-foreground">
+              Bei dem angegebenen Konto handelt es sich um ein Mandanten-/Anderkonto der
+              Kanzlei, über das ausschließlich der bestellte Insolvenzverwalter alleinige
+              Handlungs- und Verfügungsvollmacht besitzt. Ihre Zahlung ist dadurch
+              treuhänderisch durch die Kanzlei geschützt und gegen den Zugriff Dritter
+              gesichert.
+            </p>
           </div>
         </div>
       )}
 
-      <div className="beleg-footer mt-10 border-t border-border pt-4 text-[0.65rem] uppercase tracking-[0.15em] text-muted-foreground">
+      <div className="beleg-footer mt-8 border-t border-border pt-4 text-[0.65rem] uppercase tracking-[0.15em] text-muted-foreground">
         {SITE_FOOTER_LINE} · USt-IdNr. {SITE.ustId}
       </div>
     </article>
