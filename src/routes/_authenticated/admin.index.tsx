@@ -13,13 +13,14 @@ const fmtEUR = (n: number) =>
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
 
-type Filter = "all" | "pending" | "sent" | "accepted" | "paid" | "failed";
+type Filter = "all" | "pending" | "sent" | "accepted" | "invoiced" | "paid" | "failed";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "Alle" },
   { key: "pending", label: "Offen" },
   { key: "sent", label: "Gesendet" },
   { key: "accepted", label: "Akzeptiert" },
+  { key: "invoiced", label: "Rechnung" },
   { key: "paid", label: "Bezahlt" },
   { key: "failed", label: "Fehlgeschlagen" },
 ];
@@ -30,6 +31,12 @@ function isAccepted(r: OfferListRow) {
 function isPaid(r: OfferListRow) {
   return r.rechnung_status === "paid";
 }
+function isInvoiceSent(r: OfferListRow) {
+  return r.rechnung_status === "sent";
+}
+function isInvoiceFailed(r: OfferListRow) {
+  return r.rechnung_status === "failed";
+}
 
 function matchesFilter(r: OfferListRow, f: Filter): boolean {
   switch (f) {
@@ -37,14 +44,17 @@ function matchesFilter(r: OfferListRow, f: Filter): boolean {
       return true;
     case "paid":
       return isPaid(r);
+    case "invoiced":
+      return isInvoiceSent(r) && !isPaid(r);
     case "accepted":
-      return isAccepted(r) && !isPaid(r);
+      // Angenommen, aber noch keine Rechnung versendet / bezahlt
+      return isAccepted(r) && !isInvoiceSent(r) && !isPaid(r) && !isInvoiceFailed(r);
     case "sent":
-      return r.status === "sent" && !isAccepted(r) && !isPaid(r);
+      return r.status === "sent" && !isAccepted(r) && !isInvoiceSent(r) && !isPaid(r);
     case "pending":
       return r.status === "pending";
     case "failed":
-      return r.status === "failed";
+      return r.status === "failed" || isInvoiceFailed(r);
     default:
       return true;
   }
@@ -122,6 +132,12 @@ function AdminListPage() {
           >
             Manuelle Bestätigungen
           </Link>
+          <Link
+            to="/admin/einstellungen"
+            className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            Einstellungen
+          </Link>
           <button
             onClick={handleSignOut}
             className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
@@ -192,7 +208,11 @@ function AdminListPage() {
                     )}
                   </td>
                   <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
-                    {r.sent_at ? `gesendet ${fmtDate(r.sent_at)}` : `geplant ${fmtDate(r.scheduled_send_at)}`}
+                    {r.sent_at
+                      ? `gesendet ${fmtDate(r.sent_at)}`
+                      : r.status === "pending" && new Date(r.scheduled_send_at).getFullYear() >= 2099
+                        ? "offen — manuell senden"
+                        : `geplant ${fmtDate(r.scheduled_send_at)}`}
                   </td>
                   <td className="p-3 text-right font-medium">{fmtEUR(r.total)}</td>
                   <td className="p-3 text-right">
@@ -223,17 +243,21 @@ function AdminListPage() {
 }
 
 function StatusBadge({ row }: { row: OfferListRow }) {
+  // Fortschrittlicher Status gewinnt: Bezahlt > Rechnung > Angenommen > Angebot gesendet …
   let label: string;
   let cls: string;
   if (isPaid(row)) {
     label = "Bezahlt";
     cls = "border-green-700 bg-green-700 text-white";
+  } else if (isInvoiceSent(row)) {
+    label = "Rechnung gesendet";
+    cls = "border-primary text-primary";
+  } else if (isInvoiceFailed(row)) {
+    label = "Rechnung fehlgeschlagen";
+    cls = "border-red-700 text-red-700";
   } else if (isAccepted(row)) {
     label = "Akzeptiert";
     cls = "border-green-700 text-green-800";
-  } else if (row.rechnung_status === "sent") {
-    label = "Rechnung gesendet";
-    cls = "border-primary text-primary";
   } else if (row.status === "sent") {
     label = "Gesendet";
     cls = "border-border text-foreground/70";

@@ -47,6 +47,8 @@ export type OfferDetail = {
     customer_phone: string | null;
     customer_address: string;
     customer_ust_id: string | null;
+    delivery_name: string | null;
+    delivery_address: string | null;
     message: string | null;
     ref_source: string | null;
     subtotal: number;
@@ -73,10 +75,14 @@ export type OfferDetail = {
     paid_ip: string | null;
     payment_confirm_sent_at: string | null;
     payment_confirm_message_id: string | null;
+    reminder_sent_at: string | null;
+    reminder_message_id: string | null;
     bank_inhaber: string | null;
     bank_name: string | null;
     bank_iban: string | null;
     bank_bic: string | null;
+    tracking_number: string | null;
+    tracking_url: string | null;
   };
   items: Array<{
     id: string;
@@ -146,6 +152,9 @@ const UpdateCustomerSchema = z.object({
   customer_phone: z.string().trim().max(50).nullable().optional(),
   customer_address: z.string().trim().min(5).max(500),
   customer_ust_id: z.string().trim().max(50).nullable().optional(),
+  /** Leer/null = gleich Rechnungsempfänger */
+  delivery_name: z.string().trim().max(200).nullable().optional(),
+  delivery_address: z.string().trim().max(500).nullable().optional(),
   /** Optional: geplanten Versand verschieben (ISO-String). */
   scheduled_send_at: z.string().datetime().optional(),
 });
@@ -165,6 +174,8 @@ export const updateOfferCustomer = createServerFn({ method: "POST" })
       customer_phone: data.customer_phone?.trim() || null,
       customer_address: data.customer_address.trim(),
       customer_ust_id: data.customer_ust_id?.trim() || null,
+      delivery_name: data.delivery_name?.trim() || null,
+      delivery_address: data.delivery_address?.trim() || null,
     };
     if (data.scheduled_send_at) {
       patch.scheduled_send_at = data.scheduled_send_at;
@@ -180,6 +191,137 @@ export const updateOfferCustomer = createServerFn({ method: "POST" })
     if (!updated) throw new Error("Anfrage nicht gefunden.");
     return { ok: true };
   });
+
+const UpdateOfferItemsSchema = z.object({
+  id: z.string().uuid(),
+  items: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        einzelpreis: z.number().min(0).max(1_000_000),
+        menge: z.number().int().min(1).max(9999),
+        name: z.string().trim().min(1).max(300).optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
+  /** Optional: Neukundenrabatt % — sonst bestehender Wert. */
+  rabatt_rate: z.number().min(0).max(100).optional(),
+  /** Optional: Lieferkosten netto — sonst aus Versandregel neu berechnet. */
+  lieferkosten: z.number().min(0).max(1_000_000).optional(),
+  mwst_rate: z.number().min(0).max(99).optional(),
+});
+
+/**
+ * Positionen (Preise/Menge) einer Anfrage anpassen und Summen neu berechnen.
+ * Damit kann z. B. ein Kundenangebot („ich biete 400 €“) vor dem Versand
+ * als Festpreis eingetragen und versendet werden.
+ */
+export const updateOfferItems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateOfferItemsSchema.parse(input))
+  .handler(
+    async ({
+      context,
+      data,
+    }): Promise<{
+      ok: true;
+      subtotal: number;
+      rabatt: number;
+      mwst: number;
+      total: number;
+      lieferkosten: number;
+    }> => {
+      await assertAdmin(context.supabase as never, context.userId);
+      const { SITE } = await import("@/lib/site");
+      const { round2 } = await import("@/lib/offer-totals");
+      const client = context.supabase as any;
+
+      const { data: offer, error: offerErr } = await client
+        .from("offer_requests")
+        .select("id, rabatt_rate, mwst_rate, lieferkosten, status")
+        .eq("id", data.id)
+        .eq("site_key", SITE.siteKey)
+        .maybeSingle();
+      if (offerErr) throw new Error(offerErr.message);
+      if (!offer) throw new Error("Anfrage nicht gefunden.");
+
+      const { data: existingItems, error: itemsErr } = await client
+        .from("offer_request_items")
+        .select("id")
+        .eq("request_id", data.id);
+      if (itemsErr) throw new Error(itemsErr.message);
+      const existingIds = new Set((existingItems ?? []).map((r: { id: string }) => r.id));
+      for (const it of data.items) {
+        if (!existingIds.has(it.id)) {
+          throw new Error("Position gehört nicht zu dieser Anfrage.");
+        }
+      }
+      if (data.items.length !== existingIds.size) {
+        throw new Error("Alle Positionen müssen übermittelt werden (keine Löschung hier).");
+      }
+
+      let subtotal = 0;
+      for (const it of data.items) {
+        const einzelpreis = round2(it.einzelpreis);
+        const menge = it.menge;
+        const position_total = round2(einzelpreis * menge);
+        subtotal = round2(subtotal + position_total);
+        const patch: Record<string, unknown> = {
+          einzelpreis,
+          menge,
+          position_total,
+        };
+        if (it.name !== undefined) patch.name = it.name.trim();
+        const { error: upErr } = await client
+          .from("offer_request_items")
+          .update(patch)
+          .eq("id", it.id)
+          .eq("request_id", data.id);
+        if (upErr) throw new Error(upErr.message);
+      }
+
+      const rabattRate =
+        data.rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
+      const mwstRate = data.mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
+      const lieferkosten =
+        data.lieferkosten !== undefined
+          ? round2(data.lieferkosten)
+          : subtotal >= SITE.versandFreiAbNetto
+            ? 0
+            : SITE.versandPauschale;
+      const totals = computeOfferTotals({
+        subtotal,
+        rabattRate,
+        lieferkosten,
+        mwstRate,
+      });
+
+      const { error: offerUpErr } = await client
+        .from("offer_requests")
+        .update({
+          subtotal,
+          rabatt_rate: rabattRate,
+          rabatt: totals.rabatt,
+          mwst_rate: mwstRate,
+          mwst: totals.mwst,
+          lieferkosten,
+          total: totals.total,
+        })
+        .eq("id", data.id)
+        .eq("site_key", SITE.siteKey);
+      if (offerUpErr) throw new Error(offerUpErr.message);
+
+      return {
+        ok: true,
+        subtotal,
+        rabatt: totals.rabatt,
+        mwst: totals.mwst,
+        total: totals.total,
+        lieferkosten,
+      };
+    },
+  );
 
 const UpdateStatusSchema = z.object({
   id: z.string().uuid(),
@@ -218,12 +360,15 @@ export const updateOfferStatus = createServerFn({ method: "POST" })
     }
     if (Object.keys(patch).length === 0) return { ok: true };
     const { SITE } = await import("@/lib/site");
-    const { error } = await client
+    const { data: updated, error } = await client
       .from("offer_requests")
       .update(patch)
       .eq("id", data.id)
-      .eq("site_key", SITE.siteKey);
+      .eq("site_key", SITE.siteKey)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!updated) throw new Error("Status konnte nicht gespeichert werden (Anfrage nicht gefunden).");
     return { ok: true };
   });
 
@@ -284,8 +429,23 @@ export const resendOfferNow = createServerFn({ method: "POST" })
       .order("pos", { ascending: true });
     if (itemsErr) throw new Error(itemsErr.message);
 
+    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const verwalter = await loadActiveVerwalter();
+    offer.verwalter_name = verwalter.name;
+    offer.verwalter_role = verwalter.role;
+    // Vor PDF speichern — Beleg-Print liest den Briefkopf aus der DB.
+    await admin
+      .from("offer_requests")
+      .update({ verwalter_name: verwalter.name, verwalter_role: verwalter.role })
+      .eq("id", data.id);
+
     await ensureOfferShortLinks(offer as never, { accept: true });
-    const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
+    if (!(offer as { accept_short_url?: string | null }).accept_short_url) {
+      throw new Error("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.");
+    }
+    const acceptUrl =
+      ((offer as { accept_short_url?: string | null }).accept_short_url as string | null) ||
+      offerAcceptUrl(offer.accept_token as string | null);
     const html = renderOfferHtml(offer as never, (items ?? []) as never);
     const pdfBytes = await renderOfferPdf(offer as never, (items ?? []) as never, acceptUrl);
 
@@ -301,7 +461,13 @@ export const resendOfferNow = createServerFn({ method: "POST" })
     if (!send.ok) {
       await admin
         .from("offer_requests")
-        .update({ status: "failed", offer_html: html, error_message: send.error })
+        .update({
+          status: "failed",
+          offer_html: html,
+          error_message: send.error,
+          verwalter_name: verwalter.name,
+          verwalter_role: verwalter.role,
+        })
         .eq("id", data.id);
       throw new Error(send.error);
     }
@@ -314,6 +480,8 @@ export const resendOfferNow = createServerFn({ method: "POST" })
         offer_html: html,
         resend_message_id: send.messageId,
         error_message: null,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
 
@@ -393,6 +561,10 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
 
     // Bank- und Rechnungsdaten VOR dem PDF-Render speichern, weil Puppeteer
     // die öffentliche /beleg-print-Route öffnet und diese aus dem Datensatz liest.
+    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const verwalter = await loadActiveVerwalter();
+    offer.verwalter_name = verwalter.name;
+    offer.verwalter_role = verwalter.role;
     const { error: saveInvoiceErr } = await admin
       .from("offer_requests")
       .update({
@@ -402,6 +574,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
     if (saveInvoiceErr) throw new Error(`Bankdaten konnten nicht gespeichert werden: ${saveInvoiceErr.message}`);
@@ -409,6 +583,25 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
     // t.ly-Kurzlink für den Zahlungs-Link erzeugen/laden und persistieren.
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
+    if (!(offer as { pay_short_url?: string | null }).pay_short_url) {
+      throw new Error("t.ly-Kurzlink für den Zahlungs-Button konnte nicht erzeugt werden.");
+    }
+
+    const { ensureOfferTracking } = await import("@/lib/hausmann-tracking.server");
+    const tracking = await ensureOfferTracking({
+      offer: { ...(offer as any), rechnung_nr },
+      items: (items ?? []) as never,
+    });
+    const { error: saveTrackingErr } = await admin
+      .from("offer_requests")
+      .update({
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+      })
+      .eq("id", data.id);
+    if (saveTrackingErr) {
+      throw new Error(`Tracking konnte nicht gespeichert werden: ${saveTrackingErr.message}`);
+    }
 
     const pdfBytes = await renderInvoicePdf(
       {
@@ -419,6 +612,8 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       } as never,
       (items ?? []) as never,
       invoice,
@@ -434,6 +629,10 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
       bank_name: invoice.bank_name,
       bank_iban: invoice.bank_iban,
       bank_bic: invoice.bank_bic,
+      tracking_number: tracking.tracking_number,
+      tracking_url: tracking.tracking_url,
+      verwalter_name: verwalter.name,
+      verwalter_role: verwalter.role,
     });
 
     const send = await sendOfferEmail({
@@ -455,14 +654,25 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
           bank_name: invoice.bank_name,
           bank_iban: invoice.bank_iban,
           bank_bic: invoice.bank_bic,
+          tracking_number: tracking.tracking_number,
+          tracking_url: tracking.tracking_url,
+          verwalter_name: verwalter.name,
+          verwalter_role: verwalter.role,
         })
         .eq("id", data.id);
       throw new Error(send.error);
     }
 
-    await admin
+    const acceptPatch: Record<string, unknown> = {};
+    if (!offer.accepted_at && offer.status !== "accepted") {
+      acceptPatch.status = "accepted";
+      acceptPatch.accepted_at = new Date().toISOString();
+    }
+
+    const { data: updated, error: upErr } = await admin
       .from("offer_requests")
       .update({
+        ...acceptPatch,
         rechnung_nr,
         rechnung_status: "sent",
         rechnung_sent_at: new Date().toISOString(),
@@ -473,8 +683,16 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (upErr) throw new Error(upErr.message);
+    if (!updated) throw new Error("Rechnungsstatus konnte nicht gespeichert werden.");
 
     return { ok: true, messageId: send.messageId, rechnung_nr };
   });
@@ -514,13 +732,18 @@ export const previewOfferPdf = createServerFn({ method: "POST" })
       .eq("request_id", data.id)
       .order("pos", { ascending: true });
     const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
-    const subtotal = Number(offer.subtotal);
+    const subtotal = Number(
+      ((items ?? []) as Array<{ position_total?: number | string }>)
+        .reduce((s, it) => s + Number(it.position_total || 0), 0)
+        .toFixed(2),
+    );
     const rabattRate = data.rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
     const mwstRate = data.mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
     const liefer = data.lieferkosten ?? Number(offer.lieferkosten ?? 0);
     const totals = computeOfferTotals({ subtotal, rabattRate, lieferkosten: liefer, mwstRate });
     const offerForRender = {
       ...offer,
+      subtotal,
       rabatt_rate: rabattRate,
       rabatt: totals.rabatt,
       mwst_rate: mwstRate,
@@ -615,9 +838,14 @@ export type ManualConfirmationRow = {
   beleg_nr: string;
   kunde_name: string | null;
   kunde_anschrift: string | null;
+  customer_email: string | null;
   total: number | null;
   ip: string | null;
   user_agent: string | null;
+  offer_request_id: string | null;
+  rechnung_nr: string | null;
+  rechnung_sent_at: string | null;
+  rechnung_error: string | null;
 };
 
 export const listManualConfirmations = createServerFn({ method: "GET" })
