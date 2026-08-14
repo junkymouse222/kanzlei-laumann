@@ -71,11 +71,17 @@ async function loadOffer(token: string) {
   const admin = supabaseAdmin as any;
   const { data, error } = await admin
     .from("offer_requests")
-    .select("id, angebot_nr, accepted_at")
+    .select("id, angebot_nr, accepted_at, customer_name, customer_email")
     .eq("accept_token", token)
     .maybeSingle();
   if (error) return null;
-  return data as { id: string; angebot_nr: string; accepted_at: string | null } | null;
+  return data as {
+    id: string;
+    angebot_nr: string;
+    accepted_at: string | null;
+    customer_name: string;
+    customer_email: string;
+  } | null;
 }
 
 // GET: nur anzeigen (Bestätigungsseite / Status), niemals verbuchen.
@@ -114,6 +120,27 @@ async function handlePost(request: Request): Promise<Response> {
       status: 500,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
+  }
+
+  // Dankesmail — best-effort, Annahme ist bereits verbucht.
+  try {
+    const { renderOfferAcceptedConfirmationHtml, sendOfferEmail } = await import(
+      "@/lib/offer-email.server"
+    );
+    const html = renderOfferAcceptedConfirmationHtml({
+      customer_name: offer.customer_name,
+      angebot_nr: offer.angebot_nr,
+    });
+    const send = await sendOfferEmail({
+      to: offer.customer_email,
+      subject: `Angebot ${offer.angebot_nr} angenommen — Kanzlei Laumann`,
+      html,
+    });
+    if (!send.ok) {
+      console.error("[accept-offer] confirmation email failed", send.error);
+    }
+  } catch (e) {
+    console.error("[accept-offer] confirmation email error", e);
   }
 
   return render("ok", { angebotNr: offer.angebot_nr });
