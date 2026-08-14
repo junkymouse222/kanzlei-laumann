@@ -322,24 +322,61 @@ export function renderPaymentConfirmationHtml(offer: {
 }
 
 /**
+ * Kurzer Anzeigename für Bestätigungsmails: Marke + Modell,
+ * ohne Zusatzattribute („höhenverstellbar“, Speicher, Farbe, …).
+ */
+export function shortProductLabel(name: string): string {
+  const parts = String(name ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return String(name ?? "").trim();
+  let label = parts[0];
+  // Chip-/Generationsangabe (M3, M4) zur Modellbezeichnung behalten
+  if (parts[1] && /^M\d+[A-Z]?$/i.test(parts[1])) {
+    label = `${label}, ${parts[1]}`;
+  }
+  return label;
+}
+
+/** Formelle Anrede aus Name + Rolle (Frau/Herr) für den eingestellten Verwalter. */
+export function formalPersonAddress(name: string, role: string): string {
+  const n = name.trim();
+  if (!n) return "unsere Kanzlei";
+  const female = /\b\w*in\b/i.test(role) || /\b\w*innen\b/i.test(role);
+  return `${female ? "Frau" : "Herr"} ${n}`;
+}
+
+/**
  * Sofort-Bestätigung nach Eingang einer Angebotsanfrage (noch kein PDF).
- * Signiert als Claudia Kopmann — sie meldet sich anschließend mit dem Angebot.
+ * Absender/Unterschrift: Erik Laumann. Kontaktperson = aktiver Verwalter aus den Einstellungen.
  */
 export function renderOfferRequestConfirmationHtml(opts: {
   customer_name: string;
   angebot_nr: string;
   itemNames?: string[];
+  /** Aktuell eingestellter Verwalter (Admin → Einstellungen) */
+  contactName?: string;
+  contactRole?: string;
 }): string {
   const datum = new Date().toLocaleDateString("de-DE");
-  const signer = "Claudia Kopmann";
-  const signerRole = "Rechtsanwältin · Insolvenzverwalterin";
-  const items = (opts.itemNames ?? []).map((n) => n.trim()).filter(Boolean);
+  const signer = SITE.verwalter;
+  const signerRole = SITE.role;
+  const contactName = (opts.contactName || SITE.verwalter).trim();
+  const contactRole = (opts.contactRole || SITE.role).trim();
+  const contactAddress = formalPersonAddress(contactName, contactRole);
+
+  const items = (opts.itemNames ?? [])
+    .map((n) => shortProductLabel(n))
+    .filter(Boolean);
+  // Duplikate vermeiden (gleiche Kurzform mehrfach angefragt)
+  const uniqueItems = [...new Set(items)];
   const itemsBlock =
-    items.length > 0
-      ? `<p style="margin:0 0 16px 0;">Ihre Anfrage betrifft: <strong>${items
+    uniqueItems.length > 0
+      ? `<p style="margin:0 0 16px 0;">Ihre Anfrage betrifft: <strong>${uniqueItems
           .slice(0, 8)
           .map((n) => escapeHtml(n))
-          .join(", ")}${items.length > 8 ? " …" : ""}</strong>.</p>`
+          .join(", ")}${uniqueItems.length > 8 ? " …" : ""}</strong>.</p>`
       : "";
 
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Anfrage eingegangen ${escapeHtml(opts.angebot_nr)}</title></head>
@@ -355,7 +392,7 @@ export function renderOfferRequestConfirmationHtml(opts: {
           <p style="margin:0 0 16px 0;">vielen Dank — Ihre Anfrage ist bei uns eingegangen (Referenz <strong>${escapeHtml(opts.angebot_nr)}</strong>).</p>
           ${itemsBlock}
           <p style="margin:0 0 16px 0;">Wir prüfen jetzt, ob die gewünschten Artikel vorrätig sind. Sollten sie verfügbar sein, erhalten Sie in Kürze ein verbindliches Angebot. Falls einzelne Positionen nicht lieferbar sind, sagen wir Ihnen das natürlich umgehend.</p>
-          <p style="margin:0 0 16px 0;">Frau Claudia Kopmann meldet sich anschließend mit dem Angebot bei Ihnen.</p>
+          <p style="margin:0 0 16px 0;">${escapeHtml(contactAddress)} meldet sich anschließend mit dem Angebot bei Ihnen.</p>
           <p style="margin:0 0 16px 0;">Bei Rückfragen antworten Sie einfach kurz auf diese Mail.</p>
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
