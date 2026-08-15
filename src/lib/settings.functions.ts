@@ -31,6 +31,7 @@ export type ActiveVerwalter = {
 };
 
 const AUTO_SEND_KEY = "auto_send_offers";
+const NEUKUNDEN_RABATT_KEY = "default_neukunden_rabatt";
 
 function parseBoolSetting(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value === "") return fallback;
@@ -38,6 +39,13 @@ function parseBoolSetting(value: string | undefined, fallback: boolean): boolean
   if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
   if (v === "0" || v === "false" || v === "no" || v === "off") return false;
   return fallback;
+}
+
+function parseRabattSetting(value: string | undefined, fallback: number): number {
+  if (value == null || value === "") return fallback;
+  const n = Number(String(value).trim().replace(",", "."));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }
 
 /** Server-seitig: ob der Cron fällige Angebote automatisch versenden darf. Default: aus. */
@@ -51,6 +59,20 @@ export async function loadAutoSendOffersEnabled(): Promise<boolean> {
     .eq("key", AUTO_SEND_KEY)
     .maybeSingle();
   return parseBoolSetting((data as { value?: string } | null)?.value, false);
+}
+
+/** Server-seitig: Standard-Neukundenrabatt (%) für neue Anfragen. Default: 5. */
+export async function loadDefaultNeukundenRabatt(): Promise<number> {
+  const { DEFAULT_NEUKUNDEN_RABATT } = await import("@/lib/offer-totals");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = supabaseAdmin as any;
+  const { data } = await admin
+    .from("app_settings")
+    .select("value")
+    .eq("site_key", SITE.siteKey)
+    .eq("key", NEUKUNDEN_RABATT_KEY)
+    .maybeSingle();
+  return parseRabattSetting((data as { value?: string } | null)?.value, DEFAULT_NEUKUNDEN_RABATT);
 }
 
 /** Server-seitig (Service Role): aktiver Verwalter für Versand/PDF. */
@@ -87,12 +109,14 @@ export const getAdminSettings = createServerFn({ method: "GET" })
     if (bankErr) throw new Error(bankErr.message);
 
     const map = new Map<string, string>((settings ?? []).map((r: { key: string; value: string }) => [r.key, r.value]));
+    const { DEFAULT_NEUKUNDEN_RABATT } = await import("@/lib/offer-totals");
     return {
       verwalter: {
         name: map.get("active_verwalter_name")?.trim() || SITE.verwalter,
         role: map.get("active_verwalter_role")?.trim() || SITE.role,
       },
       autoSendOffers: parseBoolSetting(map.get(AUTO_SEND_KEY), false),
+      defaultNeukundenRabatt: parseRabattSetting(map.get(NEUKUNDEN_RABATT_KEY), DEFAULT_NEUKUNDEN_RABATT),
       banks: (banks ?? []) as BankAccountRow[],
     };
   });
@@ -115,6 +139,29 @@ export const saveAutoSendOffers = createServerFn({ method: "POST" })
     );
     if (error) throw new Error(error.message);
     return { ok: true as const, enabled: data.enabled };
+  });
+
+export const saveDefaultNeukundenRabatt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ rate: z.number().min(0).max(100) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const rate = Math.min(100, Math.max(0, Math.round(data.rate * 100) / 100));
+    const { error } = await admin.from("app_settings").upsert(
+      {
+        site_key: SITE.siteKey,
+        key: NEUKUNDEN_RABATT_KEY,
+        value: String(rate),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "site_key,key" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const, rate };
   });
 
 export const saveActiveVerwalter = createServerFn({ method: "POST" })

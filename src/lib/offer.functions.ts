@@ -3,7 +3,7 @@ import { z } from "zod";
 import { PRODUKTE } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
 import { computeScheduledSendAt } from "@/lib/offer-scheduling";
-import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals } from "@/lib/offer-totals";
+import { DEFAULT_MWST_RATE, computeOfferTotals } from "@/lib/offer-totals";
 
 const ItemSchema = z.object({
   artikel: z.string().min(1).max(50),
@@ -51,11 +51,13 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
     const subtotal = Number(resolved.reduce((s, i) => s + i.position_total, 0).toFixed(2));
     const lieferkosten = subtotal >= SITE.versandFreiAbNetto ? 0 : SITE.versandPauschale;
     const mwstRate = DEFAULT_MWST_RATE;
-    // Standardmäßig immer 5% Neukundenrabatt ausweisen (auch bei automatischen Angeboten).
-    const rabattRate = DEFAULT_NEUKUNDEN_RABATT;
+    // Standard-Neukundenrabatt aus Admin-Einstellungen (0 = keiner).
+    const { loadDefaultNeukundenRabatt, loadAutoSendOffersEnabled } = await import(
+      "@/lib/settings.functions"
+    );
+    const rabattRate = await loadDefaultNeukundenRabatt();
     const { rabatt, mwst, total } = computeOfferTotals({ subtotal, rabattRate, lieferkosten, mwstRate });
 
-    const { loadAutoSendOffersEnabled } = await import("@/lib/settings.functions");
     const autoSend = await loadAutoSendOffersEnabled();
     // Bei manuellem Modus: weit in die Zukunft legen, damit der Cron sie nicht
     // nachholt, falls Auto später wieder aktiviert wird (Admin sendet manuell).

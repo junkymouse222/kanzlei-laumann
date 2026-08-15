@@ -5,6 +5,7 @@ import {
   getAdminSettings,
   saveActiveVerwalter,
   saveAutoSendOffers,
+  saveDefaultNeukundenRabatt,
   upsertBankAccount,
   type BankAccountRow,
 } from "@/lib/settings.functions";
@@ -31,6 +32,9 @@ function EinstellungenPage() {
   const [autoSendOffers, setAutoSendOffers] = useState(false);
   const [savingAutoSend, setSavingAutoSend] = useState(false);
 
+  const [neukundenRabatt, setNeukundenRabatt] = useState(5);
+  const [savingRabatt, setSavingRabatt] = useState(false);
+
   const [banks, setBanks] = useState<BankAccountRow[]>([]);
   const [label, setLabel] = useState("");
   const [inhaber, setInhaber] = useState("");
@@ -48,6 +52,7 @@ function EinstellungenPage() {
       setVerwalterName(res.verwalter.name);
       setVerwalterRole(res.verwalter.role);
       setAutoSendOffers(res.autoSendOffers);
+      setNeukundenRabatt(res.defaultNeukundenRabatt);
       setBanks(res.banks);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Laden fehlgeschlagen.");
@@ -76,6 +81,25 @@ function EinstellungenPage() {
       setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
     } finally {
       setSavingAutoSend(false);
+    }
+  }
+
+  async function handleSaveRabatt() {
+    setSavingRabatt(true);
+    setMsg(null);
+    try {
+      const rate = Math.min(100, Math.max(0, Number(neukundenRabatt) || 0));
+      const res = await saveDefaultNeukundenRabatt({ data: { rate } });
+      setNeukundenRabatt(res.rate);
+      setMsg(
+        res.rate === 0
+          ? "Neukundenrabatt: 0 % — neue Anfragen und Auto-Angebote ohne Rabatt."
+          : `Neukundenrabatt: ${res.rate} % — gilt für neue Anfragen und Auto-Angebote.`,
+      );
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setSavingRabatt(false);
     }
   }
 
@@ -161,7 +185,7 @@ function EinstellungenPage() {
           <h1 className="mt-2 text-4xl">Einstellungen</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            Verwalter, automatischen Versand und Bankkonten verwalten.
+            Verwalter, Auto-Versand, Neukundenrabatt und Bankkonten verwalten.
           </p>
         </div>
         <Link to="/admin" className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary">
@@ -202,6 +226,36 @@ function EinstellungenPage() {
                   : autoSendOffers
                     ? "Automatik ausschalten"
                     : "Automatik einschalten"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-10 border border-border p-6">
+            <h2 className="font-serif text-2xl text-primary">Neukundenrabatt</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Standard-Rabatt in Prozent für neue Angebotsanfragen (Formular &amp; Auto-Versand).
+              0 % = kein Rabatt. Pro Angebot im Admin vor dem Versand weiterhin änderbar.
+            </p>
+            <div className="mt-6 flex flex-wrap items-end gap-4">
+              <label className="block">
+                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">Rabatt (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={neukundenRabatt}
+                  onChange={(e) => setNeukundenRabatt(Number(e.target.value))}
+                  className="mt-2 w-28 border border-border bg-background px-3 py-2 text-sm tabular-nums"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={savingRabatt}
+                onClick={handleSaveRabatt}
+                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+              >
+                {savingRabatt ? "Speichern …" : "Rabatt speichern"}
               </button>
             </div>
           </div>
