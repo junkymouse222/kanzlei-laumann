@@ -141,7 +141,7 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
     ? `
       <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
       <p style="margin:0 0 16px 0;">anbei unser Angebot <strong>${escapeHtml(opts.belegNr)}</strong> als PDF. Schauen Sie es gerne in Ruhe durch — wenn etwas unklar ist, antworten Sie einfach kurz auf diese Mail.</p>
-      <p style="margin:0 0 16px 0;">Das Angebot gilt bis zum ${opts.faelligOderGueltig}. Wenn es für Sie passt, können Sie es hier verbindlich annehmen:</p>
+      <p style="margin:0 0 16px 0;">Das Angebot gilt bis zum ${opts.faelligOderGueltig}. Wenn es für Sie passt, nehmen Sie es mit einem Klick verbindlich an:</p>
       ${
         opts.ctaUrl
           ? opts.ctaDone
@@ -151,7 +151,7 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
             ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
             : `<p style="margin:0 0 16px 0;">Wenn es passt, antworten Sie einfach kurz auf diese Mail — wir nehmen das Angebot dann für Sie an.</p>`
       }
-      <p style="margin:0 0 16px 0;">Danach schicken wir Ihnen umgehend die Rechnung mit den Zahlungsdaten.</p>
+      <p style="margin:0 0 16px 0;">Mit dem Klick ist das Angebot rechtsverbindlich angenommen. Direkt danach erhalten Sie die Rechnung mit den Zahlungsdaten per E-Mail.</p>
     `
     : `
       <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
@@ -426,8 +426,8 @@ export function renderOfferRequestConfirmationHtml(opts: {
 }
 
 /**
- * Dankesmail nach verbindlicher Angebotsannahme durch den Kunden.
- * Hinweis: Rechnung/Zahlung/Versand inkl. Tracking folgen in Kürze.
+ * Dankesmail nach verbindlicher Angebotsannahme — Fallback,
+ * falls die automatische Rechnung (noch) nicht versendet werden konnte.
  */
 export function renderOfferAcceptedConfirmationHtml(opts: {
   customer_name: string;
@@ -448,8 +448,7 @@ export function renderOfferAcceptedConfirmationHtml(opts: {
           </p>
           <p style="margin:0 0 16px 0;">${customerGreeting(opts.customer_name)}</p>
           <p style="margin:0 0 16px 0;">vielen Dank — wir haben Ihre Annahme zu Angebot <strong>${escapeHtml(opts.angebot_nr)}</strong> erhalten.</p>
-          <p style="margin:0 0 16px 0;">In Kürze erhalten Sie die Rechnung mit allen Informationen zu Zahlung und Versand sowie die Tracking-Nummer für Ihre Sendung.</p>
-          <p style="margin:0 0 16px 0;">Bei Rückfragen antworten Sie einfach kurz auf diese Mail.</p>
+          <p style="margin:0 0 16px 0;">Die Rechnung mit Zahlungsdaten und Tracking folgt in Kürze per E-Mail. Bei Fragen erreichen Sie uns unter ${escapeHtml(SITE.phoneDisplay)} oder antworten Sie einfach auf diese Mail.</p>
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${escapeHtml(signerRole)}<br/>

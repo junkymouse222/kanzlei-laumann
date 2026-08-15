@@ -224,8 +224,23 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
   }
 }
 
-export async function sendInvoiceFromAdmin(request: Request, input: unknown): Promise<AdminSendResult> {
-  await assertAdminRequest(request);
+type BankDetails = {
+  bank_inhaber: string;
+  bank_name: string;
+  bank_iban: string;
+  bank_bic: string;
+};
+
+type InvoiceSendInput = {
+  id: string;
+  faellig_tage?: number;
+} & BankDetails;
+
+/**
+ * Kernlogik Rechnungsversand (ohne Auth).
+ * Wird vom Admin-Endpoint und vom öffentlichen Annahme-Hook genutzt.
+ */
+export async function sendInvoiceForOffer(input: InvoiceSendInput): Promise<AdminSendResult> {
   const data = InvoiceSchema.parse(input);
   const admin = supabaseAdmin as any;
   const { SITE } = await import("@/lib/site");
@@ -238,6 +253,10 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     .maybeSingle();
   if (offerErr) throw new AdminSendError(offerErr.message, 500);
   if (!offer) throw new AdminSendError("Anfrage nicht gefunden.", 404);
+
+  // Bereits versendete Rechnung nicht erneut erzeugen (außer Admin sendet bewusst erneut —
+  // dann hat offer.rechnung_sent_at gesetzt; wir erlauben Resend wenn Status sent).
+  // Auto-Pfad prüft vorher selbst und ruft nicht doppelt auf.
 
   const { data: items, error: itemsErr } = await admin
     .from("offer_request_items")
@@ -266,8 +285,6 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
   const verwalter = await loadActiveVerwalter();
 
   try {
-    // Bank- und Rechnungsdaten VOR dem PDF-Render in die DB schreiben,
-    // damit die Puppeteer-/Beleg-Print-Route sie aus offer_requests lesen kann.
     const { error: saveInvoiceErr } = await admin
       .from("offer_requests")
       .update({
@@ -285,16 +302,12 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
     (offer as { verwalter_name?: string; verwalter_role?: string }).verwalter_name = verwalter.name;
     (offer as { verwalter_name?: string; verwalter_role?: string }).verwalter_role = verwalter.role;
 
-    // t.ly-Kurzlink für den Zahlungs-Link erzeugen/laden und persistieren, bevor
-    // PDF (via /beleg-print) und E-Mail gerendert werden.
     (offer as { rechnung_nr?: string }).rechnung_nr = rechnung_nr;
     await ensureOfferShortLinks(offer as never, { pay: true });
     if (!(offer as { pay_short_url?: string | null }).pay_short_url) {
       throw new AdminSendError("t.ly-Kurzlink für den Zahlungs-Button konnte nicht erzeugt werden.", 502);
     }
 
-    // Partnerspedition: Sendung anlegen (oder vorhandene Tracking-Daten wiederverwenden)
-    // und Link in die Rechnungs-E-Mail einbetten.
     const { ensureOfferTracking } = await import("@/lib/hausmann-tracking.server");
     const tracking = await ensureOfferTracking({
       offer: { ...(offer as any), rechnung_nr },
@@ -348,8 +361,6 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
 
     if (!send.ok) throw new AdminSendError(send.error, 502);
 
-    // Rechnungsversand = verbindlicher Abschluss: Angebotsstatus auf „accepted“,
-    // falls der Kunde noch nicht formell angenommen hat (damit die Liste mitzieht).
     const acceptPatch: Record<string, unknown> = {};
     if (!offer.accepted_at && offer.status !== "accepted") {
       acceptPatch.status = "accepted";
@@ -397,10 +408,87 @@ export async function sendInvoiceFromAdmin(request: Request, input: unknown): Pr
         bank_bic: invoice.bank_bic,
       })
       .eq("id", data.id);
-    if (failErr) console.error("[sendInvoiceFromAdmin] failed-status update:", failErr.message);
+    if (failErr) console.error("[sendInvoiceForOffer] failed-status update:", failErr.message);
     if (error instanceof AdminSendError) throw error;
     throw new AdminSendError(message, 500);
   }
+}
+
+/** Standard-Anderkonto aus bank_accounts (is_default, sonst erstes). */
+export async function loadDefaultBankAccount(): Promise<BankDetails | null> {
+  const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
+  const { data, error } = await admin
+    .from("bank_accounts")
+    .select("inhaber, bank_name, iban, bic, is_default")
+    .eq("site_key", SITE.siteKey)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("[loadDefaultBankAccount]", error.message);
+    return null;
+  }
+  const rows = (data ?? []) as Array<{
+    inhaber: string;
+    bank_name: string;
+    iban: string;
+    bic: string;
+    is_default: boolean;
+  }>;
+  const def = rows.find((b) => b.is_default) || rows[0];
+  if (!def) return null;
+  return {
+    bank_inhaber: def.inhaber,
+    bank_name: def.bank_name,
+    bank_iban: def.iban,
+    bank_bic: def.bic,
+  };
+}
+
+/**
+ * Nach Angebotsannahme: Rechnung automatisch mit Standard-Anderkonto versenden.
+ * Idempotent, wenn bereits rechnung_sent_at gesetzt ist.
+ */
+export async function sendInvoiceAfterAccept(offerId: string): Promise<
+  | { ok: true; messageId?: string; rechnung_nr: string; skipped?: boolean }
+  | { ok: false; error: string }
+> {
+  const admin = supabaseAdmin as any;
+  const { SITE } = await import("@/lib/site");
+  const { data: offer, error } = await admin
+    .from("offer_requests")
+    .select("id, rechnung_sent_at, rechnung_nr, rechnung_status, paid_at")
+    .eq("id", offerId)
+    .eq("site_key", SITE.siteKey)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!offer) return { ok: false, error: "Anfrage nicht gefunden." };
+  if (offer.rechnung_sent_at || offer.rechnung_status === "sent" || offer.paid_at) {
+    return {
+      ok: true,
+      rechnung_nr: (offer.rechnung_nr as string) || "",
+      skipped: true,
+    };
+  }
+
+  const bank = await loadDefaultBankAccount();
+  if (!bank) {
+    return {
+      ok: false,
+      error: "Kein Anderkonto hinterlegt — bitte unter Admin → Einstellungen ein Konto als Standard setzen.",
+    };
+  }
+
+  try {
+    const result = await sendInvoiceForOffer({ id: offerId, faellig_tage: 14, ...bank });
+    return { ok: true, messageId: result.messageId, rechnung_nr: result.rechnung_nr ?? "" };
+  } catch (e) {
+    return { ok: false, error: errMsg(e) };
+  }
+}
+
+export async function sendInvoiceFromAdmin(request: Request, input: unknown): Promise<AdminSendResult> {
+  await assertAdminRequest(request);
+  return sendInvoiceForOffer(InvoiceSchema.parse(input));
 }
 
 /**
