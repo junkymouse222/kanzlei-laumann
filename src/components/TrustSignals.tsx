@@ -34,12 +34,12 @@ const PROZESS_SCHRITTE = [
   {
     nr: "03",
     title: "Annahme",
-    text: "Passt das Angebot, nehmen Sie es mit einem Klick an — rechtsverbindlich und dokumentiert.",
+    text: "Passt das Angebot, nehmen Sie es mit einem Klick an — rechtsverbindlich. Die Rechnung folgt sofort per E-Mail.",
   },
   {
     nr: "04",
     title: "Rechnung & Anderkonto",
-    text: "Sie erhalten die Rechnung. Die Zahlung geht auf ein Treuhand-/Anderkonto der Kanzlei.",
+    text: "Zahlung ausschließlich auf ein Treuhand-/Anderkonto der Kanzlei.",
   },
   {
     nr: "05",
@@ -59,7 +59,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Wann und wohin zahle ich?",
-    a: "Erst nach Annahme des Angebots erhalten Sie die Rechnung. Die Zahlung geht ausschließlich auf ein Anderkonto (Treuhandkonto) der Kanzlei — nicht auf ein privates Konto.",
+    a: "Mit einem Klick auf „Angebot annehmen“ in der E-Mail nehmen Sie verbindlich an. Die Rechnung folgt sofort per E-Mail. Die Zahlung geht ausschließlich auf ein Anderkonto (Treuhandkonto) der Kanzlei — nicht auf ein privates Konto.",
   },
   {
     q: "Wann wird versendet?",
