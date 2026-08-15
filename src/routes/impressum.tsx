@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SITE } from "@/lib/site";
+import { SITE, siteTelHref } from "@/lib/site";
 
 export const Route = createFileRoute("/impressum")({
   head: () => ({
@@ -29,7 +29,16 @@ function ImpressumPage() {
           </div>
           <div>
             <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">Kontakt</p>
-            <p className="mt-3">E-Mail: {SITE.email}<br />Web: {SITE.domain}</p>
+            <p className="mt-3">
+              Telefon:{" "}
+              <a href={siteTelHref()} className="text-primary hover:text-gold">
+                {SITE.phoneDisplay}
+              </a>
+              <br />
+              E-Mail: {SITE.email}
+              <br />
+              Web: {SITE.domain}
+            </p>
           </div>
           <div>
             <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">USt-IdNr.</p>

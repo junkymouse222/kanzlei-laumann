@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { SITE } from "@/lib/site";
+import { SITE, siteTelHref } from "@/lib/site";
 
 export const Route = createFileRoute("/kontakt")({
   head: () => ({
@@ -41,6 +41,14 @@ function KontaktPage() {
           </address>
 
           <dl className="mt-8 space-y-4 border-t border-border pt-8 text-sm">
+            <div className="grid grid-cols-[8rem_1fr] gap-4">
+              <dt className="text-muted-foreground">Telefon</dt>
+              <dd>
+                <a href={siteTelHref()} className="text-primary hover:text-gold">
+                  {SITE.phoneDisplay}
+                </a>
+              </dd>
+            </div>
             <div className="grid grid-cols-[8rem_1fr] gap-4">
               <dt className="text-muted-foreground">E-Mail</dt>
               <dd>

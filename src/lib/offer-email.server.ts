@@ -194,6 +194,7 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
             ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            Tel. ${escapeHtml(SITE.phoneDisplay)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
         </td></tr>
@@ -312,7 +313,8 @@ export function renderPaymentConfirmationHtml(offer: {
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
       </table>
@@ -398,7 +400,8 @@ export function renderOfferRequestConfirmationHtml(opts: {
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${escapeHtml(signerRole)}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
       </table>
@@ -436,7 +439,8 @@ export function renderOfferAcceptedConfirmationHtml(opts: {
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${escapeHtml(signerRole)}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
       </table>
@@ -483,6 +487,7 @@ export function renderOfferReminderHtml(
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
             ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            Tel. ${escapeHtml(SITE.phoneDisplay)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
         </td></tr>
@@ -538,7 +543,8 @@ export function renderInvoiceReminderHtml(
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}
+            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
       </table>

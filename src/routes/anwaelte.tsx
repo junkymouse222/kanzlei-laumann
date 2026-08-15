@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import goldmannImg from "@/assets/anwalt-goldmann.jpg";
 import kopmannImg from "@/assets/anwaeltin-weber.jpg";
-import { SITE } from "@/lib/site";
+import { SITE, siteTelHref } from "@/lib/site";
 
 export const Route = createFileRoute("/anwaelte")({
   head: () => ({
@@ -124,11 +124,19 @@ function AnwaeltePage() {
                 </div>
               </div>
 
-              <p className="mt-8 border-t border-border pt-6 text-sm">
-                <span className="text-muted-foreground">E-Mail: </span>
-                <a href={`mailto:${SITE.email}`} className="text-primary hover:text-gold">
-                  {SITE.email}
-                </a>
+              <p className="mt-8 space-y-2 border-t border-border pt-6 text-sm">
+                <span className="block">
+                  <span className="text-muted-foreground">Telefon: </span>
+                  <a href={siteTelHref()} className="text-primary hover:text-gold">
+                    {SITE.phoneDisplay}
+                  </a>
+                </span>
+                <span className="block">
+                  <span className="text-muted-foreground">E-Mail: </span>
+                  <a href={`mailto:${SITE.email}`} className="text-primary hover:text-gold">
+                    {SITE.email}
+                  </a>
+                </span>
               </p>
             </div>
           </section>
