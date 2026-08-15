@@ -3,6 +3,7 @@ import heroImg from "@/assets/kanzlei-hero.jpg";
 import goldmannImg from "@/assets/anwalt-goldmann.jpg";
 import kopmannImg from "@/assets/anwaeltin-weber.jpg";
 import { SITE } from "@/lib/site";
+import { TrustStrip, Kaufprozess } from "@/components/TrustSignals";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -77,8 +78,10 @@ function Index() {
         </div>
       </section>
 
-      {/* Trust bar */}
-      <section className="border-b border-border bg-parchment">
+      <TrustStrip />
+
+      {/* Kennzahlen */}
+      <section className="border-b border-border bg-background">
         <div className="container-prose grid grid-cols-2 gap-8 py-12 md:grid-cols-4">
           {[
             ["20", "Lose im Bestand"],
@@ -129,6 +132,8 @@ function Index() {
           </div>
         </div>
       </section>
+
+      <Kaufprozess className="bg-parchment" />
 
       {/* Die Verwalter */}
       <section className="bg-primary text-primary-foreground">

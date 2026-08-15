@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { PRODUKTE, KATEGORIEN, type Produkt } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
 import { submitOfferRequest } from "@/lib/offer.functions";
+import { TrustStrip, Kaufprozess } from "@/components/TrustSignals";
 
 type Position = { produkt: Produkt; menge: number };
 
@@ -165,6 +166,9 @@ function AngebotAnfordernPage() {
           </div>
         </div>
       </section>
+
+      <TrustStrip />
+      <Kaufprozess />
 
       <form onSubmit={handleSubmit} className="container-prose grid gap-10 py-16 md:grid-cols-[1.4fr_1fr]">
         {/* Linke Spalte: Produktauswahl */}
