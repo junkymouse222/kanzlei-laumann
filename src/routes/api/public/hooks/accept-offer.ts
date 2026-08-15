@@ -93,7 +93,7 @@ function render(
   <div class="foot">${SITE_FOOTER_LINE}</div>
 </div></div>${
     kind === "confirm" && token
-      ? `<script>(function(){try{var u=new URL(location.href);u.searchParams.set("track","open");navigator.sendBeacon?navigator.sendBeacon(u.toString()):fetch(u.toString(),{method:"GET",credentials:"omit",keepalive:true,cache:"no-store"}).catch(function(){})}catch(e){}})();</script>`
+      ? `<script>(function(){try{var u=new URL(location.href);u.searchParams.set("track","open");fetch(u.toString(),{method:"GET",credentials:"same-origin",keepalive:true,cache:"no-store",mode:"same-origin"}).catch(function(){})}catch(e){}})();</script>`
       : ""
   }</body></html>`;
 
@@ -128,43 +128,16 @@ async function loadOffer(token: string) {
   } | null;
 }
 
-/** Heuristik gegen E-Mail-Link-Scanner / Prefetch-Bots. */
-function looksLikeHumanNavigation(request: Request): boolean {
-  const ua = (request.headers.get("user-agent") ?? "").toLowerCase();
-  if (
-    /bot|crawler|spider|slurp|preview|safelink|protection\.outlook|barracuda|proofpoint|mimecast|virustotal|scanner|headless|curl\/|wget|python-requests|go-http-client|httpclient|java\//i.test(
-      ua,
-    )
-  ) {
-    return false;
-  }
-  if (!ua) return false;
-
-  const dest = (request.headers.get("sec-fetch-dest") ?? "").toLowerCase();
-  const mode = (request.headers.get("sec-fetch-mode") ?? "").toLowerCase();
-  // Echte Browser-Navigationen setzen Sec-Fetch-*; viele Scanner nicht oder anders.
-  if (dest === "document" || mode === "navigate") return true;
-  // Ältere Clients ohne Sec-Fetch: nur zählen, wenn Accept text/html nahelegt.
-  if (!dest && !mode) {
-    const accept = (request.headers.get("accept") ?? "").toLowerCase();
-    return accept.includes("text/html");
-  }
-  return false;
-}
-
-/** Merkt ersten Aufruf der Bestätigungsseite (Link geklickt, noch nicht angenommen). */
-async function trackAcceptLinkOpen(
-  offerId: string,
-  request: Request,
-  opts: { force?: boolean } = {},
-): Promise<void> {
-  if (!opts.force && !looksLikeHumanNavigation(request)) return;
+/** Nur echte Browser-Seitenaufrufe (JS-Beacon) — keine GET-Heuristik.
+ *  E-Mail-Scanner / SafeLinks / Kurzlink-Checks rufen die Seite per GET auf,
+ *  führen aber praktisch kein JS aus; deshalb sofort nach Versand oft False Positives. */
+async function trackAcceptLinkOpen(offerId: string): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const { data: row } = await admin
       .from("offer_requests")
-      .select("accept_link_opened_at, accept_link_open_count, accepted_at")
+      .select("accept_link_opened_at, accept_link_open_count, accepted_at, sent_at")
       .eq("id", offerId)
       .maybeSingle();
     if (!row || row.accepted_at) return;
@@ -173,7 +146,7 @@ async function trackAcceptLinkOpen(
     const prevOpened = row.accept_link_opened_at as string | null;
     const prevCount = Number(row.accept_link_open_count ?? 0);
 
-    // Debounce: GET + JS-Beacon derselben Seitenladung nicht doppelt zählen.
+    // Debounce: Doppel-Beacon derselben Seitenladung nicht doppelt zählen.
     if (prevOpened) {
       const ageMs = Date.now() - new Date(prevOpened).getTime();
       if (ageMs >= 0 && ageMs < 45_000) return;
@@ -188,6 +161,23 @@ async function trackAcceptLinkOpen(
     if (error) console.error("[accept-offer] link-open track failed", error.message);
   } catch (e) {
     console.error("[accept-offer] link-open track error", e);
+  }
+}
+
+/** Beacon muss von der Bestätigungsseite kommen (Referer / Sec-Fetch), nicht von Scannern. */
+function looksLikeConfirmPageBeacon(request: Request): boolean {
+  const site = (request.headers.get("sec-fetch-site") ?? "").toLowerCase();
+  if (site === "same-origin" || site === "same-site") return true;
+
+  const referer = request.headers.get("referer") ?? "";
+  if (!referer) return false;
+  try {
+    const ref = new URL(referer);
+    const req = new URL(request.url);
+    if (ref.origin !== req.origin) return false;
+    return ref.pathname.includes("/api/public/hooks/accept-offer");
+  } catch {
+    return false;
   }
 }
 
@@ -225,9 +215,11 @@ async function handleGet(request: Request): Promise<Response> {
   const offer = await loadOffer(token);
   if (!offer) return render("invalid");
 
-  // JS-Beacon von der Bestätigungsseite: zählt als menschlicher Aufruf (Scanner ohne JS fallen weg).
+  // Nur JS-Beacon von der Bestätigungsseite zählt (Scanner ohne JS fallen weg).
   if (url.searchParams.get("track") === "open") {
-    if (!offer.accepted_at) await trackAcceptLinkOpen(offer.id, request, { force: true });
+    if (!offer.accepted_at && looksLikeConfirmPageBeacon(request)) {
+      await trackAcceptLinkOpen(offer.id);
+    }
     return new Response(null, {
       status: 204,
       headers: { "Cache-Control": "no-store" },
@@ -242,15 +234,24 @@ async function handleGet(request: Request): Promise<Response> {
       invoiceOk,
     });
   }
-  // Fire-and-forget: Link-Aufruf für Admin sichtbar machen (ohne Annahme).
-  void trackAcceptLinkOpen(offer.id, request);
+  // Kein Tracking auf dem Seiten-GET — E-Mail-Scanner würden sonst sofort „Link geöffnet“ setzen.
   return render("confirm", { token, angebotNr: offer.angebot_nr });
 }
 
 /** POST: verbindliche Annahme + Auto-Rechnung (idempotent). */
 async function handlePost(request: Request): Promise<Response> {
-  const token = new URL(request.url).searchParams.get("token");
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
   if (!token) return render("invalid");
+
+  // sendBeacon wäre POST — Tracking darf niemals die Annahme auslösen.
+  if (url.searchParams.get("track") === "open") {
+    const offerForTrack = await loadOffer(token);
+    if (offerForTrack && !offerForTrack.accepted_at && looksLikeConfirmPageBeacon(request)) {
+      await trackAcceptLinkOpen(offerForTrack.id);
+    }
+    return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  }
 
   const offer = await loadOffer(token);
   if (!offer) return render("invalid");
