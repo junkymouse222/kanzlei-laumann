@@ -131,7 +131,7 @@ function AngebotAnfordernPage() {
             erhalten Ihr individuelles Angebot per E-Mail. Jede Anfrage wird
             vertraulich und in der Reihenfolge ihres Eingangs bearbeitet.
           </p>
-          <div className="mt-8">
+          <div className="mt-8 flex flex-wrap gap-3">
             <a
               href={SITE.katalogPdf}
               target="_blank"
@@ -140,7 +140,27 @@ function AngebotAnfordernPage() {
               className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
             >
               <span aria-hidden>↓</span>
-              Insolvenzkatalog (PDF) herunterladen
+              Insolvenzkatalog (PDF)
+            </a>
+            <a
+              href={SITE.forderungsanmeldungPdf}
+              target="_blank"
+              rel="noopener"
+              download
+              className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
+            >
+              <span aria-hidden>↓</span>
+              Forderungsanmeldung (PDF)
+            </a>
+            <a
+              href={SITE.eroeffnungsbeschlussPdf}
+              target="_blank"
+              rel="noopener"
+              download
+              className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
+            >
+              <span aria-hidden>↓</span>
+              Eröffnungsbeschluss (PDF)
             </a>
           </div>
         </div>

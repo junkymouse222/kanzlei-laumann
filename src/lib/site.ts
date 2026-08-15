@@ -56,6 +56,9 @@ export const SITE = {
 
   /** Öffentlicher Bestandskatalog (PDF in /public) */
   katalogPdf: "/insolvenzkatalog-laumann-2026.pdf",
+  /** Verfahrensunterlagen zum Download auf /angebot-anfordern */
+  forderungsanmeldungPdf: "/forderungsanmeldung.pdf",
+  eroeffnungsbeschlussPdf: "/eroeffnungsbeschluss.pdf",
 
   /** Lieferkonditionen (aus dem Katalog): frei Haus ab Warenwert, sonst Pauschale */
   versandFreiAbNetto: 1000,
