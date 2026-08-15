@@ -311,7 +311,7 @@ function AngebotAnfordernPage() {
                 <tbody>
                   {[...positionen].sort((a, b) => a.produkt.pos - b.produkt.pos).map((pos) => (
                     <tr key={pos.produkt.artikel} className="border-b border-border">
-                      <td className="p-3 font-mono text-xs">{pos.produkt.pos}</td>
+                      <td className="p-3 font-mono text-xs">{String(pos.produkt.pos).padStart(2, "0")}</td>
                       <td className="p-3">{pos.produkt.name}</td>
                       <td className="p-3 text-right">
                         <input
