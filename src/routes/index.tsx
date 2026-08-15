@@ -96,7 +96,7 @@ function Index() {
       <section className="border-b border-border bg-background">
         <div className="container-prose grid grid-cols-2 gap-8 py-12 md:grid-cols-4">
           {[
-            ["20", "Lose im Bestand"],
+            ["18", "Positionen im Bestand"],
             ["Ø 44 %", "Nachlass"],
             ["bis 63 %", "unter reg. VK"],
             ["100 %", "originalverpackte Neuware"],
@@ -203,12 +203,12 @@ function Index() {
             <div>
               <p className="eyebrow">Aus dem laufenden Verfahren</p>
               <h2 className="mt-4 text-4xl md:text-5xl">
-                20 Lose. Sofort verfügbar. Jetzt anfragen.
+                18 Positionen. Sofort verfügbar. Jetzt anfragen.
               </h2>
               <p className="mt-6 max-w-xl text-base text-muted-foreground">
                 Premium-Büromöbel von Herman Miller, Vitra, USM und Wilkhahn,
                 moderne IT-Ausstattung von Apple sowie professionelle
-                Kaffeevollautomaten von WMF und La Marzocco. Bitte Losnummer,
+                Kaffeevollautomaten von WMF und La Marzocco. Bitte Positionsnummer,
                 Produktbezeichnung und gewünschte Stückzahl angeben.
               </p>
             </div>

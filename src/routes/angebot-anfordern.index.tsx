@@ -235,7 +235,7 @@ function AngebotAnfordernPage() {
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             <input
               type="text"
-              placeholder="Suche nach Losnummer, Name oder Kategorie …"
+              placeholder="Suche nach Positionsnummer, Name oder Kategorie …"
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
               className="border border-border bg-white px-4 py-3 text-sm"
@@ -262,7 +262,7 @@ function AngebotAnfordernPage() {
               >
                 <div>
                   <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-                    <span>Los {String(p.pos).padStart(2, "0")}</span>
+                    <span>Position {String(p.pos).padStart(2, "0")}</span>
                     {p.verfuegbar != null && <span>· {p.verfuegbar} Stück verfügbar</span>}
                   </div>
                   <div className="text-sm font-medium">{p.name}</div>
