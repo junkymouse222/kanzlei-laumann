@@ -33,7 +33,7 @@ function render(kind: PageKind, opts: { token?: string; angebotNr?: string } = {
   } else {
     const message =
       kind === "invalid"
-        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.email}.`
+        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`
         : kind === "already"
           ? "Vielen Dank – dieses Angebot wurde bereits angenommen. Wir sind bereits an der Umsetzung."
           : `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""} erhalten und melden uns in Kürze mit der Rechnung und den nächsten Schritten.`;

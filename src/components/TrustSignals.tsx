@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { SITE } from "@/lib/site";
+import { SITE, siteTelHref } from "@/lib/site";
 
 const TRUST_ITEMS = [
   {
@@ -67,7 +67,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Was ist, wenn etwas nicht passt?",
-    a: `Zustand und Beschreibung sind je Position dokumentiert. Bei Fragen vor oder nach dem Kauf antworten Sie einfach auf unsere E-Mails oder schreiben Sie an ${SITE.email}.`,
+    a: `Zustand und Beschreibung sind je Position dokumentiert. Bei Fragen vor oder nach dem Kauf erreichen Sie uns unter ${SITE.phoneDisplay} oder per E-Mail an ${SITE.email}.`,
   },
 ] as const;
 
@@ -138,7 +138,11 @@ export function AnderkontoHinweis() {
         Die Ware geht erst nach Zahlungseingang in den Versand.
       </p>
       <p className="mt-3 text-muted-foreground">
-        Auf Ihre Anfrage melden wir uns {SITE.antwortzeit}.
+        Auf Ihre Anfrage melden wir uns {SITE.antwortzeit}. Telefonisch:{" "}
+        <a href={siteTelHref()} className="text-primary underline-offset-2 hover:underline">
+          {SITE.phoneDisplay}
+        </a>
+        .
       </p>
     </div>
   );

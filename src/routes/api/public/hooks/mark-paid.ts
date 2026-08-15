@@ -31,7 +31,7 @@ function render(kind: PageKind, opts: { token?: string; rechnungNr?: string } = 
   } else {
     const message =
       kind === "invalid"
-        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.email}.`
+        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`
         : kind === "already"
           ? "Vielen Dank – Ihre Zahlungsbestätigung liegt uns bereits vor."
           : `Vielen Dank für Ihre Zahlung${rechnungNr ? ` zu Rechnung ${escapeHtml(rechnungNr)}` : ""}. Wir haben Ihre Bestätigung erhalten und prüfen den Zahlungseingang.`;

@@ -12,7 +12,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { SITE } from "../lib/site";
+import { SITE, siteTelHref } from "../lib/site";
 import { Logo } from "../components/Logo";
 
 function NotFoundComponent() {
@@ -191,6 +191,11 @@ function Footer() {
           <ul className="mt-4 space-y-2 text-sm text-primary-foreground/80">
             <li>{SITE.street}</li>
             <li>{SITE.postalCode} {SITE.city}</li>
+            <li>
+              <a href={siteTelHref()} className="hover:text-gold">
+                {SITE.phoneDisplay}
+              </a>
+            </li>
             <li><a href={`mailto:${SITE.email}`} className="hover:text-gold">{SITE.email}</a></li>
           </ul>
         </div>

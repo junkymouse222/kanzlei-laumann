@@ -22,6 +22,7 @@ export const Route = createFileRoute("/")({
         description: "Rechtsanwalt und gerichtlich bestellter Insolvenzverwalter — Insolvenzverwaltung, Verwertung und freihändiger Verkauf aus der Insolvenzmasse.",
         url: SITE.baseUrl,
         email: SITE.email,
+        telephone: SITE.phone,
         address: {
           "@type": "PostalAddress",
           streetAddress: SITE.street,

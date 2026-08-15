@@ -20,7 +20,7 @@ function page(
       : "Zahlung bestätigt";
   const message =
     status === "invalid"
-      ? `Der Link ist ungültig. Bitte kontaktieren Sie uns unter ${SITE.email}.`
+      ? `Der Link ist ungültig. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`
       : isAngebot
       ? `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${belegNr ? ` zu Angebot ${belegNr}` : ""} erhalten und melden uns in Kürze mit der Rechnung und den nächsten Schritten.`
       : `Vielen Dank für Ihre Zahlung${belegNr ? ` zu Rechnung ${belegNr}` : ""}. Wir haben Ihre Bestätigung erhalten und prüfen den Zahlungseingang.`;
