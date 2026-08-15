@@ -489,6 +489,16 @@ function AdminDetailPage() {
               {offer.accepted_ip && <span className="text-[0.65rem] normal-case tracking-normal text-green-700">({offer.accepted_ip})</span>}
             </div>
           )}
+          {!offer.accepted_at && offer.accept_link_opened_at && (
+            <div className="mt-4 inline-flex flex-wrap items-center gap-2 border border-amber-700 bg-amber-50 px-3 py-1.5 text-xs uppercase tracking-widest text-amber-900">
+              Link geöffnet am {fmtDate(offer.accept_link_opened_at)} — noch nicht angenommen
+              {Number(offer.accept_link_open_count ?? 0) > 1 && (
+                <span className="text-[0.65rem] normal-case tracking-normal text-amber-800">
+                  ({offer.accept_link_open_count}×)
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -917,6 +927,17 @@ function AdminDetailPage() {
             <div className="flex justify-between"><dt className="text-muted-foreground">Erstellt</dt><dd>{fmtDate(offer.created_at)}</dd></div>
             <div className="flex justify-between"><dt className="text-muted-foreground">Geplant</dt><dd>{fmtDate(offer.scheduled_send_at)}</dd></div>
             <div className="flex justify-between"><dt className="text-muted-foreground">Gesendet</dt><dd>{fmtDate(offer.sent_at)}</dd></div>
+            {offer.accept_link_opened_at && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Link geöffnet</dt>
+                <dd className={offer.accepted_at ? undefined : "text-amber-900"}>
+                  {fmtDate(offer.accept_link_opened_at)}
+                  {Number(offer.accept_link_open_count ?? 0) > 1
+                    ? ` (${offer.accept_link_open_count}×)`
+                    : ""}
+                </dd>
+              </div>
+            )}
             {offer.reminder_sent_at && (
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Erinnerung</dt>

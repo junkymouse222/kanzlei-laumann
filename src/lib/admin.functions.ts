@@ -30,6 +30,8 @@ export type OfferListRow = {
   total: number;
   error_message: string | null;
   accepted_at: string | null;
+  accept_link_opened_at: string | null;
+  accept_link_open_count: number | null;
   rechnung_status: string | null;
 };
 
@@ -70,6 +72,8 @@ export type OfferDetail = {
     accept_token: string | null;
     accepted_at: string | null;
     accepted_ip: string | null;
+    accept_link_opened_at: string | null;
+    accept_link_open_count: number | null;
     pay_token: string | null;
     paid_at: string | null;
     paid_ip: string | null;
@@ -108,7 +112,7 @@ export const listOfferRequests = createServerFn({ method: "GET" })
     const { SITE } = await import("@/lib/site");
     const { data, error } = await client
       .from("offer_requests")
-      .select("id, created_at, scheduled_send_at, sent_at, status, angebot_nr, customer_company, customer_name, customer_email, subtotal, total, error_message, accepted_at, rechnung_status")
+      .select("id, created_at, scheduled_send_at, sent_at, status, angebot_nr, customer_company, customer_name, customer_email, subtotal, total, error_message, accepted_at, accept_link_opened_at, accept_link_open_count, rechnung_status")
       .eq("site_key", SITE.siteKey)
       .order("created_at", { ascending: false })
       .limit(200);

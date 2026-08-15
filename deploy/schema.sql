@@ -112,6 +112,9 @@ CREATE TABLE IF NOT EXISTS public.offer_requests (
   accept_token        uuid NOT NULL DEFAULT gen_random_uuid(),
   accepted_at         timestamptz,
   accepted_ip         text,
+  -- Bestätigungsseite aufgerufen (Link geklickt), noch nicht angenommen
+  accept_link_opened_at timestamptz,
+  accept_link_open_count integer NOT NULL DEFAULT 0,
 
   rechnung_status     text NOT NULL DEFAULT 'none',
   rechnung_sent_at    timestamptz,

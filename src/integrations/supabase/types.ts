@@ -120,6 +120,8 @@ export type Database = {
           accept_token: string
           accepted_at: string | null
           accepted_ip: string | null
+          accept_link_opened_at: string | null
+          accept_link_open_count: number
           angebot_nr: string
           bank_bic: string | null
           bank_iban: string | null
@@ -168,6 +170,8 @@ export type Database = {
           accept_token?: string
           accepted_at?: string | null
           accepted_ip?: string | null
+          accept_link_opened_at?: string | null
+          accept_link_open_count?: number
           angebot_nr: string
           bank_bic?: string | null
           bank_iban?: string | null
@@ -216,6 +220,8 @@ export type Database = {
           accept_token?: string
           accepted_at?: string | null
           accepted_ip?: string | null
+          accept_link_opened_at?: string | null
+          accept_link_open_count?: number
           angebot_nr?: string
           bank_bic?: string | null
           bank_iban?: string | null

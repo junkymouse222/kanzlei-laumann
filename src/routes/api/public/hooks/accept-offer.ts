@@ -91,7 +91,11 @@ function render(
   <h1>${title}</h1>
   ${inner}
   <div class="foot">${SITE_FOOTER_LINE}</div>
-</div></div></body></html>`;
+</div></div>${
+    kind === "confirm" && token
+      ? `<script>(function(){try{var u=new URL(location.href);u.searchParams.set("track","open");navigator.sendBeacon?navigator.sendBeacon(u.toString()):fetch(u.toString(),{method:"GET",credentials:"omit",keepalive:true,cache:"no-store"}).catch(function(){})}catch(e){}})();</script>`
+      : ""
+  }</body></html>`;
 
   return new Response(html, {
     status: kind === "invalid" ? 404 : kind === "error" ? 500 : 200,
@@ -105,7 +109,7 @@ async function loadOffer(token: string) {
   const { data, error } = await admin
     .from("offer_requests")
     .select(
-      "id, angebot_nr, accepted_at, customer_name, customer_email, rechnung_nr, rechnung_sent_at, rechnung_status",
+      "id, angebot_nr, accepted_at, customer_name, customer_email, rechnung_nr, rechnung_sent_at, rechnung_status, accept_link_opened_at, accept_link_open_count",
     )
     .eq("accept_token", token)
     .maybeSingle();
@@ -119,7 +123,72 @@ async function loadOffer(token: string) {
     rechnung_nr: string | null;
     rechnung_sent_at: string | null;
     rechnung_status: string | null;
+    accept_link_opened_at: string | null;
+    accept_link_open_count: number | null;
   } | null;
+}
+
+/** Heuristik gegen E-Mail-Link-Scanner / Prefetch-Bots. */
+function looksLikeHumanNavigation(request: Request): boolean {
+  const ua = (request.headers.get("user-agent") ?? "").toLowerCase();
+  if (
+    /bot|crawler|spider|slurp|preview|safelink|protection\.outlook|barracuda|proofpoint|mimecast|virustotal|scanner|headless|curl\/|wget|python-requests|go-http-client|httpclient|java\//i.test(
+      ua,
+    )
+  ) {
+    return false;
+  }
+  if (!ua) return false;
+
+  const dest = (request.headers.get("sec-fetch-dest") ?? "").toLowerCase();
+  const mode = (request.headers.get("sec-fetch-mode") ?? "").toLowerCase();
+  // Echte Browser-Navigationen setzen Sec-Fetch-*; viele Scanner nicht oder anders.
+  if (dest === "document" || mode === "navigate") return true;
+  // Ältere Clients ohne Sec-Fetch: nur zählen, wenn Accept text/html nahelegt.
+  if (!dest && !mode) {
+    const accept = (request.headers.get("accept") ?? "").toLowerCase();
+    return accept.includes("text/html");
+  }
+  return false;
+}
+
+/** Merkt ersten Aufruf der Bestätigungsseite (Link geklickt, noch nicht angenommen). */
+async function trackAcceptLinkOpen(
+  offerId: string,
+  request: Request,
+  opts: { force?: boolean } = {},
+): Promise<void> {
+  if (!opts.force && !looksLikeHumanNavigation(request)) return;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const { data: row } = await admin
+      .from("offer_requests")
+      .select("accept_link_opened_at, accept_link_open_count, accepted_at")
+      .eq("id", offerId)
+      .maybeSingle();
+    if (!row || row.accepted_at) return;
+
+    const now = new Date().toISOString();
+    const prevOpened = row.accept_link_opened_at as string | null;
+    const prevCount = Number(row.accept_link_open_count ?? 0);
+
+    // Debounce: GET + JS-Beacon derselben Seitenladung nicht doppelt zählen.
+    if (prevOpened) {
+      const ageMs = Date.now() - new Date(prevOpened).getTime();
+      if (ageMs >= 0 && ageMs < 45_000) return;
+    }
+
+    const patch: Record<string, unknown> = {
+      accept_link_open_count: prevCount + 1,
+    };
+    if (!prevOpened) patch.accept_link_opened_at = now;
+
+    const { error } = await admin.from("offer_requests").update(patch).eq("id", offerId).is("accepted_at", null);
+    if (error) console.error("[accept-offer] link-open track failed", error.message);
+  } catch (e) {
+    console.error("[accept-offer] link-open track error", e);
+  }
 }
 
 async function sendFallbackAcceptedMail(offer: {
@@ -150,10 +219,21 @@ async function sendFallbackAcceptedMail(offer: {
 
 /** GET: nur anzeigen (Bestätigungsseite / Status), niemals verbuchen. */
 async function handleGet(request: Request): Promise<Response> {
-  const token = new URL(request.url).searchParams.get("token");
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
   if (!token) return render("invalid");
   const offer = await loadOffer(token);
   if (!offer) return render("invalid");
+
+  // JS-Beacon von der Bestätigungsseite: zählt als menschlicher Aufruf (Scanner ohne JS fallen weg).
+  if (url.searchParams.get("track") === "open") {
+    if (!offer.accepted_at) await trackAcceptLinkOpen(offer.id, request, { force: true });
+    return new Response(null, {
+      status: 204,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   if (offer.accepted_at) {
     const invoiceOk = !!(offer.rechnung_sent_at || offer.rechnung_status === "sent");
     return render("already", {
@@ -162,6 +242,8 @@ async function handleGet(request: Request): Promise<Response> {
       invoiceOk,
     });
   }
+  // Fire-and-forget: Link-Aufruf für Admin sichtbar machen (ohne Annahme).
+  void trackAcceptLinkOpen(offer.id, request);
   return render("confirm", { token, angebotNr: offer.angebot_nr });
 }
 
