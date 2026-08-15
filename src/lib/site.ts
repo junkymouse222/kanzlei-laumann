@@ -63,6 +63,11 @@ export const SITE = {
   /** Lieferkonditionen (aus dem Katalog): frei Haus ab Warenwert, sonst Pauschale */
   versandFreiAbNetto: 1000,
   versandPauschale: 29,
+
+  /** Öffentliche Verfahrensbekanntmachungen (Justiz-Portal) */
+  bekanntmachungenUrl: "https://www.insolvenzbekanntmachungen.de/",
+  /** Typische Antwortzeit auf Anfragen (Vertrauenshinweis) */
+  antwortzeit: "in der Regel innerhalb weniger Stunden",
 } as const;
 
 /** Einzeiliger Kontakt-/Beleg-Footer. */
