@@ -1,11 +1,29 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PRODUKTE, KATEGORIEN, type Produkt } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
 import { submitOfferRequest } from "@/lib/offer.functions";
-import { TrustStrip, Kaufprozess } from "@/components/TrustSignals";
+import { getPublicVerwalter, type ActiveVerwalter } from "@/lib/settings.functions";
+import {
+  AnderkontoHinweis,
+  AngebotFaq,
+  Kaufprozess,
+  TrustStrip,
+  VerwalterTeaser,
+  WasSieBekommen,
+} from "@/components/TrustSignals";
+import goldmannImg from "@/assets/anwalt-goldmann.jpg";
+import kopmannImg from "@/assets/anwaeltin-weber.jpg";
 
 type Position = { produkt: Produkt; menge: number };
+
+function portraitForVerwalter(name: string): { src: string; alt: string } {
+  const n = name.toLowerCase();
+  if (n.includes("claudia") || n.includes("kopmann") || n.includes("weber")) {
+    return { src: kopmannImg, alt: `Portrait ${name}` };
+  }
+  return { src: goldmannImg, alt: `Portrait ${name}` };
+}
 
 const fmtEUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -42,6 +60,24 @@ function AngebotAnfordernPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verwalter, setVerwalter] = useState<ActiveVerwalter>({
+    name: SITE.verwalter,
+    role: SITE.role,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPublicVerwalter()
+      .then((v) => {
+        if (!cancelled && v?.name) setVerwalter(v);
+      })
+      .catch(() => {
+        /* SITE-Fallback bleibt */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const gefiltert = useMemo(() => {
     const q = suche.trim().toLowerCase();
@@ -119,6 +155,8 @@ function AngebotAnfordernPage() {
     }
   }
 
+  const verwalterPortrait = portraitForVerwalter(verwalter.name);
+
   return (
     <>
       <section className="border-b border-border bg-parchment">
@@ -127,42 +165,60 @@ function AngebotAnfordernPage() {
           <h1 className="mt-6 max-w-3xl text-4xl md:text-5xl">Angebot anfordern</h1>
           <span className="rule-gold mt-8" />
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-foreground/75">
-            Wählen Sie Ihre Positionen direkt aus dem Katalog, legen Sie die
-            gewünschte Stückzahl fest und übermitteln Sie Ihre Kontaktdaten — Sie
-            erhalten Ihr individuelles Angebot per E-Mail. Jede Anfrage wird
-            vertraulich und in der Reihenfolge ihres Eingangs bearbeitet.
+            Wählen Sie Ihre Positionen direkt aus dem Katalog und übermitteln Sie
+            Ihre Kontaktdaten. Wir melden uns {SITE.antwortzeit} per E-Mail mit
+            Ihrem individuellen Angebot. Zahlung ausschließlich auf das Anderkonto
+            der Kanzlei.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href={SITE.katalogPdf}
-              target="_blank"
-              rel="noopener"
-              download
-              className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
-            >
-              <span aria-hidden>↓</span>
-              Insolvenzkatalog (PDF)
-            </a>
-            <a
-              href={SITE.forderungsanmeldungPdf}
-              target="_blank"
-              rel="noopener"
-              download
-              className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
-            >
-              <span aria-hidden>↓</span>
-              Forderungsanmeldung (PDF)
-            </a>
-            <a
-              href={SITE.eroeffnungsbeschlussPdf}
-              target="_blank"
-              rel="noopener"
-              download
-              className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
-            >
-              <span aria-hidden>↓</span>
-              Eröffnungsbeschluss (PDF)
-            </a>
+          <div className="mt-8 space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <a
+                href={SITE.katalogPdf}
+                target="_blank"
+                rel="noopener"
+                download
+                className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                <span aria-hidden>↓</span>
+                Insolvenzkatalog (PDF)
+              </a>
+              <a
+                href={SITE.forderungsanmeldungPdf}
+                target="_blank"
+                rel="noopener"
+                download
+                className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                <span aria-hidden>↓</span>
+                Forderungsanmeldung (PDF)
+              </a>
+              <a
+                href={SITE.eroeffnungsbeschlussPdf}
+                target="_blank"
+                rel="noopener"
+                download
+                className="inline-flex items-center gap-3 border border-primary bg-white px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                <span aria-hidden>↓</span>
+                Eröffnungsbeschluss (PDF)
+              </a>
+            </div>
+            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">Eröffnungsbeschluss:</span>{" "}
+              Gerichtlicher Nachweis der Insolvenzeröffnung — Grundlage für den
+              freihändigen Verkauf aus der Masse.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              <a
+                href={SITE.bekanntmachungenUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Offizielle Insolvenzbekanntmachungen
+              </a>
+              <span> — Justiz-Portal der Gerichte (Aktenzeichen {SITE.aktenzeichen})</span>
+            </p>
           </div>
         </div>
       </section>
@@ -287,8 +343,17 @@ function AngebotAnfordernPage() {
           </div>
         </div>
 
-        {/* Rechte Spalte: Kontakt + Summe */}
+        {/* Rechte Spalte: Vertrauenshinweise + Kontakt + Summe */}
         <aside className="space-y-8">
+          <AnderkontoHinweis />
+          <WasSieBekommen />
+          <VerwalterTeaser
+            name={verwalter.name}
+            role={verwalter.role}
+            imageSrc={verwalterPortrait.src}
+            imageAlt={verwalterPortrait.alt}
+          />
+
           <div className="border border-border bg-parchment p-6">
             <h2 className="text-2xl">3. Kontaktdaten</h2>
             <span className="rule-gold mt-4" />
@@ -343,10 +408,13 @@ function AngebotAnfordernPage() {
             <p className="mt-3 text-[0.7rem] leading-relaxed text-muted-foreground">
               Es gelten unsere{" "}
               <Link to="/datenschutz" className="underline hover:text-primary">Datenschutzhinweise</Link>.
+              {" "}Antwort {SITE.antwortzeit}.
             </p>
           </div>
         </aside>
       </form>
+
+      <AngebotFaq />
     </>
   );
 }

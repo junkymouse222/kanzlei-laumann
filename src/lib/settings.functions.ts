@@ -215,6 +215,11 @@ export const deleteBankAccount = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/** Öffentlich: aktiver Verwalter für Marketing-/Vertrauensanzeige. */
+export const getPublicVerwalter = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ActiveVerwalter> => loadActiveVerwalter(),
+);
+
 export const listBankAccounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
