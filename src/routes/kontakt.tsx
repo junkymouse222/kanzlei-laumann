@@ -1,12 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { SITE, siteTelHref } from "@/lib/site";
+import { SITE, SITE_OFFICE_CITIES, siteTelHref } from "@/lib/site";
 
 export const Route = createFileRoute("/kontakt")({
   head: () => ({
     meta: [
-      { title: "Kontakt — Kanzlei Laumann Düsseldorf" },
-      { name: "description", content: "Kontakt zur Kanzlei Laumann in Düsseldorf. Anfragen zur Verwertung aus der Insolvenzmasse werden vertraulich behandelt." },
+      { title: `Kontakt — Kanzlei Laumann ${SITE_OFFICE_CITIES}` },
+      {
+        name: "description",
+        content: `Kontakt zur Kanzlei Laumann in ${SITE_OFFICE_CITIES}. Anfragen zur Verwertung aus der Insolvenzmasse werden vertraulich behandelt.`,
+      },
       { property: "og:title", content: "Kontakt — Kanzlei Laumann" },
       { property: "og:description", content: "Anfragen werden vertraulich und in der Reihenfolge ihres Eingangs bearbeitet." },
       { property: "og:url", content: `${SITE.baseUrl}/kontakt` },
@@ -32,13 +35,24 @@ function KontaktPage() {
 
       <section className="container-prose grid gap-16 py-20 md:grid-cols-2 md:py-28">
         <div>
-          <h2 className="text-3xl">Kanzlei Düsseldorf</h2>
+          <h2 className="text-3xl">Standorte</h2>
           <span className="rule-gold mt-6" />
-          <address className="mt-8 space-y-1 not-italic text-base text-foreground/80">
-            <p>{SITE.legalName}</p>
-            <p>{SITE.street}</p>
-            <p>{SITE.postalCode} {SITE.city}</p>
-          </address>
+          <p className="mt-6 text-sm text-muted-foreground">{SITE.legalName}</p>
+
+          <div className="mt-8 grid gap-8 sm:grid-cols-2">
+            {SITE.offices.map((office) => (
+              <address key={office.label} className="space-y-1 not-italic text-base text-foreground/80">
+                <p className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
+                  {office.label}
+                </p>
+                <p className="font-medium text-primary">{office.street}</p>
+                <p>
+                  {office.postalCode} {office.city}
+                </p>
+                <p>{office.country}</p>
+              </address>
+            ))}
+          </div>
 
           <dl className="mt-8 space-y-4 border-t border-border pt-8 text-sm">
             <div className="grid grid-cols-[8rem_1fr] gap-4">

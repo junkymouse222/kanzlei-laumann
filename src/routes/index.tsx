@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import heroImg from "@/assets/kanzlei-hero.jpg";
 import goldmannImg from "@/assets/anwalt-goldmann.jpg";
 import kopmannImg from "@/assets/anwaeltin-weber.jpg";
-import { SITE } from "@/lib/site";
+import { SITE, SITE_OFFICE_CITIES } from "@/lib/site";
 import { TrustStrip, Kaufprozess } from "@/components/TrustSignals";
 
 export const Route = createFileRoute("/")({
@@ -30,6 +30,17 @@ export const Route = createFileRoute("/")({
           postalCode: SITE.postalCode,
           addressCountry: "DE",
         },
+        location: SITE.offices.map((office) => ({
+          "@type": "Place",
+          name: `${SITE.brand} ${office.label}`,
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: office.street,
+            addressLocality: office.city,
+            postalCode: office.postalCode,
+            addressCountry: "DE",
+          },
+        })),
         areaServed: "DE",
       }),
     }],
@@ -56,7 +67,7 @@ function Index() {
 
         <div className="container-prose py-32 md:py-48">
           <p className="text-[0.72rem] uppercase tracking-[0.28em] text-gold">
-            Insolvenzverwaltung &amp; Verwertung · Düsseldorf
+            Insolvenzverwaltung &amp; Verwertung · {SITE_OFFICE_CITIES}
           </p>
           <h1 className="mt-6 max-w-3xl font-serif text-5xl leading-[1.05] text-primary-foreground md:text-7xl">
             Freihändiger Verkauf

@@ -25,8 +25,30 @@ function ImpressumPage() {
         <div className="space-y-10 text-sm leading-relaxed text-foreground/85">
           <div>
             <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">Anbieter</p>
-            <p className="mt-3">Erik Laumann<br />Rechtsanwalt · Insolvenzverwalter<br />{SITE.street}<br />{SITE.postalCode} {SITE.city}</p>
+            <p className="mt-3">
+              Erik Laumann
+              <br />
+              Rechtsanwalt · Insolvenzverwalter
+              <br />
+              {SITE.street}
+              <br />
+              {SITE.postalCode} {SITE.city}
+            </p>
           </div>
+          {SITE.offices.slice(1).map((office) => (
+            <div key={office.label}>
+              <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">
+                Weitere Niederlassung · {office.label}
+              </p>
+              <p className="mt-3">
+                {office.street}
+                <br />
+                {office.postalCode} {office.city}
+                <br />
+                {office.country}
+              </p>
+            </div>
+          ))}
           <div>
             <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">Kontakt</p>
             <p className="mt-3">
