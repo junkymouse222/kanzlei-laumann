@@ -87,7 +87,7 @@ export const PRODUKTE: Produkt[] = [
       "Der Wilkhahn ON ermöglicht mit seiner Trimension-Technologie dreidimensionale Bewegungen und fördert aktives Sitzen. Mit Kopfstütze. Made in Germany.",
   },
 
-  // II. Technik & Präsentation (Lose 05–10)
+  // II. Technik & Präsentation (Lose 05–07, 10)
   {
     pos: 5,
     artikel: "LOS-05",
@@ -128,40 +128,10 @@ export const PRODUKTE: Produkt[] = [
     kategorie: KATEGORIEN[1],
     regulaerVk: 1740.69,
     nachlassProzent: 45,
-    verfuegbar: 8,
+    verfuegbar: 2,
     zustand: NEUWARE,
     langtext:
       "15 Zoll Liquid Retina, Apple M4, 24 GB Arbeitsspeicher, 1 TB SSD, deutsche Tastatur, Farbe Mitternacht.",
-  },
-  {
-    pos: 8,
-    artikel: "LOS-08",
-    name: "Apple iPhone 17, 256 GB, Weiß",
-    beschreibung: "256 GB · Weiß",
-    einzelpreis: 519.0,
-    einheit: "Stk.",
-    kategorie: KATEGORIEN[1],
-    regulaerVk: 749.0,
-    nachlassProzent: 31,
-    verfuegbar: 4,
-    zustand: NEUWARE,
-    langtext:
-      "Die aktuelle iPhone-Generation in Weiß mit 256 GB Speicher — unbenutzte, originalverpackte und ungeöffnete Neuware aus dem Unternehmensbestand. Geeignet für den geschäftlichen wie privaten Einsatz; die Aktivierung erfolgt durch den Erwerber, sämtliche Herstellerleistungen ab Aktivierung.",
-  },
-  {
-    pos: 9,
-    artikel: "LOS-09",
-    name: "Apple iPhone 17 Pro Max, 256 GB, Silber",
-    beschreibung: "256 GB · Silber",
-    einzelpreis: 811.0,
-    einheit: "Stk.",
-    kategorie: KATEGORIEN[1],
-    regulaerVk: 1249.0,
-    nachlassProzent: 35,
-    verfuegbar: 7,
-    zustand: NEUWARE,
-    langtext:
-      "Das Topmodell der aktuellen iPhone-Reihe: größtes Display, stärkste Ausstattung und die beste Akkulaufzeit der Serie — in Silber mit 256 GB Speicher. Originalverpackte, ungeöffnete Neuware aus dem Unternehmensbestand; Aktivierung durch den Erwerber, sämtliche Herstellerleistungen ab Aktivierung.",
   },
   {
     pos: 10,
