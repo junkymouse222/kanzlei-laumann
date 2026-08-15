@@ -193,7 +193,12 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
             Tel. ${escapeHtml(SITE.phoneDisplay)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
@@ -313,7 +318,12 @@ export function renderPaymentConfirmationHtml(offer: {
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
             Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
@@ -400,7 +410,12 @@ export function renderOfferRequestConfirmationHtml(opts: {
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${escapeHtml(signerRole)}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
             Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
@@ -439,7 +454,12 @@ export function renderOfferAcceptedConfirmationHtml(opts: {
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${escapeHtml(signerRole)}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
             Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>
@@ -486,7 +506,12 @@ export function renderOfferReminderHtml(
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
             Tel. ${escapeHtml(SITE.phoneDisplay)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
@@ -543,7 +568,12 @@ export function renderInvoiceReminderHtml(
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
             ${escapeHtml(SITE.brand)}<br/>
-            ${escapeHtml(SITE.street)}, ${escapeHtml(SITE.postalCode)} ${escapeHtml(SITE.city)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
             Tel. ${escapeHtml(SITE.phoneDisplay)}
           </p>
         </td></tr>

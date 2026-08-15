@@ -25,12 +25,36 @@ export const SITE = {
   /** Kanonische Basis-URL (ohne Slash am Ende) */
   baseUrl: "https://laumann-kanzlei.de",
 
-  /** Anschrift */
+  /** Anschrift (Hauptsitz) */
   street: "Fürstenwall 172",
   postalCode: "40217",
   city: "Düsseldorf",
-  /** Einzeilige Anschrift für Footer/Belege */
+  country: "Deutschland",
+  /** Einzeilige Anschrift für Footer/Belege (Hauptsitz) */
   addressLine: "Fürstenwall 172 · 40217 Düsseldorf",
+
+  /**
+   * Standorte der Kanzlei. Index 0 = Hauptsitz (entspricht street/city oben).
+   * Weitere Einträge = Filialen / Zweigniederlassungen.
+   */
+  offices: [
+    {
+      label: "Düsseldorf",
+      street: "Fürstenwall 172",
+      postalCode: "40217",
+      city: "Düsseldorf",
+      country: "Deutschland",
+      addressLine: "Fürstenwall 172 · 40217 Düsseldorf",
+    },
+    {
+      label: "Berlin",
+      street: "Tucholskystraße 2",
+      postalCode: "10117",
+      city: "Berlin",
+      country: "Deutschland",
+      addressLine: "Tucholskystraße 2 · 10117 Berlin",
+    },
+  ],
 
   /** Kontakt */
   email: "kontakt@laumann-kanzlei.de",
@@ -77,6 +101,9 @@ export const SITE_FOOTER_LINE =
   `${SITE.brand} · ${SITE.addressLine}` +
   (SITE.phoneDisplay ? ` · ${SITE.phoneDisplay}` : "") +
   ` · ${SITE.email}`;
+
+/** Kurzzeile aller Standorte (z. B. „Düsseldorf · Berlin“). */
+export const SITE_OFFICE_CITIES = SITE.offices.map((o) => o.label).join(" · ");
 
 /** tel:-Href aus der hinterlegten Rufnummer. */
 export function siteTelHref(): string {
