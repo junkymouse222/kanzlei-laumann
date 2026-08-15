@@ -34,7 +34,7 @@ const PROZESS_SCHRITTE = [
   {
     nr: "03",
     title: "Annahme",
-    text: "Passt das Angebot, nehmen Sie es mit einem Klick an — rechtsverbindlich. Die Rechnung folgt sofort per E-Mail.",
+    text: "Passt das Angebot, bestätigen Sie die Annahme mit einem Klick — rechtsverbindlich. Die Rechnung folgt sofort per E-Mail.",
   },
   {
     nr: "04",
@@ -59,7 +59,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Wann und wohin zahle ich?",
-    a: "Mit einem Klick auf „Angebot annehmen“ in der E-Mail nehmen Sie verbindlich an. Die Rechnung folgt sofort per E-Mail. Die Zahlung geht ausschließlich auf ein Anderkonto (Treuhandkonto) der Kanzlei — nicht auf ein privates Konto.",
+    a: "Über den Link „Angebot annehmen“ in der E-Mail bestätigen Sie die Annahme verbindlich. Die Rechnung folgt sofort per E-Mail. Die Zahlung geht ausschließlich auf ein Anderkonto (Treuhandkonto) der Kanzlei — nicht auf ein privates Konto.",
   },
   {
     q: "Wann wird versendet?",

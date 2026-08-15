@@ -151,7 +151,7 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
             ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
             : `<p style="margin:0 0 16px 0;">Wenn es passt, antworten Sie einfach kurz auf diese Mail — wir nehmen das Angebot dann für Sie an.</p>`
       }
-      <p style="margin:0 0 16px 0;">Mit dem Klick ist das Angebot rechtsverbindlich angenommen. Direkt danach erhalten Sie die Rechnung mit den Zahlungsdaten per E-Mail.</p>
+      <p style="margin:0 0 16px 0;">Mit dem Bestätigen auf der Folgeseite ist das Angebot rechtsverbindlich angenommen. Direkt danach erhalten Sie die Rechnung mit den Zahlungsdaten per E-Mail.</p>
     `
     : `
       <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
@@ -264,7 +264,7 @@ export function renderOfferHtml(offer: OfferRow, items: ItemRow[]): string {
     ctaDone: !!offer.accepted_at,
     ctaLabel: "Angebot annehmen",
     ctaDoneLabel: "Angebot bereits angenommen",
-    ctaHint: "Ein Klick genügt · rechtsverbindlich",
+    ctaHint: "Bestätigung auf der Folgeseite · rechtsverbindlich",
     verwalterName: offer.verwalter_name,
     verwalterRole: offer.verwalter_role,
   });

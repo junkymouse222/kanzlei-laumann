@@ -4,10 +4,11 @@ import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
 // Öffentlicher Endpunkt: Kunde klickt in Angebots-Mail/PDF auf "Angebot annehmen".
 // Erwartet ?token=<accept_token>.
 //
-// Ein Klick = verbindliche Annahme (GET und POST). Keine Zwischenbestätigung.
-// Danach wird automatisch die Rechnung mit dem Standard-Anderkonto versendet.
+// Scanner-Schutz: GET zeigt nur die Bestätigungsseite (E-Mail-Link-Scanner
+// lösen dadurch KEINE Annahme aus). Erst der bewusste Button-Klick (POST)
+// verbucht die rechtsverbindliche Annahme und versendet die Rechnung.
 
-type PageKind = "ok" | "already" | "invalid" | "error";
+type PageKind = "confirm" | "ok" | "already" | "invalid" | "error";
 
 function escapeHtml(s: string): string {
   return String(s)
@@ -20,35 +21,56 @@ function escapeHtml(s: string): string {
 
 function render(
   kind: PageKind,
-  opts: { angebotNr?: string; rechnungNr?: string; invoiceOk?: boolean } = {},
+  opts: {
+    token?: string;
+    angebotNr?: string;
+    rechnungNr?: string;
+    invoiceOk?: boolean;
+  } = {},
 ): Response {
-  const { angebotNr, rechnungNr, invoiceOk } = opts;
+  const { token, angebotNr, rechnungNr, invoiceOk } = opts;
   const title =
-    kind === "invalid"
-      ? "Angebot nicht gefunden"
-      : kind === "already"
-        ? "Angebot bereits angenommen"
-        : kind === "error"
-          ? "Annahme fehlgeschlagen"
-          : "Angebot angenommen";
+    kind === "confirm"
+      ? "Angebot annehmen"
+      : kind === "invalid"
+        ? "Angebot nicht gefunden"
+        : kind === "already"
+          ? "Angebot bereits angenommen"
+          : kind === "error"
+            ? "Annahme fehlgeschlagen"
+            : "Angebot angenommen";
 
-  let message: string;
-  if (kind === "invalid") {
-    message = `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`;
-  } else if (kind === "already") {
-    message = invoiceOk && rechnungNr
-      ? `Dieses Angebot wurde bereits angenommen. Die Rechnung ${escapeHtml(rechnungNr)} wurde Ihnen per E-Mail zugestellt.`
-      : "Vielen Dank – dieses Angebot wurde bereits angenommen. Wir sind bereits an der Umsetzung.";
-  } else if (kind === "error") {
-    message = "Die Annahme konnte nicht gespeichert werden. Bitte versuchen Sie es erneut oder kontaktieren Sie uns.";
-  } else if (invoiceOk && rechnungNr) {
-    message = `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${
-      angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""
-    } erhalten. Die Rechnung <strong>${escapeHtml(rechnungNr)}</strong> ist unterwegs an Ihre E-Mail — bitte prüfen Sie auch den Spam-Ordner.`;
+  let inner: string;
+  if (kind === "confirm") {
+    inner = `
+  <p>Bitte bestätigen Sie die verbindliche Annahme${
+    angebotNr ? ` des Angebots <strong>${escapeHtml(angebotNr)}</strong>` : ""
+  }. Mit dem Klick auf den Button nehmen Sie das Angebot rechtsverbindlich an — die Rechnung erhalten Sie direkt danach per E-Mail.</p>
+  <form method="POST" action="/api/public/hooks/accept-offer?token=${encodeURIComponent(token ?? "")}" style="margin:0;">
+    <button type="submit" class="btn">Angebot verbindlich annehmen</button>
+  </form>`;
   } else {
-    message = `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${
-      angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""
-    } erhalten und senden Ihnen die Rechnung in Kürze per E-Mail.`;
+    let message: string;
+    if (kind === "invalid") {
+      message = `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`;
+    } else if (kind === "already") {
+      message =
+        invoiceOk && rechnungNr
+          ? `Dieses Angebot wurde bereits angenommen. Die Rechnung ${escapeHtml(rechnungNr)} wurde Ihnen per E-Mail zugestellt.`
+          : "Vielen Dank – dieses Angebot wurde bereits angenommen. Wir sind bereits an der Umsetzung.";
+    } else if (kind === "error") {
+      message =
+        "Die Annahme konnte nicht gespeichert werden. Bitte versuchen Sie es erneut oder kontaktieren Sie uns.";
+    } else if (invoiceOk && rechnungNr) {
+      message = `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${
+        angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""
+      } erhalten. Die Rechnung <strong>${escapeHtml(rechnungNr)}</strong> ist unterwegs an Ihre E-Mail — bitte prüfen Sie auch den Spam-Ordner.`;
+    } else {
+      message = `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${
+        angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""
+      } erhalten und senden Ihnen die Rechnung in Kürze per E-Mail.`;
+    }
+    inner = `<p>${message}</p><a class="btn" href="${SITE.baseUrl}">Zur Kanzlei</a>`;
   }
 
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${title}</title>
@@ -67,8 +89,7 @@ function render(
   <div class="brand">Kanzlei Laumann</div>
   <div class="rule"></div>
   <h1>${title}</h1>
-  <p>${message}</p>
-  <a class="btn" href="${SITE.baseUrl}">Zur Kanzlei</a>
+  ${inner}
   <div class="foot">${SITE_FOOTER_LINE}</div>
 </div></div></body></html>`;
 
@@ -127,8 +148,25 @@ async function sendFallbackAcceptedMail(offer: {
   }
 }
 
-/** Verbindliche Annahme + Auto-Rechnung (idempotent). */
-async function handleAccept(request: Request): Promise<Response> {
+/** GET: nur anzeigen (Bestätigungsseite / Status), niemals verbuchen. */
+async function handleGet(request: Request): Promise<Response> {
+  const token = new URL(request.url).searchParams.get("token");
+  if (!token) return render("invalid");
+  const offer = await loadOffer(token);
+  if (!offer) return render("invalid");
+  if (offer.accepted_at) {
+    const invoiceOk = !!(offer.rechnung_sent_at || offer.rechnung_status === "sent");
+    return render("already", {
+      angebotNr: offer.angebot_nr,
+      rechnungNr: offer.rechnung_nr ?? undefined,
+      invoiceOk,
+    });
+  }
+  return render("confirm", { token, angebotNr: offer.angebot_nr });
+}
+
+/** POST: verbindliche Annahme + Auto-Rechnung (idempotent). */
+async function handlePost(request: Request): Promise<Response> {
   const token = new URL(request.url).searchParams.get("token");
   if (!token) return render("invalid");
 
@@ -158,7 +196,6 @@ async function handleAccept(request: Request): Promise<Response> {
     .select("id")
     .maybeSingle();
 
-  // Parallel-Klick: anderer Request hat schon akzeptiert
   if (!updated && !upErr) {
     const again = await loadOffer(token);
     if (again?.accepted_at) {
@@ -175,7 +212,6 @@ async function handleAccept(request: Request): Promise<Response> {
     return render("error");
   }
 
-  // Rechnung sofort versenden (best-effort; Annahme bleibt gültig).
   let invoiceOk = false;
   let rechnungNr: string | undefined;
   try {
@@ -203,8 +239,8 @@ async function handleAccept(request: Request): Promise<Response> {
 export const Route = createFileRoute("/api/public/hooks/accept-offer")({
   server: {
     handlers: {
-      GET: async ({ request }) => handleAccept(request),
-      POST: async ({ request }) => handleAccept(request),
+      GET: async ({ request }) => handleGet(request),
+      POST: async ({ request }) => handlePost(request),
     },
   },
 });
