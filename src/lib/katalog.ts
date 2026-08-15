@@ -1,8 +1,8 @@
 // Produktkatalog – Freihändiger Verkauf aus der Insolvenzmasse
 // Erik Laumann · Rechtsanwalt / Insolvenzverwalter · AZ 97 IN 290/25 · Stand Juli 2026
 export type Produkt = {
-  pos: number; // Losnummer
-  artikel: string; // Los-Kennung, z. B. "LOS-01"
+  pos: number; // Positionsnummer
+  artikel: string; // Positions-Kennung, z. B. "POS-01"
   name: string;
   beschreibung: string; // kurzer Untertitel
   einzelpreis: number; // Nachlasspreis EUR netto
@@ -25,10 +25,10 @@ export const KATEGORIEN = [
 const NEUWARE = "Originalverpackte Neuware";
 
 export const PRODUKTE: Produkt[] = [
-  // I. Möbel & Konferenz (Lose 01–04)
+  // I. Möbel & Konferenz (Positionen 01–04)
   {
     pos: 1,
-    artikel: "LOS-01",
+    artikel: "POS-01",
     name: "Vitra Aluminium Chair EA 108",
     beschreibung: "Eames-Legende für Konferenzen",
     einzelpreis: 937.06,
@@ -43,7 +43,7 @@ export const PRODUKTE: Produkt[] = [
   },
   {
     pos: 2,
-    artikel: "LOS-02",
+    artikel: "POS-02",
     name: "USM Kitos Tisch, höhenverstellbar",
     beschreibung: "Schweizer Ingenieurskunst",
     einzelpreis: 1020.25,
@@ -58,7 +58,7 @@ export const PRODUKTE: Produkt[] = [
   },
   {
     pos: 3,
-    artikel: "LOS-03",
+    artikel: "POS-03",
     name: "Vitra Segmented Table, Konferenztisch",
     beschreibung: "Konferenztisch nach Charles Eames",
     einzelpreis: 2942.0,
@@ -73,7 +73,7 @@ export const PRODUKTE: Produkt[] = [
   },
   {
     pos: 4,
-    artikel: "LOS-04",
+    artikel: "POS-04",
     name: "Wilkhahn ON 175/71 Bürodrehstuhl",
     beschreibung: "Dynamik für den Arbeitsplatz",
     einzelpreis: 664.79,
@@ -87,10 +87,10 @@ export const PRODUKTE: Produkt[] = [
       "Der Wilkhahn ON ermöglicht mit seiner Trimension-Technologie dreidimensionale Bewegungen und fördert aktives Sitzen. Mit Kopfstütze. Made in Germany.",
   },
 
-  // II. Technik & Präsentation (Lose 05–07, 10)
+  // II. Technik & Präsentation (Positionen 05–08)
   {
     pos: 5,
-    artikel: "LOS-05",
+    artikel: "POS-05",
     name: "NearHub Smart Whiteboard 55″",
     beschreibung: "Die Zukunft der Zusammenarbeit",
     einzelpreis: 1429.2,
@@ -105,8 +105,8 @@ export const PRODUKTE: Produkt[] = [
   },
   {
     pos: 6,
-    artikel: "LOS-06",
-    name: "Apple iMac 24″, M3",
+    artikel: "POS-06",
+    name: "Apple iMac 24″, M3, Blau",
     beschreibung: "Alles in einem",
     einzelpreis: 975.6,
     einheit: "Stk.",
@@ -116,11 +116,11 @@ export const PRODUKTE: Produkt[] = [
     verfuegbar: 2,
     zustand: "Neuwertig · originalverpackt",
     langtext:
-      "iMac mit M3-Chip und 24-Zoll-4.5K-Retina-Display, 6-Lautsprecher-System mit Spatial Audio. Magic Keyboard und Magic Mouse in passender Farbe inklusive.",
+      "iMac mit M3-Chip und 24-Zoll-4.5K-Retina-Display in Blau, 6-Lautsprecher-System mit Spatial Audio. Magic Keyboard und Magic Mouse in passender Farbe inklusive.",
   },
   {
     pos: 7,
-    artikel: "LOS-07",
+    artikel: "POS-07",
     name: "Apple MacBook Air 15″, M4, 24 GB / 1 TB",
     beschreibung: "Leistung trifft Mobilität",
     einzelpreis: 949.0,
@@ -134,9 +134,9 @@ export const PRODUKTE: Produkt[] = [
       "15 Zoll Liquid Retina, Apple M4, 24 GB Arbeitsspeicher, 1 TB SSD, deutsche Tastatur, Farbe Mitternacht.",
   },
   {
-    pos: 10,
-    artikel: "LOS-10",
-    name: "Apple Studio Display 27″ 5K",
+    pos: 8,
+    artikel: "POS-08",
+    name: "Apple Studio Display 27″ 5K, Weiß",
     beschreibung: "Das Display für Profis",
     einzelpreis: 831.18,
     einheit: "Stk.",
@@ -146,13 +146,13 @@ export const PRODUKTE: Produkt[] = [
     verfuegbar: 4,
     zustand: NEUWARE,
     langtext:
-      "27-Zoll-5K-Retina-Display mit P3-Farbunterstützung, integrierte 12-MP-Ultraweitwinkel-Kamera mit Center Stage, Aluminium-Gehäuse mit A13-Chip.",
+      "27-Zoll-5K-Retina-Display in Weiß mit P3-Farbunterstützung, integrierte 12-MP-Ultraweitwinkel-Kamera mit Center Stage, Aluminium-Gehäuse mit A13-Chip.",
   },
 
-  // III. Kaffeekultur (Lose 11–13)
+  // III. Kaffeekultur (Positionen 09–11)
   {
-    pos: 11,
-    artikel: "LOS-11",
+    pos: 9,
+    artikel: "POS-09",
     name: "WMF 950 S Kaffeevollautomat",
     beschreibung: "Barista-Qualität auf Knopfdruck",
     einzelpreis: 944.62,
@@ -166,8 +166,8 @@ export const PRODUKTE: Produkt[] = [
       "Großes Touchdisplay, bis zu 40 programmierbare Getränke, Dynamic Milk System, automatische Reinigung. Konzipiert für bis zu 80 Tassen täglich.",
   },
   {
-    pos: 12,
-    artikel: "LOS-12",
+    pos: 10,
+    artikel: "POS-10",
     name: "WMF 1500 S+ Kaffeevollautomat",
     beschreibung: "High-Performance für Enthusiasten",
     einzelpreis: 3017.7,
@@ -181,8 +181,8 @@ export const PRODUKTE: Produkt[] = [
       "Flaggschiff für anspruchsvolle Büroumgebungen: zwei separate Bohnenbehälter, patentiertes Brühsystem, großes Farbdisplay, Festwasseranschluss. Bis zu 150 Tassen pro Tag.",
   },
   {
-    pos: 13,
-    artikel: "LOS-13",
+    pos: 11,
+    artikel: "POS-11",
     name: "La Marzocco Linea Mini Espressomaschine",
     beschreibung: "Italienische Kaffeekunst",
     einzelpreis: 1913.45,
@@ -196,11 +196,11 @@ export const PRODUKTE: Produkt[] = [
       "Dual-Boiler-System und präzise PID-Temperatursteuerung für Espresso auf Weltklasse-Niveau. Gebürsteter Edelstahl, in der Manufaktur in Florenz von Hand gefertigt.",
   },
 
-  // IV. USM Haller System (Lose 14–20)
+  // IV. USM Haller System (Positionen 12–18)
   {
-    pos: 14,
-    artikel: "LOS-14",
-    name: "USM Haller Sideboard, 4 Klapptüren",
+    pos: 12,
+    artikel: "POS-12",
+    name: "USM Haller Sideboard, 4 Klapptüren, Reinweiß",
     beschreibung: "Design-Ikone seit 1965",
     einzelpreis: 1042.94,
     einheit: "Stk.",
@@ -213,9 +213,9 @@ export const PRODUKTE: Produkt[] = [
       "Modulares Schweizer System in Reinweiß, aufgenommen in die Sammlung des Museum of Modern Art. Verchromte Stahlrohre, pulverbeschichtete Metallflächen, jederzeit erweiterbar.",
   },
   {
-    pos: 15,
-    artikel: "LOS-15",
-    name: "USM Haller Highboard, 3 Klapptüren",
+    pos: 13,
+    artikel: "POS-13",
+    name: "USM Haller Highboard, 3 Klapptüren, Reinweiß",
     beschreibung: "Mit 3 Klapptüren",
     einzelpreis: 1070.0,
     einheit: "Stk.",
@@ -228,9 +228,9 @@ export const PRODUKTE: Produkt[] = [
       "Drei übereinander angeordnete Fächer mit Klapptüren für übersichtliche Organisation von Akten und Büromaterial. Reinweiß, gefertigt in der Schweiz.",
   },
   {
-    pos: 16,
-    artikel: "LOS-16",
-    name: "USM Haller Sideboard, 2 Klapptüren",
+    pos: 14,
+    artikel: "POS-14",
+    name: "USM Haller Sideboard, 2 Klapptüren, Reinweiß",
     beschreibung: "2 Klapptüren übereinander",
     einzelpreis: 699.0,
     einheit: "Stk.",
@@ -243,9 +243,9 @@ export const PRODUKTE: Produkt[] = [
       "Zwei übereinander angeordnete Klapptüren – kompakte Maße mit durchdachter Funktionalität, ideal als Stauraum neben dem Schreibtisch oder im Empfangsbereich.",
   },
   {
-    pos: 17,
-    artikel: "LOS-17",
-    name: "USM Haller Lowboard, 2 Klapptüren",
+    pos: 15,
+    artikel: "POS-15",
+    name: "USM Haller Lowboard, 2 Klapptüren, Reinweiß",
     beschreibung: "2 Klapptüren",
     einzelpreis: 817.69,
     einheit: "Stk.",
@@ -258,9 +258,9 @@ export const PRODUKTE: Produkt[] = [
       "Stilvolle Aufbewahrung auf niedriger Höhe – als TV-Möbel, Mediencenter oder Ablage. Charakteristische Chromkugeln und verchromte Stahlrohre in Reinweiß.",
   },
   {
-    pos: 18,
-    artikel: "LOS-18",
-    name: "USM Haller Sideboard, 6 Klapptüren",
+    pos: 16,
+    artikel: "POS-16",
+    name: "USM Haller Sideboard, 6 Klapptüren, Reinweiß",
     beschreibung: "6 Klapptüren",
     einzelpreis: 1961.76,
     einheit: "Stk.",
@@ -273,9 +273,9 @@ export const PRODUKTE: Produkt[] = [
       "Raumwunder: drei Fächer nebeneinander, zwei Reihen übereinander – maximaler Stauraum bei elegantem Erscheinungsbild. Sechs einzeln zugängliche Fächer.",
   },
   {
-    pos: 19,
-    artikel: "LOS-19",
-    name: "USM Haller Highboard, 6 Klapptüren",
+    pos: 17,
+    artikel: "POS-17",
+    name: "USM Haller Highboard, 6 Klapptüren, Reinweiß",
     beschreibung: "6 Klapptüren",
     einzelpreis: 1809.07,
     einheit: "Stk.",
@@ -288,9 +288,9 @@ export const PRODUKTE: Produkt[] = [
       "Maximale Stauraumkapazität im ikonischen USM Design: zwei Spalten mit je drei Fächern. Reinweiß mit verchromten Stahlrohren und Verbindungskugeln.",
   },
   {
-    pos: 20,
-    artikel: "LOS-20",
-    name: "USM Haller Rollcontainer, 3 Schübe",
+    pos: 18,
+    artikel: "POS-18",
+    name: "USM Haller Rollcontainer, 3 Schübe, Reinweiß",
     beschreibung: "3 Schübe",
     einzelpreis: 817.69,
     einheit: "Stk.",
