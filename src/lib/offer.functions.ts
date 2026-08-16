@@ -14,8 +14,17 @@ const InputSchema = z.object({
   customer_company: z.string().trim().max(200).optional().nullable(),
   customer_name: z.string().trim().min(2).max(200),
   customer_email: z.string().trim().email().max(255),
-  customer_phone: z.string().trim().max(50).optional().nullable(),
-  customer_address: z.string().trim().min(5).max(500),
+  customer_phone: z
+    .string()
+    .trim()
+    .min(6, "Telefonnummer für Rückfragen fehlt.")
+    .max(50),
+  customer_street: z.string().trim().min(3, "Straße und Hausnummer fehlen.").max(200),
+  customer_postal_code: z
+    .string()
+    .trim()
+    .regex(/^\d{5}$/, "PLZ muss aus genau 5 Ziffern bestehen."),
+  customer_city: z.string().trim().min(2, "Ort fehlt.").max(100),
   customer_ust_id: z.string().trim().max(50).optional().nullable(),
   message: z.string().trim().max(2000).optional().nullable(),
   ref_source: z.string().trim().max(100).optional().nullable(),
@@ -47,6 +56,8 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
     if (resolved.length === 0) {
       throw new Error("Keine gültigen Produkte ausgewählt.");
     }
+
+    const customer_address = `${data.customer_street}\n${data.customer_postal_code} ${data.customer_city}`;
 
     const subtotal = Number(resolved.reduce((s, i) => s + i.position_total, 0).toFixed(2));
     const lieferkosten = subtotal >= SITE.versandFreiAbNetto ? 0 : SITE.versandPauschale;
@@ -80,8 +91,8 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
         customer_company: data.customer_company ?? null,
         customer_name: data.customer_name,
         customer_email: data.customer_email,
-        customer_phone: data.customer_phone ?? null,
-        customer_address: data.customer_address,
+        customer_phone: data.customer_phone,
+        customer_address,
         customer_ust_id: data.customer_ust_id ?? null,
         message: data.message ?? null,
         ref_source: data.ref_source ?? null,

@@ -54,7 +54,9 @@ function AngebotAnfordernPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [street, setStreet] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [city, setCity] = useState("");
   const [ustId, setUstId] = useState("");
   const [message, setMessage] = useState("");
 
@@ -102,6 +104,13 @@ function AngebotAnfordernPage() {
   const mwst = netto * 0.19;
   const total = netto + mwst;
 
+  const looksLikeBizEmail = useMemo(() => {
+    const e = email.trim().toLowerCase();
+    if (!e.includes("@")) return false;
+    return !/@(gmail|googlemail|web|t-online|gmx|outlook|hotmail|icloud|yahoo|mail)\./i.test(e);
+  }, [email]);
+  const showCompanyHint = looksLikeBizEmail && company.trim() === "";
+
   function addPos(prod: Produkt) {
     setPositionen((prev) => {
       const idx = prev.findIndex((p) => p.produkt.artikel === prod.artikel);
@@ -131,6 +140,23 @@ function AngebotAnfordernPage() {
       setError("Bitte wählen Sie mindestens ein Produkt aus.");
       return;
     }
+    const plz = postalCode.trim();
+    if (!/^\d{5}$/.test(plz)) {
+      setError("Bitte eine gültige PLZ mit genau 5 Ziffern angeben.");
+      return;
+    }
+    if (city.trim().length < 2) {
+      setError("Bitte den Ort angeben.");
+      return;
+    }
+    if (street.trim().length < 3) {
+      setError("Bitte Straße und Hausnummer angeben.");
+      return;
+    }
+    if (phone.trim().length < 6) {
+      setError("Bitte eine Telefonnummer für Rückfragen angeben.");
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await submitOfferRequest({
@@ -138,8 +164,10 @@ function AngebotAnfordernPage() {
           customer_company: company.trim() || null,
           customer_name: name.trim(),
           customer_email: email.trim(),
-          customer_phone: phone.trim() || null,
-          customer_address: address.trim(),
+          customer_phone: phone.trim(),
+          customer_street: street.trim(),
+          customer_postal_code: plz,
+          customer_city: city.trim(),
           customer_ust_id: ustId.trim() || null,
           message: message.trim() || null,
           ref_source: search.ref ?? null,
@@ -358,21 +386,63 @@ function AngebotAnfordernPage() {
             <h2 className="text-2xl">3. Kontaktdaten</h2>
             <span className="rule-gold mt-4" />
             <div className="mt-6 space-y-3 text-sm">
-              <Field label="Firma (optional)" value={company} onChange={setCompany} />
-              <Field label="Name*" value={name} onChange={setName} required />
-              <Field label="E-Mail*" type="email" value={email} onChange={setEmail} required />
-              <Field label="Telefon" value={phone} onChange={setPhone} />
-              <label className="block">
-                <span className="text-xs uppercase tracking-widest text-muted-foreground">Lieferadresse*</span>
-                <textarea
+              <Field
+                label="Firma (optional)"
+                value={company}
+                onChange={setCompany}
+                placeholder="Muster GmbH"
+              />
+              {showCompanyHint && (
+                <p className="text-[0.75rem] leading-relaxed text-amber-900">
+                  Ihre E-Mail wirkt geschäftlich — Firma ergänzen? Hilft bei der korrekten Rechnung.
+                </p>
+              )}
+              <Field label="Name*" value={name} onChange={setName} required placeholder="Max Mustermann" />
+              <Field
+                label="E-Mail*"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                required
+                placeholder="max@firma.de"
+              />
+              <Field
+                label="Telefon* (für Rückfragen)"
+                type="tel"
+                value={phone}
+                onChange={setPhone}
+                required
+                placeholder="+49 170 1234567"
+                autoComplete="tel"
+              />
+              <Field
+                label="Straße und Hausnummer*"
+                value={street}
+                onChange={setStreet}
+                required
+                placeholder="Musterstraße 1"
+                autoComplete="street-address"
+              />
+              <div className="grid grid-cols-[7rem_1fr] gap-3">
+                <Field
+                  label="PLZ*"
+                  value={postalCode}
+                  onChange={(v) => setPostalCode(v.replace(/\D/g, "").slice(0, 5))}
                   required
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  rows={3}
-                  className="mt-1 block w-full border border-border bg-white px-3 py-2"
+                  placeholder="10115"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
                 />
-              </label>
-              <Field label="USt-IdNr. (optional)" value={ustId} onChange={setUstId} />
+                <Field
+                  label="Ort*"
+                  value={city}
+                  onChange={setCity}
+                  required
+                  placeholder="Berlin"
+                  autoComplete="address-level2"
+                />
+              </div>
+              <Field label="USt-IdNr. (optional)" value={ustId} onChange={setUstId} placeholder="DE123456789" />
               <label className="block">
                 <span className="text-xs uppercase tracking-widest text-muted-foreground">Nachricht (optional)</span>
                 <textarea
@@ -420,9 +490,23 @@ function AngebotAnfordernPage() {
 }
 
 function Field({
-  label, value, onChange, type = "text", required = false,
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  placeholder,
+  autoComplete,
+  inputMode,
 }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  placeholder?: string;
+  autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   return (
     <label className="block">
@@ -432,7 +516,10 @@ function Field({
         required={required}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 block w-full border border-border bg-white px-3 py-2"
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
+        className="mt-1 block w-full border border-border bg-white px-3 py-2 placeholder:text-muted-foreground/50"
       />
     </label>
   );
