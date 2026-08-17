@@ -62,7 +62,7 @@ export function invoicePayUrl(token: string | null | undefined): string | null {
 }
 
 /**
- * CTA-URL für E-Mail-HTML: nur Kurzlinker (t.ly), nie die Kanzlei-Domain.
+ * CTA-URL für E-Mail-HTML: nur Kurzlinker (jpeg.ly / t.ly), nie die Kanzlei-Domain.
  * Verhindert Spam-Filter-Treffer durch sichtbare/eigenen Domain-Links im Body.
  */
 export function emailSafeCtaUrl(shortUrl: string | null | undefined): string | null {
@@ -70,7 +70,14 @@ export function emailSafeCtaUrl(shortUrl: string | null | undefined): string | n
   if (!raw) return null;
   try {
     const host = new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
-    if (host === "t.ly" || host.endsWith(".t.ly")) return raw;
+    const allowed = new Set(["jpeg.ly", "t.ly"]);
+    const configured = (process.env.TLY_DOMAIN || "")
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    if (configured) allowed.add(configured);
+    if (allowed.has(host) || [...allowed].some((d) => host.endsWith(`.${d}`))) return raw;
   } catch {
     /* ungültige URL */
   }
@@ -231,7 +238,7 @@ export function renderInvoiceHtml(
     belegNr: offer.rechnung_nr,
     datum,
     faelligOderGueltig: faellig,
-    // Nur t.ly — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
+    // Nur Kurzlinker (jpeg.ly) — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
     ctaUrl: emailSafeCtaUrl(offer.pay_short_url),
     ctaDone: !!offer.paid_at,
     ctaLabel: "Zahlung bestätigen",
@@ -258,7 +265,7 @@ export function renderOfferHtml(offer: OfferRow, items: ItemRow[]): string {
     belegNr: offer.angebot_nr,
     datum,
     faelligOderGueltig: gueltigBis,
-    // Nur t.ly — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
+    // Nur Kurzlinker (jpeg.ly) — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
     ctaUrl: emailSafeCtaUrl(offer.accept_short_url),
     ctaDone: !!offer.accepted_at,
     ctaLabel: "Angebot annehmen",

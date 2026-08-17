@@ -63,7 +63,7 @@ function BelegPrintPage() {
       ? (offer.rechnung_faellig_am ?? new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
       : new Date(new Date(offer.created_at).getTime() + 7 * 86400000).toISOString().slice(0, 10);
 
-  // t.ly-Kurzlink bevorzugen, damit im PDF/Beleg nur die t.ly-Domain erscheint.
+  // Kurzlink bevorzugen, damit im PDF/Beleg nur jpeg.ly (nicht die Kanzlei-Domain) erscheint.
   const shortUrl = art === "Angebot" ? offer.accept_short_url : offer.pay_short_url;
   const bestaetigungsUrl =
     shortUrl ||
