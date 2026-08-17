@@ -780,12 +780,15 @@ async function postResendWithCurl(payload: string, apiKey: string, timeoutMs: nu
 // (api.resend.com) nicht zuverlässig erreichen — große Uploads (PDF-Anhänge) laufen dort in
 // einen Timeout ("0 bytes received"), obwohl kleine Requests durchgehen. Resends SMTP-Relay
 // (smtp.resend.com, AWS) liegt NICHT hinter Cloudflare und umgeht das Problem. Über
-// RESEND_TRANSPORT=smtp lässt sich der SMTP-Weg aktivieren.
-function preferredEmailTransport(): "smtp" | "http" {
-  const configured = (process.env.RESEND_TRANSPORT || process.env.EMAIL_TRANSPORT || "")
+// RESEND_TRANSPORT=smtp → Resend SMTP-Relay (AWS-IPs).
+// EMAIL_TRANSPORT=local → Versand über lokalen Postfix (Server-IP).
+function preferredEmailTransport(): "local" | "smtp" | "http" {
+  const configured = (process.env.EMAIL_TRANSPORT || process.env.RESEND_TRANSPORT || "")
     .trim()
     .toLowerCase();
-  return configured === "smtp" ? "smtp" : "http";
+  if (configured === "local" || configured === "direct" || configured === "postfix") return "local";
+  if (configured === "smtp") return "smtp";
+  return "http";
 }
 
 // Logo für Inline-Einbettung (CID) laden. Viele Mail-Clients blockieren extern
@@ -818,6 +821,83 @@ async function loadLogoBytesForEmail(): Promise<Buffer | null> {
     // ignore
   }
   return null;
+}
+
+async function attachInlineLogo(
+  html: string,
+  attachments: {
+    filename: string;
+    content: Buffer;
+    cid?: string;
+    contentType?: string;
+  }[],
+): Promise<string> {
+  const logoBytes = await loadLogoBytesForEmail();
+  const logoRef = logoUrl();
+  if (logoBytes && html.includes(logoRef)) {
+    const cid = "kanzlei-logo@kanzlei-laumann";
+    html = html.split(logoRef).join(`cid:${cid}`);
+    attachments.unshift({
+      filename: "kanzlei-logo.png",
+      content: logoBytes,
+      cid,
+      contentType: "image/png",
+    });
+  }
+  return html;
+}
+
+async function sendViaLocalSmtp(
+  params: { to: string; subject: string; html: string; attachments?: EmailAttachment[] },
+  from: string,
+  timeoutMs: number,
+): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  const host = process.env.LOCAL_SMTP_HOST || "127.0.0.1";
+  const port = Number(process.env.LOCAL_SMTP_PORT || 25);
+  try {
+    const nodemailer = await import("nodemailer");
+    const createTransport =
+      (nodemailer as { createTransport?: typeof import("nodemailer").createTransport })
+        .createTransport ??
+      (nodemailer as { default: typeof import("nodemailer") }).default.createTransport;
+    const transporter = createTransport({
+      host,
+      port,
+      secure: false,
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: timeoutMs,
+      greetingTimeout: timeoutMs,
+      socketTimeout: timeoutMs,
+    });
+
+    const attachments: {
+      filename: string;
+      content: Buffer;
+      cid?: string;
+      contentType?: string;
+    }[] =
+      params.attachments?.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.content, "base64"),
+      })) ?? [];
+
+    const html = await attachInlineLogo(params.html, attachments);
+    console.info(
+      `[mail] sending via local SMTP ${host}:${port} to ${params.to} with ${attachments.length} attachment(s)`,
+    );
+    const info = await transporter.sendMail({
+      from,
+      to: params.to,
+      subject: params.subject,
+      html,
+      attachments,
+    });
+    return { ok: true, messageId: info.messageId ?? "" };
+  } catch (error) {
+    const msg = `Lokaler SMTP-Versand über ${host}:${port} fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(`[mail] ${msg}`);
+    return { ok: false, error: msg };
+  }
 }
 
 async function sendViaSmtp(
@@ -856,21 +936,7 @@ async function sendViaSmtp(
         content: Buffer.from(a.content, "base64"),
       })) ?? [];
 
-    // Logo inline per CID einbetten, damit es auch bei blockierten Remote-Bildern erscheint.
-    let html = params.html;
-    const logoBytes = await loadLogoBytesForEmail();
-    const logoRef = logoUrl();
-    if (logoBytes && html.includes(logoRef)) {
-      const cid = "kanzlei-logo@kanzlei-laumann";
-      html = html.split(logoRef).join(`cid:${cid}`);
-      attachments.unshift({
-        filename: "kanzlei-logo.png",
-        content: logoBytes,
-        cid,
-        contentType: "image/png",
-      });
-    }
-
+    const html = await attachInlineLogo(params.html, attachments);
     console.info(
       `[resend] sending via SMTP ${host}:${port} to ${params.to} with ${attachments.length} attachment(s)`,
     );
@@ -895,11 +961,16 @@ export async function sendOfferEmail(params: {
   html: string;
   attachments?: EmailAttachment[];
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
-  const RESEND_API_KEY = normalizeResendApiKey(process.env.RESEND_API_KEY);
   const FROM = process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
   const configuredTimeoutMs = Number(process.env.RESEND_TIMEOUT_MS || 0);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0 ? configuredTimeoutMs : 120000;
+  const transport = preferredEmailTransport();
 
+  if (transport === "local") {
+    return sendViaLocalSmtp(params, FROM, timeoutMs);
+  }
+
+  const RESEND_API_KEY = normalizeResendApiKey(process.env.RESEND_API_KEY);
   if (!RESEND_API_KEY) {
     const raw = process.env.RESEND_API_KEY;
     console.error(`[resend] key check failed: value=${raw ? `${raw.slice(0, 8)}… (len=${raw.length})` : "(unset)"}`);
@@ -907,7 +978,7 @@ export async function sendOfferEmail(params: {
   }
   console.log(`[resend] using key prefix=${RESEND_API_KEY.slice(0, 5)}… len=${RESEND_API_KEY.length}`);
 
-  if (preferredEmailTransport() === "smtp") {
+  if (transport === "smtp") {
     return sendViaSmtp(params, FROM, RESEND_API_KEY, timeoutMs);
   }
 
