@@ -47,7 +47,7 @@ ExternalIgnoreList      /etc/opendkim/trusted.hosts
 InternalHosts           /etc/opendkim/trusted.hosts
 Socket                  local:/var/spool/postfix/opendkim/opendkim.sock
 PidFile                 /run/opendkim/opendkim.pid
-UMask                   007
+UMask                   002
 UserID                  opendkim:opendkim
 EOF
 
@@ -60,8 +60,9 @@ ${DOMAIN}
 *.${DOMAIN}
 EOF
 
-install -d -o opendkim -g postfix /var/spool/postfix/opendkim
-chmod 750 /var/spool/postfix/opendkim
+usermod -aG opendkim postfix || true
+install -d -o opendkim -g opendkim /var/spool/postfix/opendkim
+chmod 775 /var/spool/postfix/opendkim
 
 postconf -e "milter_default_action = accept"
 postconf -e "milter_protocol = 6"
@@ -70,6 +71,10 @@ postconf -e "non_smtpd_milters = local:opendkim/opendkim.sock"
 
 systemctl enable opendkim postfix
 systemctl restart opendkim
+sleep 1
+# Socket group-writable for postfix (member of opendkim)
+chmod 775 /var/spool/postfix/opendkim
+chmod 666 /var/spool/postfix/opendkim/opendkim.sock 2>/dev/null || true
 systemctl restart postfix
 
 echo "=== DKIM TXT für GoDaddy (${SELECTOR}._domainkey.${DOMAIN}) ==="
