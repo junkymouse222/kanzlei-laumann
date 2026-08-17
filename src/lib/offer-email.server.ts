@@ -199,7 +199,6 @@ function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions)
                   `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
               )
               .join("<br/>\n            ")}<br/>
-            Tel. ${escapeHtml(SITE.phoneDisplay)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
         </td></tr>
@@ -323,8 +322,7 @@ export function renderPaymentConfirmationHtml(offer: {
                 (o) =>
                   `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
               )
-              .join("<br/>\n            ")}<br/>
-            Tel. ${escapeHtml(SITE.phoneDisplay)}
+              .join("<br/>\n            ")}
           </p>
         </td></tr>
       </table>
@@ -415,8 +413,7 @@ export function renderOfferRequestConfirmationHtml(opts: {
                 (o) =>
                   `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
               )
-              .join("<br/>\n            ")}<br/>
-            Tel. ${escapeHtml(SITE.phoneDisplay)}
+              .join("<br/>\n            ")}
           </p>
         </td></tr>
       </table>
@@ -448,7 +445,7 @@ export function renderOfferAcceptedConfirmationHtml(opts: {
           </p>
           <p style="margin:0 0 16px 0;">${customerGreeting(opts.customer_name)}</p>
           <p style="margin:0 0 16px 0;">vielen Dank — wir haben Ihre Annahme zu Angebot <strong>${escapeHtml(opts.angebot_nr)}</strong> erhalten.</p>
-          <p style="margin:0 0 16px 0;">Die Rechnung mit Zahlungsdaten und Tracking folgt in Kürze per E-Mail. Bei Fragen erreichen Sie uns unter ${escapeHtml(SITE.phoneDisplay)} oder antworten Sie einfach auf diese Mail.</p>
+          <p style="margin:0 0 16px 0;">Die Rechnung mit Zahlungsdaten und Tracking folgt in Kürze per E-Mail. Bei Fragen antworten Sie einfach auf diese Mail.</p>
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${escapeHtml(signerRole)}<br/>
@@ -458,8 +455,7 @@ export function renderOfferAcceptedConfirmationHtml(opts: {
                 (o) =>
                   `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
               )
-              .join("<br/>\n            ")}<br/>
-            Tel. ${escapeHtml(SITE.phoneDisplay)}
+              .join("<br/>\n            ")}
           </p>
         </td></tr>
       </table>
@@ -511,7 +507,6 @@ export function renderOfferReminderHtml(
                   `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
               )
               .join("<br/>\n            ")}<br/>
-            Tel. ${escapeHtml(SITE.phoneDisplay)}<br/>
             USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
         </td></tr>
@@ -572,8 +567,7 @@ export function renderInvoiceReminderHtml(
                 (o) =>
                   `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
               )
-              .join("<br/>\n            ")}<br/>
-            Tel. ${escapeHtml(SITE.phoneDisplay)}
+              .join("<br/>\n            ")}
           </p>
         </td></tr>
       </table>
