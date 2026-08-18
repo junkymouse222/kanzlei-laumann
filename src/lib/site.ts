@@ -25,25 +25,51 @@ export const SITE = {
   /** Kanonische Basis-URL (ohne Slash am Ende) */
   baseUrl: "https://laumann-kanzlei.de",
 
-  /** Anschrift */
+  /** Anschrift (Hauptsitz) */
   street: "Fürstenwall 172",
   postalCode: "40217",
   city: "Düsseldorf",
-  /** Einzeilige Anschrift für Footer/Belege */
+  country: "Deutschland",
+  /** Einzeilige Anschrift für Footer/Belege (Hauptsitz) */
   addressLine: "Fürstenwall 172 · 40217 Düsseldorf",
+
+  /**
+   * Standorte der Kanzlei. Index 0 = Hauptsitz (entspricht street/city oben).
+   * Weitere Einträge = Filialen / Zweigniederlassungen.
+   */
+  offices: [
+    {
+      label: "Düsseldorf",
+      street: "Fürstenwall 172",
+      postalCode: "40217",
+      city: "Düsseldorf",
+      country: "Deutschland",
+      addressLine: "Fürstenwall 172 · 40217 Düsseldorf",
+    },
+    {
+      label: "Berlin",
+      street: "Tucholskystraße 2",
+      postalCode: "10117",
+      city: "Berlin",
+      country: "Deutschland",
+      addressLine: "Tucholskystraße 2 · 10117 Berlin",
+    },
+  ],
 
   /** Kontakt */
   email: "kontakt@laumann-kanzlei.de",
   /** Absender für ausgehende E-Mails (Resend) – Domain muss in Resend verifiziert sein */
   emailFrom: "Kanzlei Laumann <kontakt@laumann-kanzlei.de>",
-  /** Telefon – im Katalog nicht angegeben; leer lassen bis ergänzt */
-  phone: "",
+  /** Telefon (E.164, für tel:-Links) */
+  phone: "+493033074590",
+  /** Telefon in lesbarer Darstellung */
+  phoneDisplay: "+49 30 33074590",
 
   /** Berufsrechtliche Angaben */
   kammer: "Rechtsanwaltskammer Düsseldorf",
   kammerAnschrift: "Freiligrathplatz 27, 40474 Düsseldorf",
-  /** USt-IdNr. – TESTWERT (checksummen-gültig, nicht real vergeben); vor Live-Gang durch echte Angabe ersetzen */
-  ustId: "DE325177891",
+  /** USt-IdNr. */
+  ustId: "DE124428302",
 
   /** Berufshaftpflichtversicherung – TESTWERTE; vor Live-Gang durch echte Angaben ersetzen */
   insurer: "HDI Versicherung AG",
@@ -52,18 +78,34 @@ export const SITE = {
   /** Aktenzeichen des Insolvenzverfahrens */
   aktenzeichen: "97 IN 290/25",
   /** Stand des Katalogs */
-  katalogStand: "Juli 2026",
+  katalogStand: "April 2026",
 
   /** Öffentlicher Bestandskatalog (PDF in /public) */
   katalogPdf: "/insolvenzkatalog-laumann-2026.pdf",
+  /** Verfahrensunterlagen zum Download auf /angebot-anfordern */
+  forderungsanmeldungPdf: "/forderungsanmeldung.pdf",
+  eroeffnungsbeschlussPdf: "/eroeffnungsbeschluss.pdf",
 
   /** Lieferkonditionen (aus dem Katalog): frei Haus ab Warenwert, sonst Pauschale */
   versandFreiAbNetto: 1000,
   versandPauschale: 29,
+
+  /** Öffentliche Verfahrensbekanntmachungen (Justiz-Portal) */
+  bekanntmachungenUrl: "https://www.insolvenzbekanntmachungen.de/",
+  /** Typische Antwortzeit auf Anfragen (Vertrauenshinweis) */
+  antwortzeit: "in der Regel innerhalb weniger Stunden",
 } as const;
 
 /** Einzeiliger Kontakt-/Beleg-Footer. */
 export const SITE_FOOTER_LINE =
   `${SITE.brand} · ${SITE.addressLine}` +
-  (SITE.phone ? ` · ${SITE.phone}` : "") +
+  (SITE.phoneDisplay ? ` · ${SITE.phoneDisplay}` : "") +
   ` · ${SITE.email}`;
+
+/** Kurzzeile aller Standorte (z. B. „Düsseldorf · Berlin“). */
+export const SITE_OFFICE_CITIES = SITE.offices.map((o) => o.label).join(" · ");
+
+/** tel:-Href aus der hinterlegten Rufnummer. */
+export function siteTelHref(): string {
+  return `tel:${SITE.phone.replace(/[^\d+]/g, "")}`;
+}

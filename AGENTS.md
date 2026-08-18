@@ -7,6 +7,7 @@ Commands (see `package.json`): dev `bun run dev` (serves on port 8080), build `b
 Server-only secrets are read from env (not in `.env`) and are required for write/admin/email flows:
 - `SUPABASE_SERVICE_ROLE_KEY`: required by `src/integrations/supabase/client.server.ts` for ALL server-side DB writes, including the public offer-request submission on `/angebot-anfordern`. Without it, submitting an offer throws "Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY". The public marketing pages and the offer builder UI (product selection + live totals) work without it.
 - `RESEND_API_KEY` (+ optional `OFFER_FROM_EMAIL`, `PUBLIC_SITE_URL`, `BANK_*`): required only to actually send offer/invoice emails.
+- `TRACKING_API_KEY`: required when sending invoices — creates a shipment at partner Spedition Hausmann (`https://spedition-hausmann.de`) and embeds the tracking URL in the invoice email HTML. Optional `TRACKING_API_BASE_URL` (default `https://spedition-hausmann.de`). Never commit the key; set it only in server env / Cursor Secrets.
 - Admin area (`/admin`) needs a Supabase Auth user with an `admin` row in `user_roles` in addition to the service role key.
 
 Provide these via Cursor Secrets (injected as env vars) when a task needs the write/admin/email flows.

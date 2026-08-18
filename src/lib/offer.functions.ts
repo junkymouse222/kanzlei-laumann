@@ -3,7 +3,7 @@ import { z } from "zod";
 import { PRODUKTE } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
 import { computeScheduledSendAt } from "@/lib/offer-scheduling";
-import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals } from "@/lib/offer-totals";
+import { DEFAULT_MWST_RATE, computeOfferTotals } from "@/lib/offer-totals";
 
 const ItemSchema = z.object({
   artikel: z.string().min(1).max(50),
@@ -14,8 +14,17 @@ const InputSchema = z.object({
   customer_company: z.string().trim().max(200).optional().nullable(),
   customer_name: z.string().trim().min(2).max(200),
   customer_email: z.string().trim().email().max(255),
-  customer_phone: z.string().trim().max(50).optional().nullable(),
-  customer_address: z.string().trim().min(5).max(500),
+  customer_phone: z
+    .string()
+    .trim()
+    .min(6, "Telefonnummer für Rückfragen fehlt.")
+    .max(50),
+  customer_street: z.string().trim().min(3, "Straße und Hausnummer fehlen.").max(200),
+  customer_postal_code: z
+    .string()
+    .trim()
+    .regex(/^\d{5}$/, "PLZ muss aus genau 5 Ziffern bestehen."),
+  customer_city: z.string().trim().min(2, "Ort fehlt.").max(100),
   customer_ust_id: z.string().trim().max(50).optional().nullable(),
   message: z.string().trim().max(2000).optional().nullable(),
   ref_source: z.string().trim().max(100).optional().nullable(),
@@ -48,14 +57,24 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
       throw new Error("Keine gültigen Produkte ausgewählt.");
     }
 
+    const customer_address = `${data.customer_street}\n${data.customer_postal_code} ${data.customer_city}`;
+
     const subtotal = Number(resolved.reduce((s, i) => s + i.position_total, 0).toFixed(2));
     const lieferkosten = subtotal >= SITE.versandFreiAbNetto ? 0 : SITE.versandPauschale;
     const mwstRate = DEFAULT_MWST_RATE;
-    // Standardmäßig immer 5% Neukundenrabatt ausweisen (auch bei automatischen Angeboten).
-    const rabattRate = DEFAULT_NEUKUNDEN_RABATT;
+    // Standard-Neukundenrabatt aus Admin-Einstellungen (0 = keiner).
+    const { loadDefaultNeukundenRabatt, loadAutoSendOffersEnabled } = await import(
+      "@/lib/settings.functions"
+    );
+    const rabattRate = await loadDefaultNeukundenRabatt();
     const { rabatt, mwst, total } = computeOfferTotals({ subtotal, rabattRate, lieferkosten, mwstRate });
 
-    const scheduledSendAt = computeScheduledSendAt();
+    const autoSend = await loadAutoSendOffersEnabled();
+    // Bei manuellem Modus: weit in die Zukunft legen, damit der Cron sie nicht
+    // nachholt, falls Auto später wieder aktiviert wird (Admin sendet manuell).
+    const scheduledSendAt = autoSend
+      ? computeScheduledSendAt()
+      : new Date("2099-01-01T00:00:00.000Z");
 
     const year = new Date().getFullYear();
     const angebotNr = `${year}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
@@ -72,8 +91,8 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
         customer_company: data.customer_company ?? null,
         customer_name: data.customer_name,
         customer_email: data.customer_email,
-        customer_phone: data.customer_phone ?? null,
-        customer_address: data.customer_address,
+        customer_phone: data.customer_phone,
+        customer_address,
         customer_ust_id: data.customer_ust_id ?? null,
         message: data.message ?? null,
         ref_source: data.ref_source ?? null,
@@ -104,6 +123,33 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
       console.error("[offer] items insert failed", itemsError);
       await supabaseAdmin.from("offer_requests" as never).delete().eq("id", requestId);
       throw new Error("Anfrage konnte nicht gespeichert werden.");
+    }
+
+    // Sofort-Bestätigung an den Kunden (kein PDF) — Fehler hier sollen die
+    // Anfrage nicht scheitern lassen; der Datensatz ist bereits gespeichert.
+    try {
+      const { renderOfferRequestConfirmationHtml, sendOfferEmail } = await import(
+        "@/lib/offer-email.server"
+      );
+      const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+      const contact = await loadActiveVerwalter();
+      const html = renderOfferRequestConfirmationHtml({
+        customer_name: data.customer_name,
+        angebot_nr: angebotNr,
+        itemNames: resolved.map((r) => r.name),
+        contactName: contact.name,
+        contactRole: contact.role,
+      });
+      const send = await sendOfferEmail({
+        to: data.customer_email,
+        subject: `Ihre Anfrage ${angebotNr} ist eingegangen — Kanzlei Laumann`,
+        html,
+      });
+      if (!send.ok) {
+        console.error("[offer] confirmation email failed", send.error);
+      }
+    } catch (e) {
+      console.error("[offer] confirmation email error", e);
     }
 
     return {

@@ -31,7 +31,7 @@ function render(kind: PageKind, opts: { token?: string; rechnungNr?: string } = 
   } else {
     const message =
       kind === "invalid"
-        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.email}.`
+        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`
         : kind === "already"
           ? "Vielen Dank – Ihre Zahlungsbestätigung liegt uns bereits vor."
           : `Vielen Dank für Ihre Zahlung${rechnungNr ? ` zu Rechnung ${escapeHtml(rechnungNr)}` : ""}. Wir haben Ihre Bestätigung erhalten und prüfen den Zahlungseingang.`;
@@ -98,10 +98,19 @@ async function handlePost(request: Request): Promise<Response> {
     null;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await (supabaseAdmin as any)
+  const { data: updated, error: upErr } = await (supabaseAdmin as any)
     .from("offer_requests")
     .update({ paid_at: new Date().toISOString(), paid_ip: ip, rechnung_status: "paid" })
-    .eq("id", offer.id);
+    .eq("id", offer.id)
+    .select("id")
+    .maybeSingle();
+  if (upErr || !updated) {
+    console.error("[mark-paid] status update failed", upErr?.message ?? "no row");
+    return new Response("Zahlungsstatus konnte nicht gespeichert werden. Bitte erneut versuchen.", {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
 
   return render("ok", { rechnungNr: offer.rechnung_nr ?? undefined });
 }

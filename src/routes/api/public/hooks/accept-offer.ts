@@ -4,39 +4,72 @@ import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
 // Öffentlicher Endpunkt: Kunde klickt in Angebots-Mail/PDF auf "Angebot annehmen".
 // Erwartet ?token=<accept_token>.
 //
-// WICHTIG (Scanner-Schutz): GET zeigt nur eine Bestätigungsseite mit Button.
-// Erst der bewusste Klick auf den Button sendet ein POST und verbucht die
-// (rechtsverbindliche) Annahme. Automatische E-Mail-Link-Scanner führen nur
-// GET aus und lösen dadurch KEINE Annahme mehr aus.
+// Scanner-Schutz: GET zeigt nur die Bestätigungsseite (E-Mail-Link-Scanner
+// lösen dadurch KEINE Annahme aus). Erst der bewusste Button-Klick (POST)
+// verbucht die rechtsverbindliche Annahme und versendet die Rechnung.
 
-type PageKind = "confirm" | "ok" | "already" | "invalid";
+type PageKind = "confirm" | "ok" | "already" | "invalid" | "error";
 
 function escapeHtml(s: string): string {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function render(kind: PageKind, opts: { token?: string; angebotNr?: string } = {}): Response {
-  const { token, angebotNr } = opts;
+function render(
+  kind: PageKind,
+  opts: {
+    token?: string;
+    angebotNr?: string;
+    rechnungNr?: string;
+    invoiceOk?: boolean;
+  } = {},
+): Response {
+  const { token, angebotNr, rechnungNr, invoiceOk } = opts;
   const title =
-    kind === "confirm" ? "Angebot annehmen"
-    : kind === "invalid" ? "Angebot nicht gefunden"
-    : kind === "already" ? "Angebot bereits angenommen"
-    : "Angebot angenommen";
+    kind === "confirm"
+      ? "Angebot annehmen"
+      : kind === "invalid"
+        ? "Angebot nicht gefunden"
+        : kind === "already"
+          ? "Angebot bereits angenommen"
+          : kind === "error"
+            ? "Annahme fehlgeschlagen"
+            : "Angebot angenommen";
 
   let inner: string;
   if (kind === "confirm") {
     inner = `
-  <p>Bitte bestätigen Sie die verbindliche Annahme${angebotNr ? ` des Angebots <strong>${escapeHtml(angebotNr)}</strong>` : ""}. Mit dem Klick auf den Button nehmen Sie das Angebot rechtsverbindlich an.</p>
+  <p>Bitte bestätigen Sie die verbindliche Annahme${
+    angebotNr ? ` des Angebots <strong>${escapeHtml(angebotNr)}</strong>` : ""
+  }. Mit dem Klick auf den Button nehmen Sie das Angebot rechtsverbindlich an — die Rechnung erhalten Sie direkt danach per E-Mail.</p>
   <form method="POST" action="/api/public/hooks/accept-offer?token=${encodeURIComponent(token ?? "")}" style="margin:0;">
     <button type="submit" class="btn">Angebot verbindlich annehmen</button>
   </form>`;
   } else {
-    const message =
-      kind === "invalid"
-        ? `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.email}.`
-        : kind === "already"
-          ? "Vielen Dank – dieses Angebot wurde bereits angenommen. Wir sind bereits an der Umsetzung."
-          : `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""} erhalten und melden uns in Kürze mit der Rechnung und den nächsten Schritten.`;
+    let message: string;
+    if (kind === "invalid") {
+      message = `Der Link ist ungültig oder abgelaufen. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`;
+    } else if (kind === "already") {
+      message =
+        invoiceOk && rechnungNr
+          ? `Dieses Angebot wurde bereits angenommen. Die Rechnung ${escapeHtml(rechnungNr)} wurde Ihnen per E-Mail zugestellt.`
+          : "Vielen Dank – dieses Angebot wurde bereits angenommen. Wir sind bereits an der Umsetzung.";
+    } else if (kind === "error") {
+      message =
+        "Die Annahme konnte nicht gespeichert werden. Bitte versuchen Sie es erneut oder kontaktieren Sie uns.";
+    } else if (invoiceOk && rechnungNr) {
+      message = `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${
+        angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""
+      } erhalten. Die Rechnung <strong>${escapeHtml(rechnungNr)}</strong> ist unterwegs an Ihre E-Mail — bitte prüfen Sie auch den Spam-Ordner.`;
+    } else {
+      message = `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${
+        angebotNr ? ` zu Angebot ${escapeHtml(angebotNr)}` : ""
+      } erhalten und senden Ihnen die Rechnung in Kürze per E-Mail.`;
+    }
     inner = `<p>${message}</p><a class="btn" href="${SITE.baseUrl}">Zur Kanzlei</a>`;
   }
 
@@ -58,10 +91,14 @@ function render(kind: PageKind, opts: { token?: string; angebotNr?: string } = {
   <h1>${title}</h1>
   ${inner}
   <div class="foot">${SITE_FOOTER_LINE}</div>
-</div></div></body></html>`;
+</div></div>${
+    kind === "confirm" && token
+      ? `<script>(function(){try{var u=new URL(location.href);u.searchParams.set("track","open");fetch(u.toString(),{method:"GET",credentials:"same-origin",keepalive:true,cache:"no-store",mode:"same-origin"}).catch(function(){})}catch(e){}})();</script>`
+      : ""
+  }</body></html>`;
 
   return new Response(html, {
-    status: kind === "invalid" ? 404 : 200,
+    status: kind === "invalid" ? 404 : kind === "error" ? 500 : 200,
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
   });
 }
@@ -71,30 +108,162 @@ async function loadOffer(token: string) {
   const admin = supabaseAdmin as any;
   const { data, error } = await admin
     .from("offer_requests")
-    .select("id, angebot_nr, accepted_at")
+    .select(
+      "id, angebot_nr, accepted_at, customer_name, customer_email, rechnung_nr, rechnung_sent_at, rechnung_status, accept_link_opened_at, accept_link_open_count",
+    )
     .eq("accept_token", token)
     .maybeSingle();
   if (error) return null;
-  return data as { id: string; angebot_nr: string; accepted_at: string | null } | null;
+  return data as {
+    id: string;
+    angebot_nr: string;
+    accepted_at: string | null;
+    customer_name: string;
+    customer_email: string;
+    rechnung_nr: string | null;
+    rechnung_sent_at: string | null;
+    rechnung_status: string | null;
+    accept_link_opened_at: string | null;
+    accept_link_open_count: number | null;
+  } | null;
 }
 
-// GET: nur anzeigen (Bestätigungsseite / Status), niemals verbuchen.
+/** Nur echte Browser-Seitenaufrufe (JS-Beacon) — keine GET-Heuristik.
+ *  E-Mail-Scanner / SafeLinks / Kurzlink-Checks rufen die Seite per GET auf,
+ *  führen aber praktisch kein JS aus; deshalb sofort nach Versand oft False Positives. */
+async function trackAcceptLinkOpen(offerId: string): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const { data: row } = await admin
+      .from("offer_requests")
+      .select("accept_link_opened_at, accept_link_open_count, accepted_at, sent_at")
+      .eq("id", offerId)
+      .maybeSingle();
+    if (!row || row.accepted_at) return;
+
+    const now = new Date().toISOString();
+    const prevOpened = row.accept_link_opened_at as string | null;
+    const prevCount = Number(row.accept_link_open_count ?? 0);
+
+    // Debounce: Doppel-Beacon derselben Seitenladung nicht doppelt zählen.
+    if (prevOpened) {
+      const ageMs = Date.now() - new Date(prevOpened).getTime();
+      if (ageMs >= 0 && ageMs < 45_000) return;
+    }
+
+    const patch: Record<string, unknown> = {
+      accept_link_open_count: prevCount + 1,
+    };
+    if (!prevOpened) patch.accept_link_opened_at = now;
+
+    const { error } = await admin.from("offer_requests").update(patch).eq("id", offerId).is("accepted_at", null);
+    if (error) console.error("[accept-offer] link-open track failed", error.message);
+  } catch (e) {
+    console.error("[accept-offer] link-open track error", e);
+  }
+}
+
+/** Beacon muss von der Bestätigungsseite kommen (Referer / Sec-Fetch), nicht von Scannern. */
+function looksLikeConfirmPageBeacon(request: Request): boolean {
+  const site = (request.headers.get("sec-fetch-site") ?? "").toLowerCase();
+  if (site === "same-origin" || site === "same-site") return true;
+
+  const referer = request.headers.get("referer") ?? "";
+  if (!referer) return false;
+  try {
+    const ref = new URL(referer);
+    const req = new URL(request.url);
+    if (ref.origin !== req.origin) return false;
+    return ref.pathname.includes("/api/public/hooks/accept-offer");
+  } catch {
+    return false;
+  }
+}
+
+async function sendFallbackAcceptedMail(offer: {
+  customer_name: string;
+  customer_email: string;
+  angebot_nr: string;
+}) {
+  try {
+    const { renderOfferAcceptedConfirmationHtml, sendOfferEmail } = await import(
+      "@/lib/offer-email.server"
+    );
+    const html = renderOfferAcceptedConfirmationHtml({
+      customer_name: offer.customer_name,
+      angebot_nr: offer.angebot_nr,
+    });
+    const send = await sendOfferEmail({
+      to: offer.customer_email,
+      subject: `Angebot ${offer.angebot_nr} angenommen — Kanzlei Laumann`,
+      html,
+    });
+    if (!send.ok) {
+      console.error("[accept-offer] fallback confirmation email failed", send.error);
+    }
+  } catch (e) {
+    console.error("[accept-offer] fallback confirmation email error", e);
+  }
+}
+
+/** GET: nur anzeigen (Bestätigungsseite / Status), niemals verbuchen. */
 async function handleGet(request: Request): Promise<Response> {
-  const token = new URL(request.url).searchParams.get("token");
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
   if (!token) return render("invalid");
   const offer = await loadOffer(token);
   if (!offer) return render("invalid");
-  if (offer.accepted_at) return render("already", { angebotNr: offer.angebot_nr });
+
+  // Nur JS-Beacon von der Bestätigungsseite zählt (Scanner ohne JS fallen weg).
+  if (url.searchParams.get("track") === "open") {
+    if (!offer.accepted_at && looksLikeConfirmPageBeacon(request)) {
+      await trackAcceptLinkOpen(offer.id);
+    }
+    return new Response(null, {
+      status: 204,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
+  if (offer.accepted_at) {
+    const invoiceOk = !!(offer.rechnung_sent_at || offer.rechnung_status === "sent");
+    return render("already", {
+      angebotNr: offer.angebot_nr,
+      rechnungNr: offer.rechnung_nr ?? undefined,
+      invoiceOk,
+    });
+  }
+  // Kein Tracking auf dem Seiten-GET — E-Mail-Scanner würden sonst sofort „Link geöffnet“ setzen.
   return render("confirm", { token, angebotNr: offer.angebot_nr });
 }
 
-// POST: verbindliche Annahme verbuchen (idempotent).
+/** POST: verbindliche Annahme + Auto-Rechnung (idempotent). */
 async function handlePost(request: Request): Promise<Response> {
-  const token = new URL(request.url).searchParams.get("token");
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
   if (!token) return render("invalid");
+
+  // sendBeacon wäre POST — Tracking darf niemals die Annahme auslösen.
+  if (url.searchParams.get("track") === "open") {
+    const offerForTrack = await loadOffer(token);
+    if (offerForTrack && !offerForTrack.accepted_at && looksLikeConfirmPageBeacon(request)) {
+      await trackAcceptLinkOpen(offerForTrack.id);
+    }
+    return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  }
+
   const offer = await loadOffer(token);
   if (!offer) return render("invalid");
-  if (offer.accepted_at) return render("already", { angebotNr: offer.angebot_nr });
+
+  if (offer.accepted_at) {
+    const invoiceOk = !!(offer.rechnung_sent_at || offer.rechnung_status === "sent");
+    return render("already", {
+      angebotNr: offer.angebot_nr,
+      rechnungNr: offer.rechnung_nr ?? undefined,
+      invoiceOk,
+    });
+  }
 
   const ip =
     request.headers.get("cf-connecting-ip") ||
@@ -102,12 +271,52 @@ async function handlePost(request: Request): Promise<Response> {
     null;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await (supabaseAdmin as any)
+  const { data: updated, error: upErr } = await (supabaseAdmin as any)
     .from("offer_requests")
     .update({ accepted_at: new Date().toISOString(), accepted_ip: ip, status: "accepted" })
-    .eq("id", offer.id);
+    .eq("id", offer.id)
+    .is("accepted_at", null)
+    .select("id")
+    .maybeSingle();
 
-  return render("ok", { angebotNr: offer.angebot_nr });
+  if (!updated && !upErr) {
+    const again = await loadOffer(token);
+    if (again?.accepted_at) {
+      return render("already", {
+        angebotNr: again.angebot_nr,
+        rechnungNr: again.rechnung_nr ?? undefined,
+        invoiceOk: !!(again.rechnung_sent_at || again.rechnung_status === "sent"),
+      });
+    }
+  }
+
+  if (upErr || !updated) {
+    console.error("[accept-offer] status update failed", upErr?.message ?? "no row");
+    return render("error");
+  }
+
+  let invoiceOk = false;
+  let rechnungNr: string | undefined;
+  try {
+    const { sendInvoiceAfterAccept } = await import("@/lib/admin-send.server");
+    const inv = await sendInvoiceAfterAccept(offer.id);
+    if (inv.ok) {
+      invoiceOk = true;
+      rechnungNr = inv.rechnung_nr || undefined;
+    } else {
+      console.error("[accept-offer] auto-invoice failed", inv.error);
+      await sendFallbackAcceptedMail(offer);
+    }
+  } catch (e) {
+    console.error("[accept-offer] auto-invoice error", e);
+    await sendFallbackAcceptedMail(offer);
+  }
+
+  return render("ok", {
+    angebotNr: offer.angebot_nr,
+    rechnungNr,
+    invoiceOk,
+  });
 }
 
 export const Route = createFileRoute("/api/public/hooks/accept-offer")({

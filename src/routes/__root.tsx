@@ -12,7 +12,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { SITE } from "../lib/site";
+import { SITE, SITE_OFFICE_CITIES, siteTelHref } from "../lib/site";
 import { Logo } from "../components/Logo";
 
 function NotFoundComponent() {
@@ -72,7 +72,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Kanzlei Laumann — Insolvenzverwaltung & Verwertung" },
-      { name: "description", content: "Erik Laumann, Rechtsanwalt und Insolvenzverwalter in Düsseldorf. Freihändiger Verkauf aus der Insolvenzmasse — Premium-Büroausstattung, Design-Klassiker und Kaffeetechnik." },
+      { name: "description", content: `Erik Laumann, Rechtsanwalt und Insolvenzverwalter in ${SITE_OFFICE_CITIES}. Freihändiger Verkauf aus der Insolvenzmasse — Premium-Büroausstattung, Design-Klassiker und Kaffeetechnik.` },
       { name: "author", content: SITE.legalName },
       { property: "og:title", content: "Kanzlei Laumann — Insolvenzverwaltung & Verwertung" },
       { property: "og:description", content: "Freihändiger Verkauf aus der Insolvenzmasse — originalverpackte Neuware, sofort verfügbar." },
@@ -188,9 +188,23 @@ function Footer() {
         </div>
           <div>
           <p className="text-[0.7rem] uppercase tracking-[0.24em] text-gold">Kontakt</p>
-          <ul className="mt-4 space-y-2 text-sm text-primary-foreground/80">
-            <li>{SITE.street}</li>
-            <li>{SITE.postalCode} {SITE.city}</li>
+          <ul className="mt-4 space-y-4 text-sm text-primary-foreground/80">
+            {SITE.offices.map((office) => (
+              <li key={office.label}>
+                <span className="block text-[0.65rem] uppercase tracking-[0.18em] text-gold/80">
+                  {office.label}
+                </span>
+                <span className="mt-1 block">{office.street}</span>
+                <span className="block">
+                  {office.postalCode} {office.city}
+                </span>
+              </li>
+            ))}
+            <li>
+              <a href={siteTelHref()} className="hover:text-gold">
+                {SITE.phoneDisplay}
+              </a>
+            </li>
             <li><a href={`mailto:${SITE.email}`} className="hover:text-gold">{SITE.email}</a></li>
           </ul>
         </div>

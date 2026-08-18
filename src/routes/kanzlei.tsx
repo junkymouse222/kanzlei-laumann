@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SITE } from "@/lib/site";
+import { SITE, SITE_OFFICE_CITIES } from "@/lib/site";
 
 export const Route = createFileRoute("/kanzlei")({
   head: () => ({
     meta: [
       { title: "Die Kanzlei — Kanzlei Laumann" },
-      { name: "description", content: "Die Kanzlei Laumann in Düsseldorf — Rechtsanwalt Erik Laumann. Profil, Historie und Grundsätze einer auf Insolvenz- und Sanierungsrecht spezialisierten Kanzlei." },
+      { name: "description", content: `Die Kanzlei Laumann in ${SITE_OFFICE_CITIES} — Rechtsanwalt Erik Laumann. Profil, Historie und Grundsätze einer auf Insolvenz- und Sanierungsrecht spezialisierten Kanzlei.` },
       { property: "og:title", content: "Die Kanzlei — Kanzlei Laumann" },
-      { property: "og:description", content: "Profil, Historie und Grundsätze der Kanzlei Laumann in Düsseldorf." },
+      { property: "og:description", content: `Profil, Historie und Grundsätze der Kanzlei Laumann in ${SITE_OFFICE_CITIES}.` },
       { property: "og:url", content: `${SITE.baseUrl}/kanzlei` },
     ],
     links: [{ rel: "canonical", href: `${SITE.baseUrl}/kanzlei` }],
@@ -54,7 +54,7 @@ function KanzleiPage() {
           </h1>
           <span className="rule-gold mt-8" />
           <p className="mt-8 max-w-2xl text-lg text-muted-foreground">
-            Die Kanzlei Laumann in {SITE.city} ist auf das Insolvenz- und
+            Die Kanzlei Laumann in {SITE_OFFICE_CITIES} ist auf das Insolvenz- und
             Sanierungsrecht spezialisiert — unabhängig, sorgfältig und mit einem
             klaren Blick für wirtschaftliche Zusammenhänge.
           </p>
@@ -72,9 +72,15 @@ function KanzleiPage() {
           <p>
             Die Kanzlei Laumann wird von Rechtsanwalt Erik Laumann geführt, der
             als gerichtlich bestellter Insolvenzverwalter tätig ist. Von unserem
-            Sitz am {SITE.street} in {SITE.city} aus betreuen wir Insolvenz- und
-            Sanierungsmandate mit der Ruhe und Verbindlichkeit, die solche
-            Verfahren verlangen.
+            Hauptsitz am {SITE.street} in {SITE.city}
+            {SITE.offices.length > 1
+              ? ` sowie unseren weiteren Standorten (${SITE.offices
+                  .slice(1)
+                  .map((o) => o.label)
+                  .join(", ")})`
+              : ""}{" "}
+            aus betreuen wir Insolvenz- und Sanierungsmandate mit der Ruhe und
+            Verbindlichkeit, die solche Verfahren verlangen.
           </p>
           <p>
             Im Mittelpunkt steht die geordnete Bewältigung wirtschaftlich
@@ -162,7 +168,7 @@ function KanzleiPage() {
         <div className="border border-border p-10 text-center md:p-16">
           <h2 className="text-3xl md:text-4xl">Sprechen Sie mit uns.</h2>
           <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground">
-            Sie erreichen die Kanzlei Laumann in {SITE.city} jederzeit über unser
+            Sie erreichen die Kanzlei Laumann in {SITE_OFFICE_CITIES} jederzeit über unser
             Kontaktformular. Wir melden uns kurzfristig bei Ihnen zurück.
           </p>
           <Link

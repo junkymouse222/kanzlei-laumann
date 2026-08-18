@@ -19,10 +19,15 @@ export type Database = {
           beleg_art: string
           beleg_nr: string
           created_at: string
+          customer_email: string | null
           id: string
           ip: string | null
           kunde_anschrift: string | null
           kunde_name: string | null
+          offer_request_id: string | null
+          rechnung_error: string | null
+          rechnung_nr: string | null
+          rechnung_sent_at: string | null
           total: number | null
           user_agent: string | null
         }
@@ -30,10 +35,15 @@ export type Database = {
           beleg_art: string
           beleg_nr: string
           created_at?: string
+          customer_email?: string | null
           id?: string
           ip?: string | null
           kunde_anschrift?: string | null
           kunde_name?: string | null
+          offer_request_id?: string | null
+          rechnung_error?: string | null
+          rechnung_nr?: string | null
+          rechnung_sent_at?: string | null
           total?: number | null
           user_agent?: string | null
         }
@@ -41,10 +51,15 @@ export type Database = {
           beleg_art?: string
           beleg_nr?: string
           created_at?: string
+          customer_email?: string | null
           id?: string
           ip?: string | null
           kunde_anschrift?: string | null
           kunde_name?: string | null
+          offer_request_id?: string | null
+          rechnung_error?: string | null
+          rechnung_nr?: string | null
+          rechnung_sent_at?: string | null
           total?: number | null
           user_agent?: string | null
         }
@@ -105,6 +120,8 @@ export type Database = {
           accept_token: string
           accepted_at: string | null
           accepted_ip: string | null
+          accept_link_opened_at: string | null
+          accept_link_open_count: number
           angebot_nr: string
           bank_bic: string | null
           bank_iban: string | null
@@ -117,6 +134,8 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           customer_ust_id: string | null
+          delivery_address: string | null
+          delivery_name: string | null
           error_message: string | null
           id: string
           lieferkosten: number
@@ -143,12 +162,16 @@ export type Database = {
           status: string
           subtotal: number
           total: number
+          tracking_number: string | null
+          tracking_url: string | null
           updated_at: string
         }
         Insert: {
           accept_token?: string
           accepted_at?: string | null
           accepted_ip?: string | null
+          accept_link_opened_at?: string | null
+          accept_link_open_count?: number
           angebot_nr: string
           bank_bic?: string | null
           bank_iban?: string | null
@@ -161,6 +184,8 @@ export type Database = {
           customer_name: string
           customer_phone?: string | null
           customer_ust_id?: string | null
+          delivery_address?: string | null
+          delivery_name?: string | null
           error_message?: string | null
           id?: string
           lieferkosten?: number
@@ -187,12 +212,16 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Update: {
           accept_token?: string
           accepted_at?: string | null
           accepted_ip?: string | null
+          accept_link_opened_at?: string | null
+          accept_link_open_count?: number
           angebot_nr?: string
           bank_bic?: string | null
           bank_iban?: string | null
@@ -205,6 +234,8 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           customer_ust_id?: string | null
+          delivery_address?: string | null
+          delivery_name?: string | null
           error_message?: string | null
           id?: string
           lieferkosten?: number
@@ -231,6 +262,8 @@ export type Database = {
           status?: string
           subtotal?: number
           total?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Relationships: []

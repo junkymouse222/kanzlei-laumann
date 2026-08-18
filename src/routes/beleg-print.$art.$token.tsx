@@ -63,7 +63,7 @@ function BelegPrintPage() {
       ? (offer.rechnung_faellig_am ?? new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
       : new Date(new Date(offer.created_at).getTime() + 7 * 86400000).toISOString().slice(0, 10);
 
-  // t.ly-Kurzlink bevorzugen, damit im PDF/Beleg nur die t.ly-Domain erscheint.
+  // Kurzlink bevorzugen, damit im PDF/Beleg nur jpeg.ly (nicht die Kanzlei-Domain) erscheint.
   const shortUrl = art === "Angebot" ? offer.accept_short_url : offer.pay_short_url;
   const bestaetigungsUrl =
     shortUrl ||
@@ -89,6 +89,8 @@ function BelegPrintPage() {
           kundeName={kundeName}
           kundeAnschrift={offer.customer_address}
           kundeUstId={offer.customer_ust_id ?? undefined}
+          lieferName={offer.delivery_name?.trim() || undefined}
+          lieferAnschrift={offer.delivery_address?.trim() || undefined}
           positionen={positionen}
           rabattProzent={Number(offer.rabatt_rate ?? 0)}
           mwstSatz={Number(offer.mwst_rate ?? 19)}
@@ -99,6 +101,8 @@ function BelegPrintPage() {
           bankBic={offer.bank_bic ?? ""}
           bestaetigungsUrl={bestaetigungsUrl}
           bereitsBestaetigt={bereitsBestaetigt}
+          ausstellerName={offer.verwalter_name ?? undefined}
+          ausstellerRole={offer.verwalter_role ?? undefined}
         />
       </section>
     </>

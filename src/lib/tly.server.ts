@@ -1,18 +1,50 @@
-// Server-only: t.ly URL-Shortener-Integration.
+// Server-only: t.ly URL-Shortener-Integration (Kurzdomain: jpeg.ly).
 //
 // Zweck: In Angebots-/Rechnungs-E-Mails und -PDFs sollen die Aktions-Links
 // (Angebot annehmen / Zahlung bestätigen) NICHT die eigene Kanzlei-Domain
-// zeigen, sondern t.ly-Kurzlinks. Das schützt die Domain-Reputation und
-// verringert das Risiko, dass die Mails in den Spam wandern.
+// zeigen, sondern Kurzlinks (Standard: jpeg.ly). Das schützt die Domain-
+// Reputation und verringert das Risiko, dass die Mails in den Spam wandern.
 //
-// Robustheit: Fehlt der Token oder antwortet t.ly nicht/fehlerhaft, wird auf
+// Robustheit: Fehlt der Token oder antwortet die API nicht/fehlerhaft, wird auf
 // die Original-URL zurückgefallen. Der Versand darf dadurch NIE abbrechen.
 
 import { offerAcceptUrl, invoicePayUrl } from "@/lib/offer-email.server";
 
 const TLY_SHORTEN_ENDPOINT = "https://api.t.ly/api/v1/link/shorten";
+/** Standard-Kurzdomain (T.LY-Branded Domain). Überschreibbar via TLY_DOMAIN. */
+const DEFAULT_TLY_DOMAIN = "https://jpeg.ly/";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function configuredShortDomain(): string {
+  const raw = (process.env.TLY_DOMAIN || DEFAULT_TLY_DOMAIN).trim();
+  if (!raw) return DEFAULT_TLY_DOMAIN;
+  return raw.includes("://") ? raw.replace(/\/?$/, "/") : `https://${raw.replace(/\/?$/, "")}/`;
+}
+
+function shortLinkHost(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function preferredShortHost(): string {
+  return configuredShortDomain()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+}
+
+/** true, wenn der gespeicherte Kurzlink schon die gewünschte Domain nutzt. */
+function isPreferredShortUrl(url: string | null | undefined): boolean {
+  const host = shortLinkHost(url);
+  if (!host) return false;
+  const preferred = preferredShortHost();
+  return host === preferred || host.endsWith(`.${preferred}`);
+}
 
 type ShortenAttempt = { shortUrl: string | null; retryable: boolean };
 
@@ -21,9 +53,10 @@ async function shortenOnce(longUrl: string, description: string | undefined, tok
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const body: Record<string, unknown> = { long_url: longUrl };
-    const domain = process.env.TLY_DOMAIN?.trim();
-    if (domain) body.domain = domain;
+    const body: Record<string, unknown> = {
+      long_url: longUrl,
+      domain: configuredShortDomain(),
+    };
     if (description) body.description = description;
 
     const res = await fetch(TLY_SHORTEN_ENDPOINT, {
@@ -59,7 +92,7 @@ async function shortenOnce(longUrl: string, description: string | undefined, tok
   }
 }
 
-// Erzeugt einen t.ly-Kurzlink für die übergebene URL. Wiederholt bei transienten
+// Erzeugt einen Kurzlink (jpeg.ly) für die übergebene URL. Wiederholt bei transienten
 // Fehlern (Rate-Limit/Netzwerk) mit Backoff. Gibt null zurück, wenn kein Token
 // gesetzt ist oder es endgültig fehlschlägt (Aufrufer nutzt dann Fallback).
 export async function shortenUrl(longUrl: string, description?: string): Promise<string | null> {
@@ -87,11 +120,9 @@ type OfferLinkRow = {
 };
 
 // Stellt sicher, dass für den Accept-Link (Angebot) und/oder Pay-Link (Rechnung)
-// t.ly-Kurzlinks existieren. Fehlende Kurzlinks werden erzeugt, am Datensatz in
-// offer_requests persistiert und zusätzlich in das übergebene offer-Objekt
-// geschrieben (Mutation), damit die anschließenden Render-Funktionen sie sofort
-// verwenden. Bereits vorhandene Kurzlinks werden wiederverwendet (idempotent),
-// sodass Resends/Vorschauen keine Duplikate bei t.ly erzeugen.
+// Kurzlinks auf der bevorzugten Domain (jpeg.ly) existieren. Fehlende oder veraltete
+// (z. B. t.ly-)Kurzlinks werden erzeugt, am Datensatz in offer_requests persistiert
+// und zusätzlich in das übergebene offer-Objekt geschrieben (Mutation).
 export async function ensureOfferShortLinks(
   offer: OfferLinkRow,
   opts: { accept?: boolean; pay?: boolean } = { accept: true, pay: true },
@@ -101,30 +132,38 @@ export async function ensureOfferShortLinks(
   const patch: Record<string, string> = {};
 
   let acceptUrl: string | null = offer.accept_short_url ?? null;
-  if (wantAccept && !acceptUrl && offer.accept_token) {
+  if (wantAccept && offer.accept_token) {
     const long = offerAcceptUrl(offer.accept_token);
-    const short = long ? await shortenUrl(long, offer.angebot_nr ? `Angebot ${offer.angebot_nr}` : undefined) : null;
-    if (short) {
-      patch.accept_short_url = short;
-      offer.accept_short_url = short;
+    if (!isPreferredShortUrl(acceptUrl)) {
+      const short = long ? await shortenUrl(long, offer.angebot_nr ? `Angebot ${offer.angebot_nr}` : undefined) : null;
+      if (short) {
+        patch.accept_short_url = short;
+        offer.accept_short_url = short;
+        acceptUrl = short;
+      } else {
+        acceptUrl = acceptUrl ?? long;
+      }
     }
-    acceptUrl = short ?? long;
   }
 
   let payUrl: string | null = offer.pay_short_url ?? null;
-  if (wantPay && !payUrl && offer.pay_token) {
+  if (wantPay && offer.pay_token) {
     const long = invoicePayUrl(offer.pay_token);
-    const label = offer.rechnung_nr
-      ? `Rechnung ${offer.rechnung_nr}`
-      : offer.angebot_nr
-        ? `Rechnung ${offer.angebot_nr}`
-        : undefined;
-    const short = long ? await shortenUrl(long, label) : null;
-    if (short) {
-      patch.pay_short_url = short;
-      offer.pay_short_url = short;
+    if (!isPreferredShortUrl(payUrl)) {
+      const label = offer.rechnung_nr
+        ? `Rechnung ${offer.rechnung_nr}`
+        : offer.angebot_nr
+          ? `Rechnung ${offer.angebot_nr}`
+          : undefined;
+      const short = long ? await shortenUrl(long, label) : null;
+      if (short) {
+        patch.pay_short_url = short;
+        offer.pay_short_url = short;
+        payUrl = short;
+      } else {
+        payUrl = payUrl ?? long;
+      }
     }
-    payUrl = short ?? long;
   }
 
   if (Object.keys(patch).length > 0 && offer.id) {

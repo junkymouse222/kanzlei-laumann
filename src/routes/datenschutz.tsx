@@ -27,7 +27,14 @@ function DatenschutzPage() {
           <p className="mt-4">
             Verantwortlich für die Datenverarbeitung auf dieser Website ist
             {" "}Erik Laumann, Rechtsanwalt und Insolvenzverwalter, {SITE.street},
-            {" "}{SITE.postalCode} {SITE.city} (Kontaktdaten siehe Impressum).
+            {" "}{SITE.postalCode} {SITE.city}
+            {SITE.offices.slice(1).map((o) => (
+              <span key={o.label}>
+                ; weitere Niederlassung: {o.street}, {o.postalCode} {o.city}
+              </span>
+            ))}
+            , Telefon {SITE.phoneDisplay}, E-Mail {SITE.email}
+            {" "}(weitere Angaben siehe Impressum).
           </p>
         </div>
         <div>

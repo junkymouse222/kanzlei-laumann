@@ -23,8 +23,21 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
         const { renderOfferHtml, sendOfferEmail } = await import("@/lib/offer-email.server");
         const { renderOfferPdf, toBase64 } = await import("@/lib/pdf.server");
         const { ensureOfferShortLinks } = await import("@/lib/tly.server");
+        const { loadActiveVerwalter, loadAutoSendOffersEnabled } = await import("@/lib/settings.functions");
+
+        const autoSend = await loadAutoSendOffersEnabled();
+        if (!autoSend) {
+          return Response.json({
+            ok: true,
+            processed: 0,
+            skipped: true,
+            reason: "Automatischer Angebotsversand ist deaktiviert (Einstellungen).",
+            results: [],
+          });
+        }
 
         const nowIso = new Date().toISOString();
+        const verwalter = await loadActiveVerwalter();
 
         const { data: due, error } = await supabaseAdmin
           .from("offer_requests" as never)
@@ -55,7 +68,21 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
           }
 
           try {
+            // Zuständigen Verwalter VOR PDF/Mail setzen (Beleg-Print liest aus DB).
+            row.verwalter_name = verwalter.name;
+            row.verwalter_role = verwalter.role;
+            await supabaseAdmin
+              .from("offer_requests" as never)
+              .update({
+                verwalter_name: verwalter.name,
+                verwalter_role: verwalter.role,
+              } as never)
+              .eq("id", id);
+
             await ensureOfferShortLinks(row as never, { accept: true });
+            if (!(row.accept_short_url as string | null | undefined)) {
+              throw new Error("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.");
+            }
             const html = renderOfferHtml(row as never, (items ?? []) as never);
             const pdfBytes = await renderOfferPdf(row as never, (items ?? []) as never);
             const send = await sendOfferEmail({
@@ -74,6 +101,8 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
                   offer_html: html,
                   resend_message_id: send.messageId,
                   error_message: null,
+                  verwalter_name: verwalter.name,
+                  verwalter_role: verwalter.role,
                 } as never)
                 .eq("id", id);
               results.push({ id, ok: true });
@@ -84,6 +113,8 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
                   status: "failed",
                   offer_html: html,
                   error_message: send.error,
+                  verwalter_name: verwalter.name,
+                  verwalter_role: verwalter.role,
                 } as never)
                 .eq("id", id);
               results.push({ id, ok: false, error: send.error });

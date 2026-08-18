@@ -1,24 +1,6 @@
 // Server-only: rendert Angebot als HTML (mit Annahme-Button) und sendet via Resend Connector Gateway.
 import logoAsset from "@/assets/kanzlei-logo.png.asset.json";
-import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
-
-// E-Mail-taugliches Logo-Lockup (Tabelle + Inline-Styles), rendert zuverlässig
-// auch in Gmail/Outlook – ohne von blockierten externen Bildern abzuhängen.
-const LOGO_HTML = `
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-  <td style="vertical-align:middle;">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td style="width:54px;height:54px;border:2px solid #1e2c3f;text-align:center;vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:25px;font-weight:600;color:#1e2c3f;line-height:54px;">EL</td>
-    </tr></table>
-  </td>
-  <td style="vertical-align:middle;padding-left:14px;">
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:19px;font-weight:600;letter-spacing:4px;color:#1e2c3f;line-height:1.1;">ERIK&nbsp;LAUMANN</div>
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:9px;letter-spacing:3px;color:#7c8894;margin-top:5px;">RECHTSANWALTSKANZLEI</div>
-  </td>
-</tr></table>`;
-
-const fmtEUR = (n: number) =>
-  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(n));
+import { SITE } from "@/lib/site";
 
 type OfferRow = {
   id: string;
@@ -30,6 +12,10 @@ type OfferRow = {
   customer_phone: string | null;
   customer_address: string;
   customer_ust_id: string | null;
+  delivery_name?: string | null;
+  delivery_address?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
   message: string | null;
   subtotal: number | string;
   rabatt_rate?: number | string | null;
@@ -42,6 +28,8 @@ type OfferRow = {
   accepted_at?: string | null;
   accept_short_url?: string | null;
   pay_short_url?: string | null;
+  verwalter_name?: string | null;
+  verwalter_role?: string | null;
 };
 
 type ItemRow = {
@@ -73,6 +61,29 @@ export function invoicePayUrl(token: string | null | undefined): string | null {
   return `${siteBaseUrl()}/api/public/hooks/mark-paid?token=${encodeURIComponent(token)}`;
 }
 
+/**
+ * CTA-URL für E-Mail-HTML: nur Kurzlinker (jpeg.ly / t.ly), nie die Kanzlei-Domain.
+ * Verhindert Spam-Filter-Treffer durch sichtbare/eigenen Domain-Links im Body.
+ */
+export function emailSafeCtaUrl(shortUrl: string | null | undefined): string | null {
+  const raw = String(shortUrl ?? "").trim();
+  if (!raw) return null;
+  try {
+    const host = new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
+    const allowed = new Set(["jpeg.ly", "t.ly"]);
+    const configured = (process.env.TLY_DOMAIN || "")
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    if (configured) allowed.add(configured);
+    if (allowed.has(host) || [...allowed].some((d) => host.endsWith(`.${d}`))) return raw;
+  } catch {
+    /* ungültige URL */
+  }
+  return null;
+}
+
 export function logoUrl(): string {
   return `${siteBaseUrl()}${logoAsset.url}`;
 }
@@ -94,160 +105,110 @@ type BelegOptions = {
     iban: string;
     bic: string;
   };
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  verwalterName?: string | null;
+  verwalterRole?: string | null;
 };
 
-function renderBelegHtml(offer: OfferRow, items: ItemRow[], opts: BelegOptions): string {
-  const rows = items
-    .slice()
-    .sort((a, b) => a.pos - b.pos)
-    .map(
-      (it, idx) => `
-        <tr style="vertical-align:top;">
-          <td style="padding:12px 6px 12px 0;border-bottom:1px solid #e7e2d4;color:#8a8578;font-size:12px;width:24px;">${idx + 1}</td>
-          <td style="padding:12px 12px 12px 0;border-bottom:1px solid #e7e2d4;">
-            <div style="font-family:Georgia,serif;font-weight:600;color:#0f2740;font-size:13px;line-height:1.35;">${escapeHtml(it.name)}</div>
-            ${it.beschreibung || it.artikel ? `<div style="color:#7a7563;font-size:11.5px;margin-top:3px;line-height:1.45;">${it.artikel ? `Art.-Nr. ${escapeHtml(it.artikel)}` : ""}${it.artikel && it.beschreibung ? " · " : ""}${it.beschreibung ? escapeHtml(it.beschreibung) : ""}</div>` : ""}
-          </td>
-          <td style="padding:12px 6px;border-bottom:1px solid #e7e2d4;text-align:right;color:#3a352b;font-size:12px;white-space:nowrap;">${it.menge}</td>
-          <td style="padding:12px 6px;border-bottom:1px solid #e7e2d4;color:#6b6656;font-size:12px;">${escapeHtml(it.einheit)}</td>
-          <td style="padding:12px 6px;border-bottom:1px solid #e7e2d4;text-align:right;color:#3a352b;font-size:12px;white-space:nowrap;">${fmtEUR(Number(it.einzelpreis))}</td>
-          <td style="padding:12px 0 12px 6px;border-bottom:1px solid #e7e2d4;text-align:right;color:#0f2740;font-weight:600;font-size:12px;white-space:nowrap;">${fmtEUR(Number(it.position_total))}</td>
-        </tr>`,
-    )
-    .join("");
+function customerGreeting(name: string): string {
+  const n = name.trim();
+  return n ? `Guten Tag ${escapeHtml(n)},` : "Guten Tag,";
+}
 
-  const subtotal = Number(offer.subtotal);
-  const rabattBetrag = Number(offer.rabatt ?? 0);
-  const rabattRate = Number(offer.rabatt_rate ?? 0);
-  const lieferkosten = Number(offer.lieferkosten);
-  const netto = subtotal - rabattBetrag + lieferkosten;
-  const mwst = Number(offer.mwst);
-  const mwstRate = Number(offer.mwst_rate);
-  const total = Number(offer.total);
+/** Tracking-Links immer auf spedition-hausmann.de normalisieren. */
+export function normalizeHausmannTrackingUrl(url: string | null | undefined): string | null {
+  const raw = String(url ?? "").trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw, "https://spedition-hausmann.de");
+    if (u.hostname.replace(/^www\./, "") !== "spedition-hausmann.de") {
+      // Fremde Hosts → Pfad/Query auf die Speditions-Domain legen, falls /track… o.ä.
+      const path = u.pathname + u.search + u.hash;
+      return `https://spedition-hausmann.de${path.startsWith("/") ? path : `/${path}`}`;
+    }
+    u.protocol = "https:";
+    u.hostname = "spedition-hausmann.de";
+    return u.toString();
+  } catch {
+    if (raw.startsWith("/")) return `https://spedition-hausmann.de${raw}`;
+    return `https://spedition-hausmann.de/${raw.replace(/^\//, "")}`;
+  }
+}
 
-  const ctaBlock = opts.ctaUrl
-    ? opts.ctaDone
-      ? `<div style="margin:32px auto 8px auto;text-align:center;">
-           <div style="display:inline-block;background:#f5f3ee;border:1px solid #c9a55c;padding:14px 28px;">
-             <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#0f2740;">${escapeHtml(opts.ctaDoneLabel)}</div>
-           </div>
-         </div>`
-      : `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:32px auto 8px auto;">
-           <tr><td style="background:#0f2740;padding:0;">
-             <a href="${opts.ctaUrl}" style="display:inline-block;padding:14px 32px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#f5f3ee;text-decoration:none;white-space:nowrap;">${escapeHtml(opts.ctaLabel)}</a>
-           </td></tr>
-         </table>`
-    : "";
+/**
+ * Kurze Begleitmail im Briefstil — ohne Positionen/Summen
+ * (die stehen im PDF-Anhang). Soll wie von Hand geschrieben wirken.
+ */
+function renderBelegHtml(offer: OfferRow, _items: ItemRow[], opts: BelegOptions): string {
+  const isOffer = opts.belegArt === "Angebot";
+  const trackingUrl = normalizeHausmannTrackingUrl(opts.trackingUrl);
 
-  const bankBlock =
-    opts.belegArt === "Rechnung" && opts.bank
-      ? `<tr><td style="padding:24px 40px 0 40px;">
-           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ece8de;padding-top:20px;">
-             <tr>
-               <td width="50%" style="vertical-align:top;padding-right:16px;font-size:12px;line-height:1.6;">
-                 <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Zahlungsbedingungen</div>
-                 <p style="margin:8px 0 0 0;color:#3a352b;">Bitte überweisen Sie den Rechnungsbetrag bis zum <strong>${opts.faelligOderGueltig}</strong> auf das unten genannte Konto unter Angabe der Rechnungsnummer <strong>${escapeHtml(opts.belegNr)}</strong>.</p>
-                 <p style="margin:10px 0 0 0;color:#6b6656;font-size:11.5px;line-height:1.6;"><strong>Hinweis:</strong> Bei dem angegebenen Konto handelt es sich um ein Mandanten-/Anderkonto der Kanzlei, über das ausschließlich der bestellte Insolvenzverwalter alleinige Handlungs- und Verfügungsvollmacht besitzt. Ihre Zahlung ist dadurch treuhänderisch durch die Kanzlei geschützt und gegen den Zugriff Dritter gesichert.</p>
-               </td>
-               <td width="50%" style="vertical-align:top;padding-left:16px;font-size:12px;line-height:1.7;">
-                 <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Bankverbindung</div>
-                 <div style="margin-top:8px;">Kontoinhaber: <strong>${escapeHtml(opts.bank.inhaber)}</strong></div>
-                 <div>Bank: ${escapeHtml(opts.bank.name)}</div>
-                 <div>IBAN: <span style="font-family:'Courier New',monospace;">${escapeHtml(opts.bank.iban)}</span></div>
-                 <div>BIC: <span style="font-family:'Courier New',monospace;">${escapeHtml(opts.bank.bic)}</span></div>
-               </td>
-             </tr>
-           </table>
-         </td></tr>`
-      : "";
+  const body = isOffer
+    ? `
+      <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+      <p style="margin:0 0 16px 0;">anbei unser Angebot <strong>${escapeHtml(opts.belegNr)}</strong> als PDF. Schauen Sie es gerne in Ruhe durch — wenn etwas unklar ist, antworten Sie einfach kurz auf diese Mail.</p>
+      <p style="margin:0 0 16px 0;">Das Angebot gilt bis zum ${opts.faelligOderGueltig}. Wenn es für Sie passt, nehmen Sie es mit einem Klick verbindlich an:</p>
+      ${
+        opts.ctaUrl
+          ? opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;"><a href="${opts.ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Angebot annehmen</a></p>`
+          : opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;">Wenn es passt, antworten Sie einfach kurz auf diese Mail — wir nehmen das Angebot dann für Sie an.</p>`
+      }
+      <p style="margin:0 0 16px 0;">Mit dem Bestätigen auf der Folgeseite ist das Angebot rechtsverbindlich angenommen. Direkt danach erhalten Sie die Rechnung mit den Zahlungsdaten per E-Mail.</p>
+    `
+    : `
+      <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+      <p style="margin:0 0 16px 0;">vielen Dank nochmals. Anbei die Rechnung <strong>${escapeHtml(opts.belegNr)}</strong> als PDF (zu Angebot ${escapeHtml(offer.angebot_nr)}).</p>
+      <p style="margin:0 0 16px 0;">Bitte überweisen Sie den Betrag bis zum <strong>${opts.faelligOderGueltig}</strong> unter Angabe der Rechnungsnummer. Alle Zahlungsdaten finden Sie in der angehängten PDF.</p>
+      ${
+        trackingUrl
+          ? `<p style="margin:0 0 16px 0;">Die Sendung ist bei der Spedition Hausmann schon angelegt${
+              opts.trackingNumber ? ` (${escapeHtml(opts.trackingNumber)})` : ""
+            }. Hier können Sie den Status verfolgen:<br/>
+            <a href="${escapeHtml(trackingUrl)}" style="color:#1a2b3d;">${escapeHtml(trackingUrl)}</a></p>`
+          : `<p style="margin:0 0 16px 0;">Sobald die Zahlung da ist, meldet sich die Spedition Hausmann (spedition-hausmann.de) bei Ihnen zum Liefertermin.</p>`
+      }
+      ${
+        opts.ctaUrl
+          ? opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;">Nach der Überweisung können Sie uns hier kurz Bescheid geben:<br/><a href="${opts.ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Zahlung bestätigen</a></p>`
+          : opts.ctaDone
+            ? `<p style="margin:0 0 16px 0;color:#555;">${escapeHtml(opts.ctaDoneLabel)}</p>`
+            : `<p style="margin:0 0 16px 0;">Nach der Überweisung antworten Sie einfach kurz auf diese Mail — dann wissen wir Bescheid.</p>`
+      }
+    `;
 
-  const belegLabel = opts.belegArt.toUpperCase();
-  const dateLabel = opts.belegArt === "Angebot" ? "Gültig bis" : "Fällig am";
+  const signer = escapeHtml(opts.verwalterName || SITE.verwalter);
+  const signerRole = escapeHtml(opts.verwalterRole || SITE.role);
 
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${belegLabel} ${escapeHtml(opts.belegNr)}</title></head>
-<body style="margin:0;padding:0;background:#efece4;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#efece4;padding:32px 12px;">
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.belegArt)} ${escapeHtml(opts.belegNr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
     <tr><td align="center">
-      <table role="presentation" width="680" cellpadding="0" cellspacing="0" style="max-width:680px;width:100%;background:#ffffff;border:1px solid #e7e2d4;">
-
-        <!-- Kopf mit Logo + Belegnr., Gold-Unterlinie -->
-        <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:top;padding-right:24px;">
-              ${LOGO_HTML}
-              <div style="margin-top:12px;font-size:11px;line-height:1.55;color:#6b6455;">
-                ${escapeHtml(SITE.legalName)}<br/>
-                ${escapeHtml(SITE.addressLine)}<br/>
-                ${escapeHtml(SITE.email)}
-              </div>
-            </td>
-            <td width="200" style="vertical-align:top;text-align:right;white-space:nowrap;">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#8a8578;">${belegLabel}</div>
-              <div style="margin-top:4px;font-family:Georgia,serif;font-size:22px;font-weight:600;color:#0f2740;letter-spacing:0;line-height:1.2;">${escapeHtml(opts.belegNr)}</div>
-              <div style="margin-top:10px;font-size:11px;color:#6b6656;line-height:1.55;white-space:normal;">
-                Datum: ${opts.datum}<br/>
-                ${dateLabel}: ${opts.faelligOderGueltig}
-              </div>
-            </td>
-          </tr></table>
-        </td></tr>
-
-        <!-- Empfängerblock -->
-        <tr><td style="padding:28px 40px 0 40px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td width="50%" style="vertical-align:top;padding-right:16px;">
-              <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Rechnungsempfänger</div>
-              <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#1a1a1a;white-space:pre-line;">${escapeHtml([offer.customer_company, offer.customer_name, offer.customer_address, offer.customer_ust_id ? `USt-IdNr.: ${offer.customer_ust_id}` : ""].filter(Boolean).join("\n"))}</div>
-            </td>
-            <td width="50%" style="vertical-align:top;padding-left:16px;text-align:right;">
-              <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Lieferanschrift</div>
-              <div style="margin-top:8px;font-size:12px;color:#8a8578;font-style:italic;">Gleich Rechnungsempfänger</div>
-            </td>
-          </tr></table>
-        </td></tr>
-
-        <!-- Positionstabelle -->
-        <tr><td style="padding:28px 40px 0 40px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            <thead>
-              <tr style="border-top:1px solid #d9d4c4;border-bottom:1px solid #d9d4c4;">
-                <th style="padding:10px 6px 10px 0;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Pos.</th>
-                <th style="padding:10px 12px 10px 0;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Bezeichnung</th>
-                <th style="padding:10px 6px;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Menge</th>
-                <th style="padding:10px 6px;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Einh.</th>
-                <th style="padding:10px 6px;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Einzel netto</th>
-                <th style="padding:10px 0 10px 6px;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;">Summe netto</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </td></tr>
-
-        <!-- Summenblock rechtsbündig -->
-        <tr><td style="padding:20px 40px 0 40px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" align="right" style="min-width:320px;font-size:13px;">
-            <tr><td style="padding:4px 12px 4px 0;color:#6b6656;">Zwischensumme</td><td style="padding:4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(subtotal)}</td></tr>
-            ${rabattBetrag > 0 ? `<tr><td style="padding:4px 12px 4px 0;color:#8a7a3a;">Rabatt (${rabattRate}%)</td><td style="padding:4px 0;text-align:right;color:#8a7a3a;white-space:nowrap;">−${fmtEUR(rabattBetrag)}</td></tr>` : ""}
-            ${lieferkosten > 0 ? `<tr><td style="padding:4px 12px 4px 0;color:#6b6656;">Lieferkosten</td><td style="padding:4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(lieferkosten)}</td></tr>` : ""}
-            <tr style="border-top:1px solid #d9d4c4;"><td style="padding:6px 12px 4px 0;color:#6b6656;">Netto</td><td style="padding:6px 0 4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(netto)}</td></tr>
-            <tr><td style="padding:4px 12px 4px 0;color:#6b6656;">zzgl. MwSt. (${mwstRate}%)</td><td style="padding:4px 0;text-align:right;color:#3a352b;white-space:nowrap;">${fmtEUR(mwst)}</td></tr>
-            <tr style="border-top:1px solid #c9a55c;"><td style="padding:10px 12px 4px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#0f2740;">Gesamt</td><td style="padding:10px 0 4px 0;text-align:right;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:15px;color:#0f2740;white-space:nowrap;">${fmtEUR(total)}</td></tr>
-          </table>
-          <div style="clear:both;"></div>
-        </td></tr>
-
-        <!-- CTA -->
-        <tr><td style="padding:8px 40px 8px 40px;">${ctaBlock}</td></tr>
-
-        ${bankBlock}
-
-        <!-- Footer -->
-        <tr><td style="padding:24px 40px 32px 40px;border-top:1px solid #ece8de;">
-          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;line-height:1.7;">
-            ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${opts.datum}
+          </p>
+          ${body}
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
+            USt-IdNr. ${escapeHtml(SITE.ustId)}
           </p>
         </td></tr>
-
       </table>
     </td></tr>
   </table>
@@ -277,8 +238,8 @@ export function renderInvoiceHtml(
     belegNr: offer.rechnung_nr,
     datum,
     faelligOderGueltig: faellig,
-    // t.ly-Kurzlink bevorzugen, damit in der Mail nur die t.ly-Domain erscheint.
-    ctaUrl: offer.pay_short_url || invoicePayUrl(offer.pay_token),
+    // Nur Kurzlinker (jpeg.ly) — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
+    ctaUrl: emailSafeCtaUrl(offer.pay_short_url),
     ctaDone: !!offer.paid_at,
     ctaLabel: "Zahlung bestätigen",
     ctaDoneLabel: "Zahlung bereits bestätigt",
@@ -289,6 +250,10 @@ export function renderInvoiceHtml(
       iban: offer.bank_iban,
       bic: offer.bank_bic,
     },
+    trackingNumber: offer.tracking_number,
+    trackingUrl: offer.tracking_url,
+    verwalterName: offer.verwalter_name,
+    verwalterRole: offer.verwalter_role,
   });
 }
 
@@ -300,12 +265,14 @@ export function renderOfferHtml(offer: OfferRow, items: ItemRow[]): string {
     belegNr: offer.angebot_nr,
     datum,
     faelligOderGueltig: gueltigBis,
-    // t.ly-Kurzlink bevorzugen, damit in der Mail nur die t.ly-Domain erscheint.
-    ctaUrl: offer.accept_short_url || offerAcceptUrl(offer.accept_token),
+    // Nur Kurzlinker (jpeg.ly) — nie die Kanzlei-Domain im E-Mail-HTML (Spam-Filter).
+    ctaUrl: emailSafeCtaUrl(offer.accept_short_url),
     ctaDone: !!offer.accepted_at,
     ctaLabel: "Angebot annehmen",
     ctaDoneLabel: "Angebot bereits angenommen",
-    ctaHint: "Ein Klick genügt · rechtsverbindlich",
+    ctaHint: "Bestätigung auf der Folgeseite · rechtsverbindlich",
+    verwalterName: offer.verwalter_name,
+    verwalterRole: offer.verwalter_role,
   });
 }
 
@@ -317,68 +284,299 @@ export function renderPaymentConfirmationHtml(offer: {
   rechnung_nr?: string | null;
   total?: number | string | null;
   paid_at?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
+  verwalter_name?: string | null;
+  verwalter_role?: string | null;
 }): string {
   const anredeName = escapeHtml(offer.customer_name.trim() || "Kunde");
-  const firma = offer.customer_company?.trim()
-    ? `<div style="margin-top:4px;font-size:13px;color:#6b6656;">${escapeHtml(offer.customer_company.trim())}</div>`
-    : "";
   const belegNr = escapeHtml(offer.rechnung_nr || offer.angebot_nr);
   const belegLabel = offer.rechnung_nr ? "Rechnung" : "Angebot";
-  const betrag =
-    offer.total != null && Number.isFinite(Number(offer.total))
-      ? fmtEUR(Number(offer.total))
-      : null;
   const paidAt = offer.paid_at
     ? new Date(offer.paid_at).toLocaleDateString("de-DE", { dateStyle: "medium" })
     : new Date().toLocaleDateString("de-DE", { dateStyle: "medium" });
+  const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
+  const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
+  const trackingUrl = normalizeHausmannTrackingUrl(offer.tracking_url);
+  const trackingBlock = trackingUrl
+    ? `<p style="margin:0 0 16px 0;">Den Lieferstatus${
+        offer.tracking_number ? ` (${escapeHtml(offer.tracking_number)})` : ""
+      } können Sie bei der Spedition Hausmann verfolgen:<br/>
+        <a href="${escapeHtml(trackingUrl)}" style="color:#1a2b3d;">${escapeHtml(trackingUrl)}</a></p>`
+    : `<p style="margin:0 0 16px 0;">Die Spedition Hausmann (spedition-hausmann.de) meldet sich in Kürze bei Ihnen, um einen Liefertermin zu vereinbaren.</p>`;
 
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Zahlungseingang bestätigt</title></head>
-<body style="margin:0;padding:0;background:#efece4;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#efece4;padding:32px 12px;">
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zahlungseingang bestätigt</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e7e2d4;">
-
-        <tr><td style="padding:36px 40px 20px 40px;border-bottom:1px solid #c9a55c;">
-          ${LOGO_HTML}
-          <div style="margin-top:14px;font-size:11px;line-height:1.6;color:#6b6455;">
-            ${escapeHtml(SITE.legalName)} · ${escapeHtml(SITE.addressLine)}<br/>
-            ${escapeHtml(SITE.email)}
-          </div>
-        </td></tr>
-
-        <tr><td style="padding:36px 40px 8px 40px;">
-          <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#8a8578;">Zahlungseingang</div>
-          <h1 style="margin:10px 0 0 0;font-family:Georgia,serif;font-size:26px;font-weight:600;color:#0f2740;line-height:1.25;">
-            Zahlungseingang bestätigt
-          </h1>
-        </td></tr>
-
-        <tr><td style="padding:20px 40px 0 40px;font-size:14px;line-height:1.7;color:#3a352b;">
-          <p style="margin:0;">Sehr geehrte/r ${anredeName},</p>
-          ${firma}
-          <p style="margin:18px 0 0 0;">
-            vielen Dank. Wir bestätigen den Zahlungseingang zu Ihrer
-            <strong>${belegLabel} ${belegNr}</strong>${betrag ? ` (${betrag})` : ""}
-            vom ${paidAt}.
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${paidAt}
           </p>
-          <p style="margin:18px 0 0 0;">
-            Unsere Spedition wird sich in Kürze bei Ihnen melden, um einen Liefertermin zu vereinbaren.
+          <p style="margin:0 0 16px 0;">Guten Tag ${anredeName},</p>
+          <p style="margin:0 0 16px 0;">
+            vielen Dank — der Zahlungseingang zu Ihrer ${belegLabel} ${belegNr} ist bei uns eingegangen.
           </p>
-          <p style="margin:18px 0 0 0;">
-            Bei Rückfragen erreichen Sie uns unter ${escapeHtml(SITE.email)}.
-          </p>
-          <p style="margin:28px 0 0 0;">
-            Mit freundlichen Grüßen<br/>
-            <strong>${escapeHtml(SITE.brand)}</strong>
+          ${trackingBlock}
+          <p style="margin:0 0 16px 0;">Bei Fragen einfach kurz auf diese Mail antworten.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}
           </p>
         </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
 
-        <tr><td style="padding:32px 40px 32px 40px;border-top:1px solid #ece8de;margin-top:24px;">
-          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8a8578;line-height:1.7;">
-            ${escapeHtml(SITE_FOOTER_LINE)} · USt-IdNr. ${escapeHtml(SITE.ustId)}
+/**
+ * Kurzer Anzeigename für Bestätigungsmails: Marke + Modell,
+ * ohne Zusatzattribute („höhenverstellbar“, Speicher, Farbe, …).
+ */
+export function shortProductLabel(name: string): string {
+  const parts = String(name ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return String(name ?? "").trim();
+  let label = parts[0];
+  // Chip-/Generationsangabe (M3, M4) zur Modellbezeichnung behalten
+  if (parts[1] && /^M\d+[A-Z]?$/i.test(parts[1])) {
+    label = `${label}, ${parts[1]}`;
+  }
+  return label;
+}
+
+/** Formelle Anrede aus Name + Rolle (Frau/Herr) für den eingestellten Verwalter. */
+export function formalPersonAddress(name: string, role: string): string {
+  const n = name.trim();
+  if (!n) return "unsere Kanzlei";
+  const female = /\b\w*in\b/i.test(role) || /\b\w*innen\b/i.test(role);
+  return `${female ? "Frau" : "Herr"} ${n}`;
+}
+
+/**
+ * Sofort-Bestätigung nach Eingang einer Angebotsanfrage (noch kein PDF).
+ * Absender/Unterschrift: Erik Laumann. Kontaktperson = aktiver Verwalter aus den Einstellungen.
+ */
+export function renderOfferRequestConfirmationHtml(opts: {
+  customer_name: string;
+  angebot_nr: string;
+  itemNames?: string[];
+  /** Aktuell eingestellter Verwalter (Admin → Einstellungen) */
+  contactName?: string;
+  contactRole?: string;
+}): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const signer = SITE.verwalter;
+  const signerRole = SITE.role;
+  const contactName = (opts.contactName || SITE.verwalter).trim();
+  const contactRole = (opts.contactRole || SITE.role).trim();
+  const contactAddress = formalPersonAddress(contactName, contactRole);
+
+  const items = (opts.itemNames ?? [])
+    .map((n) => shortProductLabel(n))
+    .filter(Boolean);
+  // Duplikate vermeiden (gleiche Kurzform mehrfach angefragt)
+  const uniqueItems = [...new Set(items)];
+  const itemsBlock =
+    uniqueItems.length > 0
+      ? `<p style="margin:0 0 16px 0;">Ihre Anfrage betrifft: <strong>${uniqueItems
+          .slice(0, 8)
+          .map((n) => escapeHtml(n))
+          .join(", ")}${uniqueItems.length > 8 ? " …" : ""}</strong>.</p>`
+      : "";
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Anfrage eingegangen ${escapeHtml(opts.angebot_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${escapeHtml(signer)} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(opts.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">vielen Dank — Ihre Anfrage ist bei uns eingegangen (Referenz <strong>${escapeHtml(opts.angebot_nr)}</strong>).</p>
+          ${itemsBlock}
+          <p style="margin:0 0 16px 0;">Wir prüfen jetzt, ob die gewünschten Artikel vorrätig sind. Sollten sie verfügbar sein, erhalten Sie in Kürze ein verbindliches Angebot. Falls einzelne Positionen nicht lieferbar sind, sagen wir Ihnen das natürlich umgehend.</p>
+          <p style="margin:0 0 16px 0;">${escapeHtml(contactAddress)} meldet sich anschließend mit dem Angebot bei Ihnen.</p>
+          <p style="margin:0 0 16px 0;">Bei Rückfragen antworten Sie einfach kurz auf diese Mail.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${escapeHtml(signerRole)}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}
           </p>
         </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
 
+/**
+ * Dankesmail nach verbindlicher Angebotsannahme — Fallback,
+ * falls die automatische Rechnung (noch) nicht versendet werden konnte.
+ */
+export function renderOfferAcceptedConfirmationHtml(opts: {
+  customer_name: string;
+  angebot_nr: string;
+}): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const signer = SITE.verwalter;
+  const signerRole = SITE.role;
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Angebot angenommen ${escapeHtml(opts.angebot_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${escapeHtml(signer)} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(opts.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">vielen Dank — wir haben Ihre Annahme zu Angebot <strong>${escapeHtml(opts.angebot_nr)}</strong> erhalten.</p>
+          <p style="margin:0 0 16px 0;">Die Rechnung mit Zahlungsdaten und Tracking folgt in Kürze per E-Mail. Bei Fragen antworten Sie einfach auf diese Mail.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${escapeHtml(signerRole)}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/** Kurze Erinnerungsmail für noch nicht angenommene Angebote. */
+export function renderOfferReminderHtml(
+  offer: OfferRow,
+  opts?: { gueltigBis?: string },
+): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const gueltigBis =
+    opts?.gueltigBis ||
+    new Date(new Date(offer.created_at).getTime() + 7 * 24 * 3600 * 1000).toLocaleDateString("de-DE");
+  const ctaUrl = emailSafeCtaUrl(offer.accept_short_url);
+  const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
+  const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Erinnerung Angebot ${escapeHtml(offer.angebot_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">kurz zur Erinnerung: unser Angebot <strong>${escapeHtml(offer.angebot_nr)}</strong> liegt noch bei Ihnen. Falls Sie weiterhin Interesse haben — die Gültigkeit endet am <strong>${gueltigBis}</strong>.</p>
+          <p style="margin:0 0 16px 0;">Das Angebot ist noch einmal als PDF angehängt. Bei Fragen antworten Sie einfach kurz auf diese Mail.</p>
+          ${
+            offer.accepted_at
+              ? `<p style="margin:0 0 16px 0;color:#555;">Angebot bereits angenommen</p>`
+              : ctaUrl
+                ? `<p style="margin:0 0 16px 0;">Wenn es für Sie passt, können Sie hier verbindlich annehmen:<br/><a href="${ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Angebot annehmen</a></p>`
+                : `<p style="margin:0 0 16px 0;">Wenn es passt, antworten Sie einfach kurz auf diese Mail — wir nehmen das Angebot dann für Sie an.</p>`
+          }
+          <p style="margin:0 0 16px 0;">Falls kein Interesse mehr besteht, brauchen Sie nichts weiter zu tun.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}<br/>
+            USt-IdNr. ${escapeHtml(SITE.ustId)}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/** Kurze Zahlungserinnerung für versendete, noch unbezahlte Rechnungen. */
+export function renderInvoiceReminderHtml(
+  offer: OfferRow & {
+    rechnung_nr: string;
+    rechnung_faellig_am?: string | null;
+    total?: number | string | null;
+  },
+): string {
+  const datum = new Date().toLocaleDateString("de-DE");
+  const faellig = offer.rechnung_faellig_am
+    ? new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")
+    : null;
+  const ctaUrl = emailSafeCtaUrl(offer.pay_short_url);
+  const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
+  const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
+  const totalStr =
+    offer.total != null && Number.isFinite(Number(offer.total))
+      ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(offer.total))
+      : null;
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Erinnerung Rechnung ${escapeHtml(offer.rechnung_nr)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${datum}
+          </p>
+          <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
+          <p style="margin:0 0 16px 0;">kurz zur Erinnerung: unsere Rechnung <strong>${escapeHtml(offer.rechnung_nr)}</strong>${
+            totalStr ? ` über <strong>${escapeHtml(totalStr)}</strong>` : ""
+          } ist noch offen${faellig ? ` (fällig am <strong>${faellig}</strong>)` : ""}.</p>
+          <p style="margin:0 0 16px 0;">Die Rechnung ist noch einmal als PDF angehängt — dort finden Sie alle Zahlungsdaten. Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer.</p>
+          ${
+            offer.paid_at
+              ? `<p style="margin:0 0 16px 0;color:#555;">Zahlung bereits bestätigt</p>`
+              : ctaUrl
+                ? `<p style="margin:0 0 16px 0;">Nach der Überweisung können Sie uns hier kurz Bescheid geben:<br/><a href="${ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Zahlung bestätigen</a></p>`
+                : `<p style="margin:0 0 16px 0;">Nach der Überweisung antworten Sie einfach kurz auf diese Mail — dann wissen wir Bescheid.</p>`
+          }
+          <p style="margin:0 0 16px 0;">Falls die Zahlung bereits unterwegs ist, vielen Dank — dann können Sie diese Erinnerung ignorieren.</p>
+          <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+          <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+            ${signerRole}<br/>
+            ${escapeHtml(SITE.brand)}<br/>
+            ${SITE.offices
+              .map(
+                (o) =>
+                  `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+              )
+              .join("<br/>\n            ")}
+          </p>
+        </td></tr>
       </table>
     </td></tr>
   </table>
@@ -583,12 +781,15 @@ async function postResendWithCurl(payload: string, apiKey: string, timeoutMs: nu
 // (api.resend.com) nicht zuverlässig erreichen — große Uploads (PDF-Anhänge) laufen dort in
 // einen Timeout ("0 bytes received"), obwohl kleine Requests durchgehen. Resends SMTP-Relay
 // (smtp.resend.com, AWS) liegt NICHT hinter Cloudflare und umgeht das Problem. Über
-// RESEND_TRANSPORT=smtp lässt sich der SMTP-Weg aktivieren.
-function preferredEmailTransport(): "smtp" | "http" {
-  const configured = (process.env.RESEND_TRANSPORT || process.env.EMAIL_TRANSPORT || "")
+// RESEND_TRANSPORT=smtp → Resend SMTP-Relay (AWS-IPs).
+// EMAIL_TRANSPORT=local → Versand über lokalen Postfix (Server-IP).
+function preferredEmailTransport(): "local" | "smtp" | "http" {
+  const configured = (process.env.EMAIL_TRANSPORT || process.env.RESEND_TRANSPORT || "")
     .trim()
     .toLowerCase();
-  return configured === "smtp" ? "smtp" : "http";
+  if (configured === "local" || configured === "direct" || configured === "postfix") return "local";
+  if (configured === "smtp") return "smtp";
+  return "http";
 }
 
 // Logo für Inline-Einbettung (CID) laden. Viele Mail-Clients blockieren extern
@@ -621,6 +822,83 @@ async function loadLogoBytesForEmail(): Promise<Buffer | null> {
     // ignore
   }
   return null;
+}
+
+async function attachInlineLogo(
+  html: string,
+  attachments: {
+    filename: string;
+    content: Buffer;
+    cid?: string;
+    contentType?: string;
+  }[],
+): Promise<string> {
+  const logoBytes = await loadLogoBytesForEmail();
+  const logoRef = logoUrl();
+  if (logoBytes && html.includes(logoRef)) {
+    const cid = "kanzlei-logo@kanzlei-laumann";
+    html = html.split(logoRef).join(`cid:${cid}`);
+    attachments.unshift({
+      filename: "kanzlei-logo.png",
+      content: logoBytes,
+      cid,
+      contentType: "image/png",
+    });
+  }
+  return html;
+}
+
+async function sendViaLocalSmtp(
+  params: { to: string; subject: string; html: string; attachments?: EmailAttachment[] },
+  from: string,
+  timeoutMs: number,
+): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  const host = process.env.LOCAL_SMTP_HOST || "127.0.0.1";
+  const port = Number(process.env.LOCAL_SMTP_PORT || 25);
+  try {
+    const nodemailer = await import("nodemailer");
+    const createTransport =
+      (nodemailer as { createTransport?: typeof import("nodemailer").createTransport })
+        .createTransport ??
+      (nodemailer as { default: typeof import("nodemailer") }).default.createTransport;
+    const transporter = createTransport({
+      host,
+      port,
+      secure: false,
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: timeoutMs,
+      greetingTimeout: timeoutMs,
+      socketTimeout: timeoutMs,
+    });
+
+    const attachments: {
+      filename: string;
+      content: Buffer;
+      cid?: string;
+      contentType?: string;
+    }[] =
+      params.attachments?.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.content, "base64"),
+      })) ?? [];
+
+    const html = await attachInlineLogo(params.html, attachments);
+    console.info(
+      `[mail] sending via local SMTP ${host}:${port} to ${params.to} with ${attachments.length} attachment(s)`,
+    );
+    const info = await transporter.sendMail({
+      from,
+      to: params.to,
+      subject: params.subject,
+      html,
+      attachments,
+    });
+    return { ok: true, messageId: info.messageId ?? "" };
+  } catch (error) {
+    const msg = `Lokaler SMTP-Versand über ${host}:${port} fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(`[mail] ${msg}`);
+    return { ok: false, error: msg };
+  }
 }
 
 async function sendViaSmtp(
@@ -659,21 +937,7 @@ async function sendViaSmtp(
         content: Buffer.from(a.content, "base64"),
       })) ?? [];
 
-    // Logo inline per CID einbetten, damit es auch bei blockierten Remote-Bildern erscheint.
-    let html = params.html;
-    const logoBytes = await loadLogoBytesForEmail();
-    const logoRef = logoUrl();
-    if (logoBytes && html.includes(logoRef)) {
-      const cid = "kanzlei-logo@kanzlei-laumann";
-      html = html.split(logoRef).join(`cid:${cid}`);
-      attachments.unshift({
-        filename: "kanzlei-logo.png",
-        content: logoBytes,
-        cid,
-        contentType: "image/png",
-      });
-    }
-
+    const html = await attachInlineLogo(params.html, attachments);
     console.info(
       `[resend] sending via SMTP ${host}:${port} to ${params.to} with ${attachments.length} attachment(s)`,
     );
@@ -698,11 +962,16 @@ export async function sendOfferEmail(params: {
   html: string;
   attachments?: EmailAttachment[];
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
-  const RESEND_API_KEY = normalizeResendApiKey(process.env.RESEND_API_KEY);
   const FROM = process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
   const configuredTimeoutMs = Number(process.env.RESEND_TIMEOUT_MS || 0);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0 ? configuredTimeoutMs : 120000;
+  const transport = preferredEmailTransport();
 
+  if (transport === "local") {
+    return sendViaLocalSmtp(params, FROM, timeoutMs);
+  }
+
+  const RESEND_API_KEY = normalizeResendApiKey(process.env.RESEND_API_KEY);
   if (!RESEND_API_KEY) {
     const raw = process.env.RESEND_API_KEY;
     console.error(`[resend] key check failed: value=${raw ? `${raw.slice(0, 8)}… (len=${raw.length})` : "(unset)"}`);
@@ -710,7 +979,7 @@ export async function sendOfferEmail(params: {
   }
   console.log(`[resend] using key prefix=${RESEND_API_KEY.slice(0, 5)}… len=${RESEND_API_KEY.length}`);
 
-  if (preferredEmailTransport() === "smtp") {
+  if (transport === "smtp") {
     return sendViaSmtp(params, FROM, RESEND_API_KEY, timeoutMs);
   }
 

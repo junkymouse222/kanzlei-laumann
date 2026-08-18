@@ -20,7 +20,7 @@ function page(
       : "Zahlung bestätigt";
   const message =
     status === "invalid"
-      ? `Der Link ist ungültig. Bitte kontaktieren Sie uns unter ${SITE.email}.`
+      ? `Der Link ist ungültig. Bitte kontaktieren Sie uns unter ${SITE.phoneDisplay} oder ${SITE.email}.`
       : isAngebot
       ? `Vielen Dank für Ihr Vertrauen. Wir haben Ihre Annahme${belegNr ? ` zu Angebot ${belegNr}` : ""} erhalten und melden uns in Kürze mit der Rechnung und den nächsten Schritten.`
       : `Vielen Dank für Ihre Zahlung${belegNr ? ` zu Rechnung ${belegNr}` : ""}. Wir haben Ihre Bestätigung erhalten und prüfen den Zahlungseingang.`;
@@ -58,6 +58,7 @@ async function handle(request: Request): Promise<Response> {
   let belegNr = url.searchParams.get("nr") || "";
   let kundeName = url.searchParams.get("kunde") || "";
   let kundeAnschrift = url.searchParams.get("anschrift") || "";
+  let kundeEmail = url.searchParams.get("email") || "";
   let total = url.searchParams.get("total") || "";
 
   if (request.method === "POST") {
@@ -69,6 +70,7 @@ async function handle(request: Request): Promise<Response> {
         belegNr = (form.get("nr") as string) || belegNr;
         kundeName = (form.get("kunde") as string) || kundeName;
         kundeAnschrift = (form.get("anschrift") as string) || kundeAnschrift;
+        kundeEmail = (form.get("email") as string) || kundeEmail;
         total = (form.get("total") as string) || total;
       } else if (ct.includes("application/json")) {
         const j = (await request.json()) as Record<string, unknown>;
@@ -76,6 +78,7 @@ async function handle(request: Request): Promise<Response> {
         belegNr = (j.nr as string) || belegNr;
         kundeName = (j.kunde as string) || kundeName;
         kundeAnschrift = (j.anschrift as string) || kundeAnschrift;
+        kundeEmail = (j.email as string) || kundeEmail;
         total = (j.total as string) || total;
       }
     } catch {
@@ -97,11 +100,13 @@ async function handle(request: Request): Promise<Response> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
+    const email = kundeEmail.trim().toLowerCase() || null;
     await admin.from("manual_confirmations").insert({
       beleg_art: belegArt,
       beleg_nr: belegNr,
       kunde_name: kundeName || null,
       kunde_anschrift: kundeAnschrift || null,
+      customer_email: email,
       total: total ? Number(total) || null : null,
       ip,
       user_agent: ua,
