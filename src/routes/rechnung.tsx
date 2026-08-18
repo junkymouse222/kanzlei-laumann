@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PRODUKTE, KATEGORIEN, type Produkt } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
 import { BelegView, belegPrintStyles, type BelegViewPosition } from "@/components/BelegView";
+import { saveManualAngebotBeleg } from "@/lib/manual-beleg.functions";
 
 const printStyles = belegPrintStyles;
 
@@ -169,7 +170,87 @@ function RechnungPage() {
   const netto = zwischensumme - rabattBetrag + lieferkosten;
   const mwst = netto * (mwstSatz / 100);
   const brutto = netto + mwst;
-  const bestaetigungsUrl = `${SITE.baseUrl}/api/public/hooks/confirm-manual?art=${encodeURIComponent(belegArt)}&nr=${encodeURIComponent(belegNr)}&kunde=${encodeURIComponent(kundeName)}&anschrift=${encodeURIComponent(kundeAnschrift)}&email=${encodeURIComponent(kundeEmail.trim())}&total=${encodeURIComponent(brutto.toFixed(2))}`;
+
+  /** Nach Speichern: echter accept-offer-Link (Auto-Rechnung + Scanner-Schutz). */
+  const [savedAcceptUrl, setSavedAcceptUrl] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "ok" | "error">("idle");
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  const legacyConfirmUrl = `${SITE.baseUrl}/api/public/hooks/confirm-manual?art=${encodeURIComponent(belegArt)}&nr=${encodeURIComponent(belegNr)}&kunde=${encodeURIComponent(kundeName)}&anschrift=${encodeURIComponent(kundeAnschrift)}&email=${encodeURIComponent(kundeEmail.trim())}&total=${encodeURIComponent(brutto.toFixed(2))}`;
+  const bestaetigungsUrl =
+    belegArt === "Angebot" && savedAcceptUrl ? savedAcceptUrl : legacyConfirmUrl;
+
+  // Bei Änderung der Belegnummer / Art den gespeicherten Link verwerfen
+  useEffect(() => {
+    setSavedAcceptUrl(null);
+    setSaveState("idle");
+    setSaveMsg(null);
+  }, [belegNr, belegArt]);
+
+  async function speichernFuerAnnahme() {
+    if (belegArt !== "Angebot") {
+      setSaveState("error");
+      setSaveMsg("Speichern mit Auto-Rechnung gilt nur für Angebote (nicht für Rechnungen).");
+      return;
+    }
+    if (positionen.length === 0) {
+      setSaveState("error");
+      setSaveMsg("Bitte mindestens eine Position hinzufügen.");
+      return;
+    }
+    if (!kundeName.trim() || !kundeAnschrift.trim() || !kundeEmail.trim()) {
+      setSaveState("error");
+      setSaveMsg("Kunde, Anschrift und E-Mail sind Pflicht.");
+      return;
+    }
+
+    const nameLines = kundeName
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const customer_company = nameLines.length > 1 ? nameLines[0] : null;
+    const customer_name =
+      nameLines.length > 1 ? nameLines.slice(1).join(" ") : nameLines[0] || kundeName.trim();
+
+    setSaveState("saving");
+    setSaveMsg(null);
+    try {
+      const res = await saveManualAngebotBeleg({
+        data: {
+          angebot_nr: belegNr.trim(),
+          customer_name,
+          customer_company,
+          customer_email: kundeEmail.trim(),
+          customer_address: kundeAnschrift.trim(),
+          customer_ust_id: kundeUstId.trim() || null,
+          delivery_name: lieferName.trim() || null,
+          delivery_address: lieferAnschrift.trim() || null,
+          message: notizen.trim() || null,
+          rabatt_rate: rabatt,
+          mwst_rate: mwstSatz,
+          lieferkosten,
+          items: positionen
+            .filter((p) => p.menge > 0)
+            .map((p) => ({
+              artikel: p.artikel,
+              name: p.name,
+              beschreibung: p.beschreibung || null,
+              einheit: p.einheit,
+              einzelpreis: p.einzelpreis,
+              menge: p.menge,
+            })),
+        },
+      });
+      setSavedAcceptUrl(res.accept_url);
+      setSaveState("ok");
+      setSaveMsg(
+        `Gespeichert (${res.angebot_nr}). Annahme-Link gesetzt — bei Klick geht die Rechnung automatisch mit diesen Positionen raus. Angebot erscheint in der Admin-Liste.`,
+      );
+    } catch (e) {
+      setSaveState("error");
+      setSaveMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen (Admin-Login nötig).");
+    }
+  }
 
   const drucken = () => window.print();
 
@@ -490,6 +571,20 @@ function RechnungPage() {
 
       {/* Aktionen */}
       <div className="no-print mt-8 flex flex-wrap gap-4">
+        {belegArt === "Angebot" && (
+          <button
+            type="button"
+            onClick={speichernFuerAnnahme}
+            disabled={positionen.length === 0 || saveState === "saving"}
+            className="border border-gold bg-parchment px-8 py-4 text-xs uppercase tracking-[0.2em] text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+          >
+            {saveState === "saving"
+              ? "Speichere …"
+              : savedAcceptUrl
+                ? "Erneut speichern"
+                : "Speichern & Annahme-Link setzen"}
+          </button>
+        )}
         <button
           type="button"
           onClick={drucken}
@@ -506,6 +601,29 @@ function RechnungPage() {
           Positionen leeren
         </button>
       </div>
+      {saveMsg && (
+        <p
+          className={`no-print mt-4 text-sm ${saveState === "ok" ? "text-primary" : "text-red-700"}`}
+        >
+          {saveMsg}
+          {savedAcceptUrl && (
+            <>
+              {" "}
+              <a href={savedAcceptUrl} className="underline" target="_blank" rel="noreferrer">
+                Link öffnen
+              </a>
+            </>
+          )}
+        </p>
+      )}
+      {belegArt === "Angebot" && !savedAcceptUrl && (
+        <p className="no-print mt-3 max-w-2xl text-xs text-muted-foreground">
+          Ohne Speichern nutzt der Button im Beleg den alten Bestätigungslink (ohne Positionen,
+          keine Auto-Rechnung). Nach „Speichern & Annahme-Link setzen“ (Admin-Login) enthält der
+          Beleg den echten Annahme-Link — Kunde nimmt an, Rechnung geht automatisch mit den
+          Positionen raus.
+        </p>
+      )}
 
       {/* Positions-Editor */}
       {positionen.length > 0 && (

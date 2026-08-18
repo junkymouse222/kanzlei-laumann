@@ -42,15 +42,21 @@ const InvoiceSchema = IdSchema.extend({
   bank_bic: z.string().trim().min(4, "BIC fehlt").max(32),
 });
 
+const ManualInvoiceItemSchema = z.object({
+  artikel: z.string().trim().max(50).optional().default(""),
+  name: z.string().trim().min(1).max(300),
+  beschreibung: z.string().trim().max(2000).optional().nullable(),
+  einheit: z.string().trim().max(30).optional().default("Stk."),
+  menge: z.number().int().min(1).max(9999),
+  einzelpreis: z.number().min(0).max(1_000_000),
+});
+
 const ManualInvoiceSchema = z.object({
   /** manual_confirmations.id */
   id: z.string().uuid(),
   customer_email: z.string().trim().email().max(255),
-  position_name: z.string().trim().min(2).max(300),
-  position_beschreibung: z.string().trim().max(500).optional().nullable(),
-  /** Netto-Festpreis der Position */
-  netto: z.number().min(0).max(1_000_000),
-  menge: z.number().int().min(1).max(9999).optional(),
+  /** Echte Rechnungspositionen (statt Sammelzeile „gemäß Angebot“). */
+  items: z.array(ManualInvoiceItemSchema).min(1).max(50),
   mwst_rate: z.number().min(0).max(99).optional(),
   lieferkosten: z.number().min(0).max(1000000).optional(),
   faellig_tage: z.number().int().min(1).max(120).optional(),
@@ -530,13 +536,25 @@ export async function sendInvoiceForManualConfirmation(
   const customer_name = nameLines.length > 1 ? nameLines.slice(1).join(" ") : nameLines[0] || "Kunde";
   const customer_address = String(conf.kunde_anschrift || "").trim() || "—";
   const angebot_nr = String(conf.beleg_nr);
-  const menge = data.menge ?? 1;
-  const einzelpreis = Number(data.netto.toFixed(2));
-  const position_total = Number((einzelpreis * menge).toFixed(2));
+  const items = data.items.map((it, i) => {
+    const einzelpreis = Number(it.einzelpreis.toFixed(2));
+    const menge = it.menge;
+    return {
+      pos: i + 1,
+      artikel: it.artikel || "",
+      name: it.name.trim(),
+      beschreibung: it.beschreibung?.trim() || null,
+      einheit: it.einheit || "Stk.",
+      menge,
+      einzelpreis,
+      position_total: Number((einzelpreis * menge).toFixed(2)),
+    };
+  });
+  const subtotal = Number(items.reduce((s, i) => s + i.position_total, 0).toFixed(2));
   const mwstRate = data.mwst_rate ?? DEFAULT_MWST_RATE;
   const liefer = data.lieferkosten ?? 0;
   const totals = computeOfferTotals({
-    subtotal: position_total,
+    subtotal,
     rabattRate: 0,
     lieferkosten: liefer,
     mwstRate,
@@ -554,7 +572,7 @@ export async function sendInvoiceForManualConfirmation(
         customer_name,
         customer_email: email,
         customer_address,
-        subtotal: position_total,
+        subtotal,
         rabatt_rate: 0,
         rabatt: 0,
         mwst_rate: mwstRate,
@@ -566,17 +584,9 @@ export async function sendInvoiceForManualConfirmation(
     if (updErr) throw new AdminSendError(updErr.message, 500);
 
     await admin.from("offer_request_items").delete().eq("request_id", offerId);
-    const { error: itemsErr } = await admin.from("offer_request_items").insert({
-      request_id: offerId,
-      pos: 1,
-      artikel: "",
-      name: data.position_name.trim(),
-      beschreibung: data.position_beschreibung?.trim() || `gemäß Angebot ${angebot_nr}`,
-      einheit: "Stk.",
-      menge,
-      einzelpreis,
-      position_total,
-    });
+    const { error: itemsErr } = await admin.from("offer_request_items").insert(
+      items.map((it) => ({ ...it, request_id: offerId })),
+    );
     if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
   } else {
     const { data: offer, error: insErr } = await admin
@@ -593,7 +603,7 @@ export async function sendInvoiceForManualConfirmation(
         customer_address,
         message: `Manuell angenommenes Angebot ${angebot_nr} → Rechnung`,
         ref_source: "manual-confirmation",
-        subtotal: position_total,
+        subtotal,
         rabatt_rate: 0,
         rabatt: 0,
         mwst_rate: mwstRate,
@@ -608,17 +618,9 @@ export async function sendInvoiceForManualConfirmation(
     }
     offerId = offer.id as string;
 
-    const { error: itemsErr } = await admin.from("offer_request_items").insert({
-      request_id: offerId,
-      pos: 1,
-      artikel: "",
-      name: data.position_name.trim(),
-      beschreibung: data.position_beschreibung?.trim() || `gemäß Angebot ${angebot_nr}`,
-      einheit: "Stk.",
-      menge,
-      einzelpreis,
-      position_total,
-    });
+    const { error: itemsErr } = await admin.from("offer_request_items").insert(
+      items.map((it) => ({ ...it, request_id: offerId })),
+    );
     if (itemsErr) {
       await admin.from("offer_requests").delete().eq("id", offerId);
       throw new AdminSendError(itemsErr.message, 500);

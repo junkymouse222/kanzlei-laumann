@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listManualConfirmations, type ManualConfirmationRow } from "@/lib/admin.functions";
 import { listBankAccounts, type BankAccountRow } from "@/lib/settings.functions";
+import { PRODUKTE } from "@/lib/katalog";
 import { supabase } from "@/integrations/supabase/client";
 import { SITE } from "@/lib/site";
 
@@ -49,17 +50,19 @@ async function postAdminJson<T>(url: string, body: unknown): Promise<T> {
   return payload as T;
 }
 
-/** Brutto aus Bestätigung → Netto bei 19 % MwSt (ohne Lieferkosten). */
-function nettoFromBrutto(brutto: number | null, mwstRate = 19): number {
-  if (brutto == null || !Number.isFinite(brutto)) return 0;
-  return Number((brutto / (1 + mwstRate / 100)).toFixed(2));
-}
+type InvoiceItem = {
+  key: string;
+  artikel: string;
+  name: string;
+  beschreibung: string;
+  einheit: string;
+  menge: string;
+  einzelpreis: string;
+};
 
 type InvoiceForm = {
   customer_email: string;
-  position_name: string;
-  position_beschreibung: string;
-  netto: string;
+  items: InvoiceItem[];
   mwst_rate: string;
   lieferkosten: string;
   faellig_tage: string;
@@ -69,12 +72,25 @@ type InvoiceForm = {
   bank_bic: string;
 };
 
+let itemSeq = 0;
+const nextItemKey = () => `it-${Date.now()}-${++itemSeq}`;
+
+function blankItem(): InvoiceItem {
+  return {
+    key: nextItemKey(),
+    artikel: "",
+    name: "",
+    beschreibung: "",
+    einheit: "Stk.",
+    menge: "1",
+    einzelpreis: "",
+  };
+}
+
 function emptyForm(row: ManualConfirmationRow): InvoiceForm {
   return {
     customer_email: row.customer_email || "",
-    position_name: `gemäß Angebot ${row.beleg_nr}`,
-    position_beschreibung: "",
-    netto: String(nettoFromBrutto(row.total)),
+    items: [blankItem()],
     mwst_rate: "19",
     lieferkosten: "0",
     faellig_tage: "14",
@@ -96,6 +112,7 @@ function ManualConfirmationsPage() {
   const [sendMsg, setSendMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [banks, setBanks] = useState<BankAccountRow[]>([]);
   const [selectedBankId, setSelectedBankId] = useState("");
+  const [katalogPick, setKatalogPick] = useState("");
 
   async function load() {
     setLoading(true);
@@ -133,6 +150,22 @@ function ManualConfirmationsPage() {
   const filtered = filter === "all" ? rows : rows.filter((r) => r.beleg_art === filter);
   const activeRow = sendForId ? rows.find((r) => r.id === sendForId) : null;
 
+  const formTotals = useMemo(() => {
+    if (!form) return { subtotal: 0, mwst: 0, total: 0 };
+    const mwstRate = Number(String(form.mwst_rate).replace(",", ".")) || 19;
+    const liefer = Number(String(form.lieferkosten).replace(",", ".")) || 0;
+    let subtotal = 0;
+    for (const it of form.items) {
+      const preis = Number(String(it.einzelpreis).replace(",", ".")) || 0;
+      const menge = Math.max(1, Math.floor(Number(it.menge) || 1));
+      subtotal += preis * menge;
+    }
+    subtotal = Number(subtotal.toFixed(2));
+    const netto = subtotal + liefer;
+    const mwst = Number((netto * (mwstRate / 100)).toFixed(2));
+    return { subtotal, mwst, total: Number((netto + mwst).toFixed(2)) };
+  }, [form]);
+
   function openSend(row: ManualConfirmationRow) {
     setSendForId(row.id);
     const base = emptyForm(row);
@@ -150,6 +183,7 @@ function ManualConfirmationsPage() {
       setSelectedBankId("");
       setForm(base);
     }
+    setKatalogPick("");
     setSendMsg(null);
   }
 
@@ -163,9 +197,52 @@ function ManualConfirmationsPage() {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  function updateItem(key: string, patch: Partial<InvoiceItem>) {
+    setForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            items: prev.items.map((it) => (it.key === key ? { ...it, ...patch } : it)),
+          }
+        : prev,
+    );
+  }
+
+  function removeItem(key: string) {
+    setForm((prev) =>
+      prev
+        ? { ...prev, items: prev.items.length <= 1 ? prev.items : prev.items.filter((it) => it.key !== key) }
+        : prev,
+    );
+  }
+
+  function addBlankItem() {
+    setForm((prev) => (prev ? { ...prev, items: [...prev.items, blankItem()] } : prev));
+  }
+
+  function addFromKatalog(artikel: string) {
+    const p = PRODUKTE.find((x) => x.artikel === artikel);
+    if (!p || !form) return;
+    setForm({
+      ...form,
+      items: [
+        ...form.items.filter((it) => it.name.trim() || it.einzelpreis.trim()),
+        {
+          key: nextItemKey(),
+          artikel: p.artikel,
+          name: p.name,
+          beschreibung: p.beschreibung,
+          einheit: p.einheit,
+          menge: "1",
+          einzelpreis: String(p.einzelpreis),
+        },
+      ],
+    });
+    setKatalogPick("");
+  }
+
   async function handleSend() {
     if (!form || !sendForId) return;
-    const netto = Number(String(form.netto).replace(",", "."));
     const mwst_rate = Number(String(form.mwst_rate).replace(",", "."));
     const lieferkosten = Number(String(form.lieferkosten).replace(",", ".")) || 0;
     const faellig_tage = Math.floor(Number(form.faellig_tage)) || 14;
@@ -174,12 +251,20 @@ function ManualConfirmationsPage() {
       setSendMsg({ ok: false, text: "Bitte Kunden-E-Mail eintragen." });
       return;
     }
-    if (!form.position_name.trim()) {
-      setSendMsg({ ok: false, text: "Bitte Positionsbezeichnung eintragen." });
-      return;
-    }
-    if (!Number.isFinite(netto) || netto < 0) {
-      setSendMsg({ ok: false, text: "Ungültiger Netto-Betrag." });
+
+    const items = form.items
+      .map((it) => ({
+        artikel: it.artikel.trim(),
+        name: it.name.trim(),
+        beschreibung: it.beschreibung.trim() || null,
+        einheit: it.einheit.trim() || "Stk.",
+        menge: Math.max(1, Math.floor(Number(it.menge) || 1)),
+        einzelpreis: Number(String(it.einzelpreis).replace(",", ".")),
+      }))
+      .filter((it) => it.name && Number.isFinite(it.einzelpreis) && it.einzelpreis >= 0);
+
+    if (items.length === 0) {
+      setSendMsg({ ok: false, text: "Bitte mindestens eine Position mit Name und Preis eintragen." });
       return;
     }
     if (!form.bank_inhaber.trim() || !form.bank_name.trim() || form.bank_iban.trim().length < 4 || form.bank_bic.trim().length < 4) {
@@ -195,9 +280,7 @@ function ManualConfirmationsPage() {
         {
           id: sendForId,
           customer_email: form.customer_email.trim(),
-          position_name: form.position_name.trim(),
-          position_beschreibung: form.position_beschreibung.trim() || null,
-          netto,
+          items,
           mwst_rate: Number.isFinite(mwst_rate) ? mwst_rate : 19,
           lieferkosten,
           faellig_tage,
@@ -231,7 +314,8 @@ function ManualConfirmationsPage() {
             <Link to="/rechnung" className="underline">
               /rechnung
             </Link>
-            ). Für angenommene Angebote können Sie hier die Rechnung per E-Mail versenden.
+            ). Neue Angebote bitte dort mit „Speichern & Annahme-Link setzen“ anlegen — dann
+            Auto-Rechnung mit echten Positionen. Hier: Nachversand für ältere Bestätigungen.
           </p>
         </div>
         <Link
@@ -304,36 +388,103 @@ function ManualConfirmationsPage() {
                 placeholder="kunde@firma.de"
               />
             </label>
-            <label className="block md:col-span-2">
-              <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
-                Position *
-              </span>
-              <input
-                value={form.position_name}
-                onChange={(e) => setField("position_name", e.target.value)}
-                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block md:col-span-2">
-              <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
-                Beschreibung (optional)
-              </span>
-              <input
-                value={form.position_beschreibung}
-                onChange={(e) => setField("position_beschreibung", e.target.value)}
-                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
-                Netto (€) *
-              </span>
-              <input
-                value={form.netto}
-                onChange={(e) => setField("netto", e.target.value)}
-                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
+
+            <div className="md:col-span-2 space-y-3 border border-border bg-background p-4">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <p className="text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
+                  Positionen *
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={katalogPick}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setKatalogPick(v);
+                      if (v) addFromKatalog(v);
+                    }}
+                    className="border border-border bg-background px-2 py-1.5 text-xs"
+                  >
+                    <option value="">+ aus Katalog …</option>
+                    {PRODUKTE.map((p) => (
+                      <option key={p.artikel} value={p.artikel}>
+                        {p.artikel} — {p.name} ({fmtEUR(p.einzelpreis)})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={addBlankItem}
+                    className="border border-border px-3 py-1.5 text-[0.65rem] uppercase tracking-widest hover:border-primary"
+                  >
+                    + Freie Position
+                  </button>
+                </div>
+              </div>
+              {form.items.map((it, idx) => (
+                <div key={it.key} className="space-y-2 border-t border-border pt-3 first:border-0 first:pt-0">
+                  <div className="flex items-center justify-between text-[0.65rem] uppercase tracking-widest text-muted-foreground">
+                    <span>Pos. {idx + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(it.key)}
+                      className="text-destructive"
+                      disabled={form.items.length <= 1}
+                    >
+                      Entfernen
+                    </button>
+                  </div>
+                  <input
+                    value={it.name}
+                    onChange={(e) => updateItem(it.key, { name: e.target.value })}
+                    placeholder="Bezeichnung *"
+                    className="w-full border border-border bg-background px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={it.beschreibung}
+                    onChange={(e) => updateItem(it.key, { beschreibung: e.target.value })}
+                    placeholder="Beschreibung (optional)"
+                    className="w-full border border-border bg-background px-3 py-2 text-sm"
+                  />
+                  <div className="grid gap-2 sm:grid-cols-4">
+                    <input
+                      value={it.artikel}
+                      onChange={(e) => updateItem(it.key, { artikel: e.target.value })}
+                      placeholder="Art.-Nr."
+                      className="border border-border bg-background px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={it.einzelpreis}
+                      onChange={(e) => updateItem(it.key, { einzelpreis: e.target.value })}
+                      placeholder="Netto € *"
+                      inputMode="decimal"
+                      className="border border-border bg-background px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={it.menge}
+                      onChange={(e) => updateItem(it.key, { menge: e.target.value })}
+                      placeholder="Menge"
+                      type="number"
+                      min={1}
+                      className="border border-border bg-background px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={it.einheit}
+                      onChange={(e) => updateItem(it.key, { einheit: e.target.value })}
+                      placeholder="Einheit"
+                      className="border border-border bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                Zwischensumme netto {fmtEUR(formTotals.subtotal)} · MwSt {fmtEUR(formTotals.mwst)} ·
+                Brutto ca. {fmtEUR(formTotals.total)}
+                {activeRow.total != null && (
+                  <> (Bestätigung: {fmtEUR(activeRow.total)})</>
+                )}
+              </p>
+            </div>
+
             <label className="block">
               <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
                 MwSt (%)
