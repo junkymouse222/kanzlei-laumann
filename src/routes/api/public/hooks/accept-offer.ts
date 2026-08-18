@@ -93,8 +93,7 @@ function render(
       <span>Ich habe das Angebot gelesen und nehme es <strong>rechtsverbindlich</strong> an.</span>
     </label>
     <button type="submit" class="btn">Angebot verbindlich annehmen</button>
-  </form>
-  <p style="margin-top:16px;font-size:12px;color:#8a8578;">Hinweis: Bitte kurz warten und bewusst bestätigen — automatische Link-Prüfungen lösen keine Annahme aus.</p>`;
+  </form>`;
   } else {
     let message: string;
     if (kind === "invalid") {
