@@ -63,10 +63,11 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
     const lieferkosten = subtotal >= SITE.versandFreiAbNetto ? 0 : SITE.versandPauschale;
     const mwstRate = DEFAULT_MWST_RATE;
     // Standard-Neukundenrabatt aus Admin-Einstellungen (0 = keiner).
-    const { loadDefaultNeukundenRabatt, loadAutoSendOffersEnabled } = await import(
+    const { loadDefaultNeukundenRabatt, loadAutoSendOffersEnabled, loadActiveVerwalter } = await import(
       "@/lib/settings.functions"
     );
     const rabattRate = await loadDefaultNeukundenRabatt();
+    const verwalter = await loadActiveVerwalter();
     const { rabatt, mwst, total } = computeOfferTotals({ subtotal, rabattRate, lieferkosten, mwstRate });
 
     const autoSend = await loadAutoSendOffersEnabled();
@@ -103,6 +104,8 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
         mwst,
         total,
         lieferkosten,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       } as never)
       .select("id")
       .single();

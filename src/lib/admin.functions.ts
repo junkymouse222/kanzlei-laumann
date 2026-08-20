@@ -742,6 +742,16 @@ export const previewOfferPdf = createServerFn({ method: "POST" })
       .select("*")
       .eq("request_id", data.id)
       .order("pos", { ascending: true });
+
+    // Briefkopf wie beim Versand: aktiven Verwalter vor dem PDF in die DB schreiben,
+    // sonst fällt /beleg-print auf SITE.verwalter (Erik) zurück.
+    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const verwalter = await loadActiveVerwalter();
+    await admin
+      .from("offer_requests")
+      .update({ verwalter_name: verwalter.name, verwalter_role: verwalter.role })
+      .eq("id", data.id);
+
     const acceptUrl = offerAcceptUrl(offer.accept_token as string | null);
     const subtotal = Number(
       ((items ?? []) as Array<{ position_total?: number | string }>)
@@ -761,6 +771,8 @@ export const previewOfferPdf = createServerFn({ method: "POST" })
       mwst: totals.mwst,
       lieferkosten: liefer,
       total: totals.total,
+      verwalter_name: verwalter.name,
+      verwalter_role: verwalter.role,
     };
     await ensureOfferShortLinks(offerForRender as never, { accept: true });
     const bytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
@@ -806,8 +818,10 @@ export const previewInvoicePdf = createServerFn({ method: "POST" })
       pay_url: invoicePayUrl(offer.pay_token as string | null),
       paid: !!offer.paid_at,
     };
-    // Auch die Vorschau muss die eingegebenen Bankdaten zuerst speichern,
-    // sonst lädt /beleg-print noch den alten/leeren Datensatz.
+    // Auch die Vorschau muss Bankdaten + aktiven Verwalter zuerst speichern,
+    // sonst lädt /beleg-print noch den alten/leeren Datensatz (Fallback Erik).
+    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const verwalter = await loadActiveVerwalter();
     const { error: saveInvoiceErr } = await admin
       .from("offer_requests")
       .update({
@@ -817,6 +831,8 @@ export const previewInvoicePdf = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       })
       .eq("id", data.id);
     if (saveInvoiceErr) throw new Error(`Bankdaten konnten nicht gespeichert werden: ${saveInvoiceErr.message}`);
@@ -833,6 +849,8 @@ export const previewInvoicePdf = createServerFn({ method: "POST" })
         bank_name: invoice.bank_name,
         bank_iban: invoice.bank_iban,
         bank_bic: invoice.bank_bic,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
       } as never,
       (items ?? []) as never,
       invoice,
