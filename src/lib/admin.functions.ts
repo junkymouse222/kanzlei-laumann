@@ -158,9 +158,9 @@ const UpdateCustomerSchema = z.object({
   customer_phone: z.string().trim().max(50).nullable().optional(),
   customer_address: z.string().trim().min(5).max(500),
   customer_ust_id: z.string().trim().max(50).nullable().optional(),
-  /** Leer/null = gleich Rechnungsempfänger */
+  /** Leer/null = gleich Rechnungsempfänger. Explizit mitsenden, sonst unverändert. */
   delivery_name: z.string().trim().max(200).nullable().optional(),
-  delivery_address: z.string().trim().max(500).nullable().optional(),
+  delivery_address: z.string().trim().max(1000).nullable().optional(),
   /** Optional: geplanten Versand verschieben (ISO-String). */
   scheduled_send_at: z.string().datetime().optional(),
 });
@@ -180,9 +180,14 @@ export const updateOfferCustomer = createServerFn({ method: "POST" })
       customer_phone: data.customer_phone?.trim() || null,
       customer_address: data.customer_address.trim(),
       customer_ust_id: data.customer_ust_id?.trim() || null,
-      delivery_name: data.delivery_name?.trim() || null,
-      delivery_address: data.delivery_address?.trim() || null,
     };
+    // Nur setzen wenn mitgeschickt — sonst bestehende Lieferanschrift nicht löschen.
+    if (data.delivery_name !== undefined) {
+      patch.delivery_name = data.delivery_name?.trim() || null;
+    }
+    if (data.delivery_address !== undefined) {
+      patch.delivery_address = data.delivery_address?.trim() || null;
+    }
     if (data.scheduled_send_at) {
       patch.scheduled_send_at = data.scheduled_send_at;
     }
