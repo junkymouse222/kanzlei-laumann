@@ -125,6 +125,8 @@ function AdminDetailPage() {
   const [custPhone, setCustPhone] = useState("");
   const [custAddress, setCustAddress] = useState("");
   const [custUstId, setCustUstId] = useState("");
+  const [lieferName, setLieferName] = useState("");
+  const [lieferAnschrift, setLieferAnschrift] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerSaveResult, setCustomerSaveResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [editItems, setEditItems] = useState<EditItem[]>([]);
@@ -146,6 +148,8 @@ function AdminDetailPage() {
       setCustPhone(res.offer.customer_phone ?? "");
       setCustAddress(res.offer.customer_address ?? "");
       setCustUstId(res.offer.customer_ust_id ?? "");
+      setLieferName(res.offer.delivery_name ?? "");
+      setLieferAnschrift(res.offer.delivery_address ?? "");
       setEditItems(
         res.items.map((it) => ({
           id: it.id,
@@ -210,6 +214,8 @@ function AdminDetailPage() {
           customer_phone: custPhone.trim() || null,
           customer_address: custAddress.trim(),
           customer_ust_id: custUstId.trim() || null,
+          delivery_name: lieferName.trim() || null,
+          delivery_address: lieferAnschrift.trim() || null,
           ...(opts?.delaySendMinutes && opts.delaySendMinutes > 0
             ? { scheduled_send_at: new Date(Date.now() + opts.delaySendMinutes * 60_000).toISOString() }
             : {}),
@@ -219,7 +225,7 @@ function AdminDetailPage() {
         ok: true,
         msg: opts?.delaySendMinutes
           ? `Gespeichert. Automatischer Versand um ${opts.delaySendMinutes} Min. verschoben.`
-          : "Kundendaten gespeichert.",
+          : "Kundendaten und Lieferanschrift gespeichert.",
       });
       await load();
     } catch (e) {
@@ -809,8 +815,14 @@ function AdminDetailPage() {
             )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Adresse und Kontaktdaten hier korrigieren — gespeicherte Werte erscheinen im Angebot/PDF.
+            Rechnungs- und Lieferanschrift hier korrigieren — gespeicherte Werte erscheinen im Angebot/PDF und bei der Spedition.
           </p>
+          {offer.message && (
+            <div className="mt-3 border-l-4 border-gold bg-parchment p-3 text-xs">
+              <div className="uppercase tracking-widest text-muted-foreground">Notiz des Kunden</div>
+              <p className="mt-1 whitespace-pre-line text-sm">{offer.message}</p>
+            </div>
+          )}
           <div className="mt-4 space-y-3 text-sm">
             <label className="block">
               <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Firma</span>
@@ -831,7 +843,7 @@ function AdminDetailPage() {
               />
             </label>
             <label className="block">
-              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Adresse* (Straße, PLZ, Ort)</span>
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Rechnungsadresse* (Straße, PLZ, Ort)</span>
               <textarea
                 value={custAddress}
                 onChange={(e) => setCustAddress(e.target.value)}
@@ -839,6 +851,25 @@ function AdminDetailPage() {
                 required
                 className="mt-1 w-full border border-border bg-background px-3 py-2"
                 placeholder={"Musterstraße 1\n40217 Düsseldorf"}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Liefername (optional)</span>
+              <input
+                value={lieferName}
+                onChange={(e) => setLieferName(e.target.value)}
+                className="mt-1 w-full border border-border bg-background px-3 py-2"
+                placeholder="leer = wie Rechnungsempfänger"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Lieferanschrift (optional)</span>
+              <textarea
+                value={lieferAnschrift}
+                onChange={(e) => setLieferAnschrift(e.target.value)}
+                rows={3}
+                className="mt-1 w-full border border-border bg-background px-3 py-2"
+                placeholder={"leer = wie Rechnungsadresse\nStraße, PLZ Ort"}
               />
             </label>
             <label className="block">
