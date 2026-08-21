@@ -296,23 +296,33 @@ export function BelegView(props: BelegViewProps) {
         </table>
       </div>
 
-      {/* CTA: auf Bildschirm/HTML sichtbar; in Rechnungs-PDF (print) ausgeblendet */}
-      <div className={`mt-10 flex justify-center${belegArt === "Rechnung" ? " no-print" : ""}`}>
-        {bereitsBestaetigt ? (
+      {/* Angebot-Annahme nur in der E-Mail-HTML; im PDF/Beleg kein CTA.
+          Rechnung: Zahlung bestätigen nur am Bildschirm (no-print). */}
+      {belegArt === "Angebot" && bereitsBestaetigt ? (
+        <div className="mt-10 flex justify-center">
           <div className="inline-block whitespace-nowrap border border-gold bg-parchment px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary">
-            {belegArt === "Angebot" ? "Angebot bereits angenommen" : "Zahlung bereits bestätigt"}
+            Angebot bereits angenommen
           </div>
-        ) : (
-          <a
-            href={bestaetigungsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="accept-btn inline-block whitespace-nowrap bg-primary px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary-foreground no-underline hover:bg-primary/90"
-          >
-            {belegArt === "Angebot" ? "Angebot annehmen" : "Zahlung bestätigen"}
-          </a>
-        )}
-      </div>
+        </div>
+      ) : null}
+      {belegArt === "Rechnung" ? (
+        <div className="mt-10 flex justify-center no-print">
+          {bereitsBestaetigt ? (
+            <div className="inline-block whitespace-nowrap border border-gold bg-parchment px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary">
+              Zahlung bereits bestätigt
+            </div>
+          ) : (
+            <a
+              href={bestaetigungsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="accept-btn inline-block whitespace-nowrap bg-primary px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary-foreground no-underline hover:bg-primary/90"
+            >
+              Zahlung bestätigen
+            </a>
+          )}
+        </div>
+      ) : null}
 
       {belegArt === "Rechnung" && (
         <div className="beleg-pay mt-8 grid gap-6 border-t border-border pt-6 text-xs sm:grid-cols-2">
