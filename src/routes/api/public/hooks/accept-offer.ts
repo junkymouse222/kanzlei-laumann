@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
 
-// Öffentlicher Endpunkt: Kunde klickt in Angebots-Mail/PDF auf "Angebot annehmen".
+// Öffentlicher Endpunkt: Kunde klickt in der Angebots-Mail auf "Angebot annehmen".
 // Erwartet ?token=<accept_token>.
 //
 // Scanner-Schutz:
