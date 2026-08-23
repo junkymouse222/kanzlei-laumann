@@ -69,11 +69,19 @@ async function loadOffer(token: string) {
   const admin = supabaseAdmin as any;
   const { data, error } = await admin
     .from("offer_requests")
-    .select("id, rechnung_nr, paid_at")
+    .select("id, rechnung_nr, paid_at, angebot_nr, customer_name, customer_company, site_key")
     .eq("pay_token", token)
     .maybeSingle();
   if (error) return null;
-  return data as { id: string; rechnung_nr: string | null; paid_at: string | null } | null;
+  return data as {
+    id: string;
+    rechnung_nr: string | null;
+    paid_at: string | null;
+    angebot_nr: string | null;
+    customer_name: string | null;
+    customer_company: string | null;
+    site_key: string | null;
+  } | null;
 }
 
 async function handleGet(request: Request): Promise<Response> {
@@ -110,6 +118,21 @@ async function handlePost(request: Request): Promise<Response> {
       status: 500,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
+  }
+
+  try {
+    const { createAdminNotification } = await import("@/lib/admin-notifications.server");
+    const who = offer.customer_company || offer.customer_name || "Kunde";
+    const ref = offer.rechnung_nr || offer.angebot_nr || "";
+    await createAdminNotification({
+      eventType: "invoice_paid",
+      title: `Zahlung bestätigt · ${ref}`,
+      body: `${who} hat die Zahlung zu ${ref} bestätigt.`,
+      offerRequestId: offer.id,
+      siteKey: offer.site_key ?? undefined,
+    });
+  } catch (e) {
+    console.error("[mark-paid] admin notification failed", e);
   }
 
   return render("ok", { rechnungNr: offer.rechnung_nr ?? undefined });

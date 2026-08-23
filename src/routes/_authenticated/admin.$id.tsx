@@ -387,21 +387,22 @@ function AdminDetailPage() {
     setInvoiceReminding(true);
     setInvoiceReminderResult(null);
     try {
-      const res = await postAdminJson<{ ok: true; messageId?: string; rechnung_nr?: string }>(
+      const res = await postAdminJson<{ ok: true; messageId?: string; rechnung_nr?: string; mahnung?: boolean }>(
         "/api/public/admin/send-invoice-reminder",
         { id },
       );
       await load();
+      const kind = res.mahnung ? "Mahnung" : "Zahlungserinnerung";
       setInvoiceReminderResult({
         ok: true,
-        msg: `Zahlungserinnerung${res.rechnung_nr ? ` zu ${res.rechnung_nr}` : ""} versendet${
+        msg: `${kind}${res.rechnung_nr ? ` zu ${res.rechnung_nr}` : ""} versendet${
           res.messageId ? ` (ID: ${res.messageId})` : ""
         }.`,
       });
     } catch (e) {
       setInvoiceReminderResult({
         ok: false,
-        msg: e instanceof Error ? e.message : "Fehler beim Versand der Zahlungserinnerung.",
+        msg: e instanceof Error ? e.message : "Fehler beim Versand der Mahnung / Zahlungserinnerung.",
       });
     } finally {
       setInvoiceReminding(false);
@@ -543,13 +544,23 @@ function AdminDetailPage() {
               <button
                 onClick={() => setInvoiceReminderConfirmOpen(true)}
                 disabled={invoiceReminding}
-                className="border border-border px-6 py-3 text-xs uppercase tracking-[0.2em] text-primary hover:border-primary disabled:opacity-60"
+                className={`border px-6 py-3 text-xs uppercase tracking-[0.2em] disabled:opacity-60 ${
+                  offer.rechnung_faellig_am &&
+                  new Date(offer.rechnung_faellig_am + "T23:59:59").getTime() < Date.now()
+                    ? "border-red-700 bg-red-50 text-red-900 hover:bg-red-700 hover:text-white"
+                    : "border-border text-primary hover:border-primary"
+                }`}
               >
                 {invoiceReminding
                   ? "Wird gesendet …"
-                  : offer.invoice_reminder_sent_at
-                    ? "Zahlungserinnerung erneut"
-                    : "Zahlungserinnerung"}
+                  : offer.rechnung_faellig_am &&
+                      new Date(offer.rechnung_faellig_am + "T23:59:59").getTime() < Date.now()
+                    ? offer.invoice_reminder_sent_at
+                      ? "Mahnung erneut"
+                      : "Mahnung senden"
+                    : offer.invoice_reminder_sent_at
+                      ? "Zahlungserinnerung erneut"
+                      : "Zahlungserinnerung"}
               </button>
             )}
         </div>
@@ -603,33 +614,50 @@ function AdminDetailPage() {
 
       {invoiceReminderConfirmOpen && (
         <div className="mt-6 border border-border bg-background p-5 text-sm">
-          <p className="mb-2 font-medium text-primary">
-            Zahlungserinnerung an {offer.customer_email} senden?
-          </p>
-          <p className="mb-4 text-muted-foreground">
-            Kurze Mail zur offenen Rechnung{offer.rechnung_nr ? ` ${offer.rechnung_nr}` : ""}
-            {offer.rechnung_faellig_am
-              ? ` (fällig am ${new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")})`
-              : ""}{" "}
-            — inkl. Zahlungs-Link und PDF-Anhang.
-            {offer.invoice_reminder_sent_at
-              ? ` Zuletzt erinnert: ${fmtDate(offer.invoice_reminder_sent_at)}.`
-              : ""}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleInvoiceReminderConfirmed}
-              className="bg-primary px-4 py-2 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/90"
-            >
-              Zahlungserinnerung jetzt senden
-            </button>
-            <button
-              onClick={() => setInvoiceReminderConfirmOpen(false)}
-              className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
-            >
-              Abbrechen
-            </button>
-          </div>
+          {(() => {
+            const overdue =
+              !!offer.rechnung_faellig_am &&
+              new Date(offer.rechnung_faellig_am + "T23:59:59").getTime() < Date.now();
+            const kind = overdue ? "Mahnung" : "Zahlungserinnerung";
+            return (
+              <>
+                <p className="mb-2 font-medium text-primary">
+                  {kind} an {offer.customer_email} senden?
+                </p>
+                <p className="mb-4 text-muted-foreground">
+                  {overdue
+                    ? "Die Fälligkeit ist überschritten — es wird eine Mahnung mit Rechnungs-PDF und Zahlungs-Link versendet."
+                    : "Kurze Mail zur offenen Rechnung"}
+                  {!overdue && offer.rechnung_nr ? ` ${offer.rechnung_nr}` : ""}
+                  {offer.rechnung_faellig_am
+                    ? ` (fällig am ${new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")})`
+                    : ""}
+                  {!overdue ? " — inkl. Zahlungs-Link und PDF-Anhang." : ""}
+                  {offer.invoice_reminder_sent_at
+                    ? ` Zuletzt erinnert: ${fmtDate(offer.invoice_reminder_sent_at)}.`
+                    : ""}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleInvoiceReminderConfirmed}
+                    className={`px-4 py-2 text-xs uppercase tracking-widest ${
+                      overdue
+                        ? "bg-red-700 text-white hover:bg-red-800"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    }`}
+                  >
+                    {kind} jetzt senden
+                  </button>
+                  <button
+                    onClick={() => setInvoiceReminderConfirmOpen(false)}
+                    className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 

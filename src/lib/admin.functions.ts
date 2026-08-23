@@ -33,6 +33,9 @@ export type OfferListRow = {
   accept_link_opened_at: string | null;
   accept_link_open_count: number | null;
   rechnung_status: string | null;
+  rechnung_faellig_am: string | null;
+  paid_at: string | null;
+  invoice_reminder_sent_at: string | null;
 };
 
 export type OfferDetail = {
@@ -112,7 +115,7 @@ export const listOfferRequests = createServerFn({ method: "GET" })
     const { SITE } = await import("@/lib/site");
     const { data, error } = await client
       .from("offer_requests")
-      .select("id, created_at, scheduled_send_at, sent_at, status, angebot_nr, customer_company, customer_name, customer_email, subtotal, total, error_message, accepted_at, accept_link_opened_at, accept_link_open_count, rechnung_status")
+      .select("id, created_at, scheduled_send_at, sent_at, status, angebot_nr, customer_company, customer_name, customer_email, subtotal, total, error_message, accepted_at, accept_link_opened_at, accept_link_open_count, rechnung_status, rechnung_faellig_am, paid_at, invoice_reminder_sent_at")
       .eq("site_key", SITE.siteKey)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -975,4 +978,66 @@ export const listPageViews = createServerFn({ method: "GET" })
       topReferrers: toTop(referrers, "referrer"),
       recent: rows.slice(0, 200),
     };
+  });
+
+export type AdminNotificationListItem = {
+  id: string;
+  offer_request_id: string | null;
+  event_type: string;
+  title: string;
+  body: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
+export const listAdminNotifications = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ rows: AdminNotificationListItem[]; unread: number }> => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const client = context.supabase as any;
+    const { SITE } = await import("@/lib/site");
+    const { data, error } = await client
+      .from("admin_notifications")
+      .select("id, offer_request_id, event_type, title, body, created_at, read_at")
+      .eq("site_key", SITE.siteKey)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as AdminNotificationListItem[];
+    const unread = rows.filter((r) => !r.read_at).length;
+    return { rows, unread };
+  });
+
+export const markAdminNotificationRead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        all: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<{ ok: true }> => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const client = context.supabase as any;
+    const { SITE } = await import("@/lib/site");
+    const now = new Date().toISOString();
+    if (data.all) {
+      const { error } = await client
+        .from("admin_notifications")
+        .update({ read_at: now })
+        .eq("site_key", SITE.siteKey)
+        .is("read_at", null);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+    if (!data.id) throw new Error("id oder all erforderlich.");
+    const { error } = await client
+      .from("admin_notifications")
+      .update({ read_at: now })
+      .eq("id", data.id)
+      .eq("site_key", SITE.siteKey);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });

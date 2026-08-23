@@ -131,6 +131,19 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
     // Sofort-Bestätigung an den Kunden (kein PDF) — Fehler hier sollen die
     // Anfrage nicht scheitern lassen; der Datensatz ist bereits gespeichert.
     try {
+      const { createAdminNotification } = await import("@/lib/admin-notifications.server");
+      const who = data.customer_company || data.customer_name || "Kunde";
+      await createAdminNotification({
+        eventType: "offer_requested",
+        title: `Neue Anfrage · ${angebotNr}`,
+        body: `${who} hat eine Angebotsanfrage gestellt.`,
+        offerRequestId: requestId,
+      });
+    } catch (e) {
+      console.error("[offer] admin notification error", e);
+    }
+
+    try {
       const { renderOfferRequestConfirmationHtml, sendOfferEmail } = await import(
         "@/lib/offer-email.server"
       );
@@ -145,7 +158,7 @@ export const submitOfferRequest = createServerFn({ method: "POST" })
       });
       const send = await sendOfferEmail({
         to: data.customer_email,
-        subject: `Ihre Anfrage ${angebotNr} ist eingegangen — Kanzlei Laumann`,
+        subject: `Ihre Anfrage ${angebotNr} ist eingegangen — ${SITE.brand}`,
         html,
       });
       if (!send.ok) {
