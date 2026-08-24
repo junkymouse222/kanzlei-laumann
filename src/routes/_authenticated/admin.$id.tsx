@@ -10,7 +10,7 @@ import {
   type OfferDetail,
 } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { computeOfferTotals } from "@/lib/offer-totals";
+import { computeOfferTotals, DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, normalizePercentRate } from "@/lib/offer-totals";
 import { listBankAccounts } from "@/lib/settings.functions";
 import { PRODUKTE } from "@/lib/katalog";
 
@@ -139,8 +139,8 @@ function AdminDetailPage() {
     try {
       const res = await getOfferRequest({ data: { id } });
       setDetail(res);
-      setOfferRabatt(Number(res.offer.rabatt_rate ?? 5));
-      setOfferMwst(Number(res.offer.mwst_rate ?? 19));
+      setOfferRabatt(normalizePercentRate(res.offer.rabatt_rate, DEFAULT_NEUKUNDEN_RABATT));
+      setOfferMwst(normalizePercentRate(res.offer.mwst_rate, DEFAULT_MWST_RATE));
       setOfferLieferkosten(Number(res.offer.lieferkosten ?? 0));
       setCustCompany(res.offer.customer_company ?? "");
       setCustName(res.offer.customer_name ?? "");

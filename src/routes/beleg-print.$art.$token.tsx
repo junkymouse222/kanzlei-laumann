@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { BelegView, belegPrintStyles, type BelegViewPosition } from "@/components/BelegView";
 import { loadBelegByToken } from "@/lib/beleg-print.functions";
+import { DEFAULT_MWST_RATE, normalizePercentRate } from "@/lib/offer-totals";
 
 export const Route = createFileRoute("/beleg-print/$art/$token")({
   head: () => ({
@@ -92,8 +93,8 @@ function BelegPrintPage() {
           lieferName={offer.delivery_name?.trim() || undefined}
           lieferAnschrift={offer.delivery_address?.trim() || undefined}
           positionen={positionen}
-          rabattProzent={Number(offer.rabatt_rate ?? 0)}
-          mwstSatz={Number(offer.mwst_rate ?? 19)}
+          rabattProzent={normalizePercentRate(offer.rabatt_rate, 0)}
+          mwstSatz={normalizePercentRate(offer.mwst_rate, DEFAULT_MWST_RATE)}
           lieferkosten={Number(offer.lieferkosten ?? 0)}
           bankInhaber={offer.bank_inhaber ?? ""}
           bankName={offer.bank_name ?? ""}

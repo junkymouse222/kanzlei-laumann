@@ -13,7 +13,7 @@ import {
 } from "@/lib/offer-email.server";
 import { ensureOfferShortLinks } from "@/lib/tly.server";
 import { renderInvoicePdf, renderOfferPdf, toBase64 } from "@/lib/pdf.server";
-import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals } from "@/lib/offer-totals";
+import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals, normalizePercentRate } from "@/lib/offer-totals";
 import { SITE } from "@/lib/site";
 
 type AdminSendResult = { ok: true; messageId?: string; rechnung_nr?: string; mahnung?: boolean };
@@ -153,8 +153,11 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
       }, 0)
       .toFixed(2),
   );
-  const rabattRate = rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
-  const mwstRate = mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
+  const rabattRate = normalizePercentRate(
+    rabatt_rate ?? offer.rabatt_rate,
+    DEFAULT_NEUKUNDEN_RABATT,
+  );
+  const mwstRate = normalizePercentRate(mwst_rate ?? offer.mwst_rate, DEFAULT_MWST_RATE);
   const liefer = lieferkosten ?? Number(offer.lieferkosten ?? 0);
   const totals = computeOfferTotals({ subtotal, rabattRate, lieferkosten: liefer, mwstRate });
   const { loadActiveVerwalter } = await import("@/lib/settings.functions");

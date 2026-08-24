@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { PRODUKTE, KATEGORIEN, type Produkt } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
+import { DEFAULT_MWST_RATE } from "@/lib/offer-totals";
 import { submitOfferRequest } from "@/lib/offer.functions";
 import { getPublicVerwalter, type ActiveVerwalter } from "@/lib/settings.functions";
 import {
@@ -101,7 +102,7 @@ function AngebotAnfordernPage() {
   );
   const lieferkosten = subtotal >= SITE.versandFreiAbNetto ? 0 : SITE.versandPauschale;
   const netto = subtotal + lieferkosten;
-  const mwst = netto * 0.19;
+  const mwst = netto * (DEFAULT_MWST_RATE / 100);
   const total = netto + mwst;
 
   const looksLikeBizEmail = useMemo(() => {
