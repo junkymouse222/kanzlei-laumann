@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Anmeldung — Kanzlei Laumann" },
+      { title: `Anmeldung — ${SITE.brand}` },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -41,7 +42,10 @@ function AuthPage() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin + "/auth" },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth`,
+          data: { site_key: SITE.siteKey, site_brand: SITE.brand },
+        },
       });
       setLoading(false);
       if (error) {
@@ -51,7 +55,7 @@ function AuthPage() {
       if (data.session) {
         navigate({ to: next || "/admin" });
       } else {
-        setInfo("Registrierung erfolgreich. Bitte prüfen Sie Ihre E-Mails zur Bestätigung.");
+        setInfo(`Registrierung bei ${SITE.brand} erfolgreich. Sie können sich jetzt anmelden.`);
       }
       return;
     }

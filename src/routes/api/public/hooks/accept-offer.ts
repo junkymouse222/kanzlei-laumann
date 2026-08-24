@@ -132,7 +132,7 @@ function render(
   .foot{margin-top:24px;font-size:11px;color:#8a8578;}
   .brand{font-family:Georgia,serif;font-size:24px;font-weight:600;color:#0f2740;margin-bottom:8px;}
 </style></head><body><div class="wrap"><div class="card">
-  <div class="brand">Kanzlei Laumann</div>
+  <div class="brand">${escapeHtml(SITE.brand)}</div>
   <div class="rule"></div>
   <h1>${title}</h1>
   ${inner}
@@ -274,7 +274,7 @@ async function sendFallbackAcceptedMail(offer: {
     });
     const send = await sendOfferEmail({
       to: offer.customer_email,
-      subject: `Angebot ${offer.angebot_nr} angenommen — Kanzlei Laumann`,
+      subject: `Angebot ${offer.angebot_nr} angenommen — ${SITE.brand}`,
       html,
     });
     if (!send.ok) {

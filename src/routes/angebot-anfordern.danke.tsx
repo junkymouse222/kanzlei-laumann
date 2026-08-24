@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/angebot-anfordern/danke")({
   head: () => ({
     meta: [
-      { title: "Anfrage eingegangen — Kanzlei Laumann" },
+      { title: `Anfrage eingegangen — ${SITE.brand}` },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

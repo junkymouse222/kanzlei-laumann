@@ -465,7 +465,7 @@ export const resendOfferNow = createServerFn({ method: "POST" })
 
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
+      subject: `Ihr Angebot ${offer.angebot_nr as string} — ${SITE.brand}`,
       html,
       attachments: [
         { filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) },
@@ -651,7 +651,7 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
 
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihre Rechnung ${rechnung_nr} — Kanzlei Laumann`,
+      subject: `Ihre Rechnung ${rechnung_nr} — ${SITE.brand}`,
       html,
       attachments: [{ filename: `Rechnung-${rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
     });

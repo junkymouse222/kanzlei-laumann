@@ -31,7 +31,7 @@ const fmtEUR = (n: number) =>
 export const Route = createFileRoute("/angebot-anfordern/")({
   head: () => ({
     meta: [
-      { title: "Angebot anfordern — Kanzlei Laumann" },
+      { title: `Angebot anfordern — ${SITE.brand}` },
       { name: "description", content: "Fordern Sie ein individuelles Angebot aus dem aktuellen Verwertungskatalog an. Wir melden uns per E-Mail innerhalb weniger Stunden." },
       { name: "robots", content: "noindex, nofollow" },
     ],
