@@ -6,6 +6,14 @@ import { SITE, SITE_FOOTER_LINE } from "@/lib/site";
 // offer_requests-Eintrag gibt, wird die Bestätigung in manual_confirmations
 // protokolliert.
 
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function page(
   art: "Angebot" | "Rechnung",
   belegNr: string | null,
