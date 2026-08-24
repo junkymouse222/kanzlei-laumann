@@ -182,8 +182,7 @@ function Footer() {
           </div>
           <span className="rule-gold mt-4" />
           <p className="mt-6 max-w-sm text-sm leading-relaxed text-primary-foreground/70">
-            Erik Laumann · Rechtsanwalt und Insolvenzverwalter. Verwertung und
-            freihändiger Verkauf aus der Insolvenzmasse.
+            {SITE.legalName}. Verwertung und freihändiger Verkauf aus der Insolvenzmasse.
           </p>
         </div>
           <div>
