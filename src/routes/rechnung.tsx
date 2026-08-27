@@ -4,6 +4,7 @@ import { PRODUKTE, KATEGORIEN, type Produkt } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
 import { BelegView, belegPrintStyles, type BelegViewPosition } from "@/components/BelegView";
 import { saveManualAngebotBeleg } from "@/lib/manual-beleg.functions";
+import { DEFAULT_INVOICE_DUE_DAYS, DEFAULT_OFFER_VALIDITY_DAYS } from "@/lib/settings.functions";
 
 const printStyles = belegPrintStyles;
 
@@ -54,7 +55,7 @@ function RechnungPage() {
   const [bankInhaber, setBankInhaber] = useState<string>(SITE.brand);
   const [gueltigBis, setGueltigBis] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 21);
+    d.setDate(d.getDate() + DEFAULT_OFFER_VALIDITY_DAYS);
     return d.toISOString().slice(0, 10);
   });
   const [kundeName, setKundeName] = useState("");
@@ -274,7 +275,16 @@ function RechnungPage() {
             <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">Belegart</span>
             <select
               value={belegArt}
-              onChange={(e) => setBelegArt(e.target.value as BelegArt)}
+              onChange={(e) => {
+                const next = e.target.value as BelegArt;
+                setBelegArt(next);
+                const d = new Date();
+                d.setDate(
+                  d.getDate() +
+                    (next === "Rechnung" ? DEFAULT_INVOICE_DUE_DAYS : DEFAULT_OFFER_VALIDITY_DAYS),
+                );
+                setGueltigBis(d.toISOString().slice(0, 10));
+              }}
               className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
             >
               <option value="Angebot">Angebot</option>

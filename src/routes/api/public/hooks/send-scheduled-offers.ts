@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
         const { renderOfferHtml, sendOfferEmail } = await import("@/lib/offer-email.server");
         const { renderOfferPdf, toBase64 } = await import("@/lib/pdf.server");
         const { ensureOfferShortLinks } = await import("@/lib/tly.server");
-        const { loadActiveVerwalter, loadAutoSendOffersEnabled } = await import("@/lib/settings.functions");
+        const { loadActiveVerwalter, loadAutoSendOffersEnabled, loadOfferValidityDays } = await import("@/lib/settings.functions");
 
         const autoSend = await loadAutoSendOffersEnabled();
         if (!autoSend) {
@@ -38,6 +38,7 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
 
         const nowIso = new Date().toISOString();
         const verwalter = await loadActiveVerwalter();
+        const offerValidityDays = await loadOfferValidityDays();
 
         const { data: due, error } = await supabaseAdmin
           .from("offer_requests" as never)
@@ -83,7 +84,9 @@ export const Route = createFileRoute("/api/public/hooks/send-scheduled-offers")(
             if (!(row.accept_short_url as string | null | undefined)) {
               throw new Error("t.ly-Kurzlink für den Annahme-Button konnte nicht erzeugt werden.");
             }
-            const html = renderOfferHtml(row as never, (items ?? []) as never);
+            const html = renderOfferHtml(row as never, (items ?? []) as never, {
+              validityDays: offerValidityDays,
+            });
             const pdfBytes = await renderOfferPdf(row as never, (items ?? []) as never);
             const send = await sendOfferEmail({
               to: row.customer_email as string,

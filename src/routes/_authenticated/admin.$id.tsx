@@ -11,7 +11,7 @@ import {
 } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { computeOfferTotals } from "@/lib/offer-totals";
-import { listBankAccounts } from "@/lib/settings.functions";
+import { listBankAccounts, getAdminSettings, DEFAULT_INVOICE_DUE_DAYS } from "@/lib/settings.functions";
 import { PRODUKTE } from "@/lib/katalog";
 
 type EditItem = {
@@ -99,7 +99,7 @@ function AdminDetailPage() {
   const [invoicing, setInvoicing] = useState(false);
   const [invoiceConfirmOpen, setInvoiceConfirmOpen] = useState(false);
   const [previewing, setPreviewing] = useState<"offer" | "invoice" | null>(null);
-  const [faelligTage, setFaelligTage] = useState(14);
+  const [faelligTage, setFaelligTage] = useState(DEFAULT_INVOICE_DUE_DAYS);
   // Bankdaten bewusst leer — der Sachbearbeiter muss das aktuelle
   // Anderkonto je Mandat eintragen. Keine Vorbelegung, kein env-Fallback.
   const [bankInhaber, setBankInhaber] = useState("");
@@ -255,6 +255,9 @@ function AdminDetailPage() {
       .catch(() => {
         /* optional */
       });
+    getAdminSettings()
+      .then((s) => setFaelligTage(s.invoiceDueDays))
+      .catch(() => undefined);
   }, [id]);
 
   function applyBankAccount(bankId: string) {
@@ -731,7 +734,7 @@ function AdminDetailPage() {
                 min={1}
                 max={120}
                 value={faelligTage}
-                onChange={(e) => setFaelligTage(Number(e.target.value) || 14)}
+                onChange={(e) => setFaelligTage(Number(e.target.value) || DEFAULT_INVOICE_DUE_DAYS)}
                 className="border border-border bg-background px-3 py-2 text-sm"
               />
             </label>

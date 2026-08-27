@@ -440,8 +440,9 @@ export const resendOfferNow = createServerFn({ method: "POST" })
       .order("pos", { ascending: true });
     if (itemsErr) throw new Error(itemsErr.message);
 
-    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+    const { loadActiveVerwalter, loadOfferValidityDays } = await import("@/lib/settings.functions");
     const verwalter = await loadActiveVerwalter();
+    const offerValidityDays = await loadOfferValidityDays();
     offer.verwalter_name = verwalter.name;
     offer.verwalter_role = verwalter.role;
     // Vor PDF speichern — Beleg-Print liest den Briefkopf aus der DB.
@@ -457,7 +458,9 @@ export const resendOfferNow = createServerFn({ method: "POST" })
     const acceptUrl =
       ((offer as { accept_short_url?: string | null }).accept_short_url as string | null) ||
       offerAcceptUrl(offer.accept_token as string | null);
-    const html = renderOfferHtml(offer as never, (items ?? []) as never);
+    const html = renderOfferHtml(offer as never, (items ?? []) as never, {
+      validityDays: offerValidityDays,
+    });
     const pdfBytes = await renderOfferPdf(offer as never, (items ?? []) as never, acceptUrl);
 
     const send = await sendOfferEmail({
@@ -555,7 +558,9 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
 
     const rechnung_nr: string = (offer.rechnung_nr as string | null) ?? nextRechnungNr();
     const datum = new Date();
-    const tage = data.faellig_tage ?? 14;
+    const { loadActiveVerwalter, loadInvoiceDueDays } = await import("@/lib/settings.functions");
+    const configuredDueDays = await loadInvoiceDueDays();
+    const tage = data.faellig_tage ?? configuredDueDays;
     const faellig = new Date(datum.getTime() + tage * 24 * 3600 * 1000);
 
     const invoice = {
@@ -572,7 +577,6 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
 
     // Bank- und Rechnungsdaten VOR dem PDF-Render speichern, weil Puppeteer
     // die öffentliche /beleg-print-Route öffnet und diese aus dem Datensatz liest.
-    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
     const verwalter = await loadActiveVerwalter();
     offer.verwalter_name = verwalter.name;
     offer.verwalter_role = verwalter.role;
@@ -630,21 +634,25 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
       invoice,
     );
 
-    const html = renderInvoiceHtml({
-      ...(offer as any),
-      rechnung_nr,
-      rechnung_faellig_am: faellig.toISOString().slice(0, 10),
-      pay_token: offer.pay_token as string | null,
-      paid_at: offer.paid_at as string | null,
-      bank_inhaber: invoice.bank_inhaber,
-      bank_name: invoice.bank_name,
-      bank_iban: invoice.bank_iban,
-      bank_bic: invoice.bank_bic,
-      tracking_number: tracking.tracking_number,
-      tracking_url: tracking.tracking_url,
-      verwalter_name: verwalter.name,
-      verwalter_role: verwalter.role,
-    });
+    const html = renderInvoiceHtml(
+      {
+        ...(offer as any),
+        rechnung_nr,
+        rechnung_faellig_am: faellig.toISOString().slice(0, 10),
+        pay_token: offer.pay_token as string | null,
+        paid_at: offer.paid_at as string | null,
+        bank_inhaber: invoice.bank_inhaber,
+        bank_name: invoice.bank_name,
+        bank_iban: invoice.bank_iban,
+        bank_bic: invoice.bank_bic,
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+        verwalter_name: verwalter.name,
+        verwalter_role: verwalter.role,
+      },
+      (items ?? []) as never,
+      { dueDays: tage },
+    );
 
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
@@ -805,7 +813,9 @@ export const previewInvoicePdf = createServerFn({ method: "POST" })
 
     const rechnung_nr: string = (offer.rechnung_nr as string | null) ?? nextRechnungNr();
     const datum = new Date();
-    const tage = data.faellig_tage ?? 14;
+    const { loadActiveVerwalter, loadInvoiceDueDays } = await import("@/lib/settings.functions");
+    const configuredDueDays = await loadInvoiceDueDays();
+    const tage = data.faellig_tage ?? configuredDueDays;
     const faellig = new Date(datum.getTime() + tage * 24 * 3600 * 1000);
     const invoice = {
       rechnung_nr,
@@ -820,7 +830,6 @@ export const previewInvoicePdf = createServerFn({ method: "POST" })
     };
     // Auch die Vorschau muss Bankdaten + aktiven Verwalter zuerst speichern,
     // sonst lädt /beleg-print noch den alten/leeren Datensatz (Fallback Erik).
-    const { loadActiveVerwalter } = await import("@/lib/settings.functions");
     const verwalter = await loadActiveVerwalter();
     const { error: saveInvoiceErr } = await admin
       .from("offer_requests")

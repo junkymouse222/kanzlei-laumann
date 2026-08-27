@@ -32,6 +32,13 @@ export type ActiveVerwalter = {
 
 const AUTO_SEND_KEY = "auto_send_offers";
 const NEUKUNDEN_RABATT_KEY = "default_neukunden_rabatt";
+const OFFER_VALIDITY_DAYS_KEY = "offer_validity_days";
+const INVOICE_DUE_DAYS_KEY = "invoice_due_days";
+
+/** Standard: Angebote 7 Tage gültig. */
+export const DEFAULT_OFFER_VALIDITY_DAYS = 7;
+/** Standard: Rechnungen 3 Tage Zahlungsfrist. */
+export const DEFAULT_INVOICE_DUE_DAYS = 3;
 
 function parseBoolSetting(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value === "") return fallback;
@@ -48,31 +55,51 @@ function parseRabattSetting(value: string | undefined, fallback: number): number
   return Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }
 
-/** Server-seitig: ob der Cron fällige Angebote automatisch versenden darf. Default: aus. */
-export async function loadAutoSendOffersEnabled(): Promise<boolean> {
+function parseDaysSetting(value: string | undefined, fallback: number, min = 1, max = 120): number {
+  if (value == null || value === "") return fallback;
+  const n = Math.floor(Number(String(value).trim().replace(",", ".")));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+async function readSettingValue(key: string): Promise<string | undefined> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
   const { data } = await admin
     .from("app_settings")
     .select("value")
     .eq("site_key", SITE.siteKey)
-    .eq("key", AUTO_SEND_KEY)
+    .eq("key", key)
     .maybeSingle();
-  return parseBoolSetting((data as { value?: string } | null)?.value, false);
+  return (data as { value?: string } | null)?.value;
+}
+
+/** Server-seitig: ob der Cron fällige Angebote automatisch versenden darf. Default: aus. */
+export async function loadAutoSendOffersEnabled(): Promise<boolean> {
+  return parseBoolSetting(await readSettingValue(AUTO_SEND_KEY), false);
 }
 
 /** Server-seitig: Standard-Neukundenrabatt (%) für neue Anfragen. Default: 5. */
 export async function loadDefaultNeukundenRabatt(): Promise<number> {
   const { DEFAULT_NEUKUNDEN_RABATT } = await import("@/lib/offer-totals");
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const admin = supabaseAdmin as any;
-  const { data } = await admin
-    .from("app_settings")
-    .select("value")
-    .eq("site_key", SITE.siteKey)
-    .eq("key", NEUKUNDEN_RABATT_KEY)
-    .maybeSingle();
-  return parseRabattSetting((data as { value?: string } | null)?.value, DEFAULT_NEUKUNDEN_RABATT);
+  return parseRabattSetting(await readSettingValue(NEUKUNDEN_RABATT_KEY), DEFAULT_NEUKUNDEN_RABATT);
+}
+
+/** Gültigkeit von Angeboten in Tagen (ab Erstellungs-/Versanddatum). */
+export async function loadOfferValidityDays(): Promise<number> {
+  return parseDaysSetting(await readSettingValue(OFFER_VALIDITY_DAYS_KEY), DEFAULT_OFFER_VALIDITY_DAYS);
+}
+
+/** Zahlungsfrist für Rechnungen in Tagen. */
+export async function loadInvoiceDueDays(): Promise<number> {
+  return parseDaysSetting(await readSettingValue(INVOICE_DUE_DAYS_KEY), DEFAULT_INVOICE_DUE_DAYS);
+}
+
+/** Datum + N Tage als YYYY-MM-DD (UTC-Datumsteil). */
+export function addDaysIso(from: Date | string, days: number): string {
+  const base = typeof from === "string" ? new Date(from) : new Date(from.getTime());
+  const d = new Date(base.getTime() + days * 24 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Server-seitig (Service Role): aktiver Verwalter für Versand/PDF. */
@@ -117,6 +144,8 @@ export const getAdminSettings = createServerFn({ method: "GET" })
       },
       autoSendOffers: parseBoolSetting(map.get(AUTO_SEND_KEY), false),
       defaultNeukundenRabatt: parseRabattSetting(map.get(NEUKUNDEN_RABATT_KEY), DEFAULT_NEUKUNDEN_RABATT),
+      offerValidityDays: parseDaysSetting(map.get(OFFER_VALIDITY_DAYS_KEY), DEFAULT_OFFER_VALIDITY_DAYS),
+      invoiceDueDays: parseDaysSetting(map.get(INVOICE_DUE_DAYS_KEY), DEFAULT_INVOICE_DUE_DAYS),
       banks: (banks ?? []) as BankAccountRow[],
     };
   });
@@ -162,6 +191,52 @@ export const saveDefaultNeukundenRabatt = createServerFn({ method: "POST" })
     );
     if (error) throw new Error(error.message);
     return { ok: true as const, rate };
+  });
+
+export const saveOfferValidityDays = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ days: z.number().int().min(1).max(120) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const days = Math.min(120, Math.max(1, Math.floor(data.days)));
+    const { error } = await admin.from("app_settings").upsert(
+      {
+        site_key: SITE.siteKey,
+        key: OFFER_VALIDITY_DAYS_KEY,
+        value: String(days),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "site_key,key" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const, days };
+  });
+
+export const saveInvoiceDueDays = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ days: z.number().int().min(1).max(120) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const days = Math.min(120, Math.max(1, Math.floor(data.days)));
+    const { error } = await admin.from("app_settings").upsert(
+      {
+        site_key: SITE.siteKey,
+        key: INVOICE_DUE_DAYS_KEY,
+        value: String(days),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "site_key,key" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const, days };
   });
 
 export const saveActiveVerwalter = createServerFn({ method: "POST" })

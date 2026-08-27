@@ -227,11 +227,13 @@ export function renderInvoiceHtml(
     bank_bic: string;
   },
   items: ItemRow[] = [],
+  opts?: { dueDays?: number },
 ): string {
   const datum = new Date().toLocaleDateString("de-DE");
+  const dueDays = opts?.dueDays && opts.dueDays > 0 ? opts.dueDays : 3;
   const faellig = offer.rechnung_faellig_am
     ? new Date(offer.rechnung_faellig_am).toLocaleDateString("de-DE")
-    : new Date(Date.now() + 14 * 24 * 3600 * 1000).toLocaleDateString("de-DE");
+    : new Date(Date.now() + dueDays * 24 * 3600 * 1000).toLocaleDateString("de-DE");
 
   return renderBelegHtml(offer, items, {
     belegArt: "Rechnung",
@@ -257,9 +259,16 @@ export function renderInvoiceHtml(
   });
 }
 
-export function renderOfferHtml(offer: OfferRow, items: ItemRow[]): string {
+export function renderOfferHtml(
+  offer: OfferRow,
+  items: ItemRow[],
+  opts?: { validityDays?: number },
+): string {
   const datum = new Date(offer.created_at).toLocaleDateString("de-DE");
-  const gueltigBis = new Date(new Date(offer.created_at).getTime() + 7 * 24 * 3600 * 1000).toLocaleDateString("de-DE");
+  const validityDays = opts?.validityDays && opts.validityDays > 0 ? opts.validityDays : 7;
+  const gueltigBis = new Date(
+    new Date(offer.created_at).getTime() + validityDays * 24 * 3600 * 1000,
+  ).toLocaleDateString("de-DE");
   return renderBelegHtml(offer, items, {
     belegArt: "Angebot",
     belegNr: offer.angebot_nr,
@@ -474,12 +483,13 @@ export function renderOfferAcceptedConfirmationHtml(opts: {
 /** Kurze Erinnerungsmail für noch nicht angenommene Angebote. */
 export function renderOfferReminderHtml(
   offer: OfferRow,
-  opts?: { gueltigBis?: string },
+  opts?: { gueltigBis?: string; validityDays?: number },
 ): string {
   const datum = new Date().toLocaleDateString("de-DE");
+  const validityDays = opts?.validityDays && opts.validityDays > 0 ? opts.validityDays : 7;
   const gueltigBis =
     opts?.gueltigBis ||
-    new Date(new Date(offer.created_at).getTime() + 7 * 24 * 3600 * 1000).toLocaleDateString("de-DE");
+    new Date(new Date(offer.created_at).getTime() + validityDays * 24 * 3600 * 1000).toLocaleDateString("de-DE");
   const ctaUrl = emailSafeCtaUrl(offer.accept_short_url);
   const signer = escapeHtml(offer.verwalter_name?.trim() || SITE.verwalter);
   const signerRole = escapeHtml(offer.verwalter_role?.trim() || SITE.role);
