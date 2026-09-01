@@ -668,6 +668,10 @@ function AdminDetailPage() {
                 onChange={(e) => setOfferMwst(Number(e.target.value) || 0)}
                 className="border border-border bg-background px-3 py-2 text-sm"
               />
+              <span className="text-[0.65rem] leading-snug text-muted-foreground">
+                Schweiz / Drittland (Warenlieferung): meist <strong>0</strong> — Beleg zeigt dann
+                Ausfuhr-Hinweis. EU-B2B mit USt-Id: Reverse Charge nur nach Prüfung.
+              </span>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Lieferkosten (€ netto)</span>
@@ -1194,6 +1198,9 @@ function AdminDetailPage() {
             onChange={(e) => setOfferMwst(Number(e.target.value) || 0)}
             className="w-24 border border-border bg-background px-3 py-2"
           />
+          <span className="max-w-[14rem] text-[0.65rem] leading-snug text-muted-foreground">
+            CH/Drittland Waren: oft 0 % (Ausfuhr-Hinweis im PDF).
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Lieferkosten (€ netto)</span>

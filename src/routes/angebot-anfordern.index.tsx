@@ -141,8 +141,8 @@ function AngebotAnfordernPage() {
       return;
     }
     const plz = postalCode.trim();
-    if (!/^\d{5}$/.test(plz)) {
-      setError("Bitte eine gültige PLZ mit genau 5 Ziffern angeben.");
+    if (!/^\d{4,5}$/.test(plz)) {
+      setError("Bitte eine gültige PLZ mit 4 oder 5 Ziffern angeben (DE oder CH).");
       return;
     }
     if (city.trim().length < 2) {
@@ -429,7 +429,7 @@ function AngebotAnfordernPage() {
                   value={postalCode}
                   onChange={(v) => setPostalCode(v.replace(/\D/g, "").slice(0, 5))}
                   required
-                  placeholder="10115"
+                  placeholder="PLZ"
                   inputMode="numeric"
                   autoComplete="postal-code"
                 />

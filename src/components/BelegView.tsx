@@ -285,7 +285,9 @@ export function BelegView(props: BelegViewProps) {
               <td className="py-1 text-right tabular-nums">{fmtEUR(netto)}</td>
             </tr>
             <tr>
-              <td className="py-1 text-muted-foreground">zzgl. MwSt. ({mwstSatz}%)</td>
+              <td className="py-1 text-muted-foreground">
+                {mwstSatz === 0 ? "MwSt. (0 %)" : `zzgl. MwSt. (${mwstSatz}%)`}
+              </td>
               <td className="py-1 text-right tabular-nums">{fmtEUR(mwst)}</td>
             </tr>
             <tr className="border-t border-gold">
@@ -295,6 +297,14 @@ export function BelegView(props: BelegViewProps) {
           </tbody>
         </table>
       </div>
+
+      {mwstSatz === 0 && (
+        <p className="mt-4 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+          Steuerfreie Ausfuhrlieferung in ein Drittland (§&nbsp;4 Nr.&nbsp;1&nbsp;a UStG i.&nbsp;V.&nbsp;m.
+          §&nbsp;6 UStG). Die Einfuhrumsatzsteuer im Bestimmungsland trägt der Empfänger.
+          Keine deutsche Umsatzsteuer ausgewiesen.
+        </p>
+      )}
 
       {/* Angebot-Annahme nur in der E-Mail-HTML; im PDF/Beleg kein CTA.
           Rechnung: Zahlung bestätigen nur am Bildschirm (no-print). */}

@@ -152,7 +152,8 @@ function ManualConfirmationsPage() {
 
   const formTotals = useMemo(() => {
     if (!form) return { subtotal: 0, mwst: 0, total: 0 };
-    const mwstRate = Number(String(form.mwst_rate).replace(",", ".")) || 19;
+    const mwstRateRaw = Number(String(form.mwst_rate).replace(",", "."));
+    const mwstRate = Number.isFinite(mwstRateRaw) ? mwstRateRaw : 19;
     const liefer = Number(String(form.lieferkosten).replace(",", ".")) || 0;
     let subtotal = 0;
     for (const it of form.items) {
@@ -494,6 +495,9 @@ function ManualConfirmationsPage() {
                 onChange={(e) => setField("mwst_rate", e.target.value)}
                 className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
               />
+              <span className="mt-1 block text-[0.65rem] text-muted-foreground">
+                Schweiz / Drittland (Ware): oft 0 — PDF zeigt Ausfuhr-Hinweis.
+              </span>
             </label>
             <label className="block">
               <span className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">

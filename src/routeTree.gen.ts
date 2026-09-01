@@ -29,6 +29,7 @@ import { Route as JuliAngeboteFilenameRouteImport } from './routes/juli.angebote
 import { Route as BelegPrintArtTokenRouteImport } from './routes/beleg-print.$art.$token'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin.traffic'
 import { Route as AuthenticatedAdminManuellRouteImport } from './routes/_authenticated/admin.manuell'
+import { Route as AuthenticatedAdminKontaktRouteImport } from './routes/_authenticated/admin.kontakt'
 import { Route as AuthenticatedAdminEinstellungenRouteImport } from './routes/_authenticated/admin.einstellungen'
 import { Route as AuthenticatedAdminIdRouteImport } from './routes/_authenticated/admin.$id'
 import { Route as ApiPublicHooksTrackRouteImport } from './routes/api/public/hooks/track'
@@ -144,6 +145,12 @@ const AuthenticatedAdminManuellRoute =
     path: '/manuell',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminKontaktRoute =
+  AuthenticatedAdminKontaktRouteImport.update({
+    id: '/kontakt',
+    path: '/kontakt',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEinstellungenRoute =
   AuthenticatedAdminEinstellungenRouteImport.update({
     id: '/einstellungen',
@@ -236,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/angebot-anfordern/': typeof AngebotAnfordernIndexRoute
   '/admin/$id': typeof AuthenticatedAdminIdRoute
   '/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
+  '/admin/kontakt': typeof AuthenticatedAdminKontaktRoute
   '/admin/manuell': typeof AuthenticatedAdminManuellRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
@@ -269,6 +277,7 @@ export interface FileRoutesByTo {
   '/angebot-anfordern': typeof AngebotAnfordernIndexRoute
   '/admin/$id': typeof AuthenticatedAdminIdRoute
   '/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
+  '/admin/kontakt': typeof AuthenticatedAdminKontaktRoute
   '/admin/manuell': typeof AuthenticatedAdminManuellRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
@@ -305,6 +314,7 @@ export interface FileRoutesById {
   '/angebot-anfordern/': typeof AngebotAnfordernIndexRoute
   '/_authenticated/admin/$id': typeof AuthenticatedAdminIdRoute
   '/_authenticated/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
+  '/_authenticated/admin/kontakt': typeof AuthenticatedAdminKontaktRoute
   '/_authenticated/admin/manuell': typeof AuthenticatedAdminManuellRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/angebot-anfordern/'
     | '/admin/$id'
     | '/admin/einstellungen'
+    | '/admin/kontakt'
     | '/admin/manuell'
     | '/admin/traffic'
     | '/beleg-print/$art/$token'
@@ -374,6 +385,7 @@ export interface FileRouteTypes {
     | '/angebot-anfordern'
     | '/admin/$id'
     | '/admin/einstellungen'
+    | '/admin/kontakt'
     | '/admin/manuell'
     | '/admin/traffic'
     | '/beleg-print/$art/$token'
@@ -409,6 +421,7 @@ export interface FileRouteTypes {
     | '/angebot-anfordern/'
     | '/_authenticated/admin/$id'
     | '/_authenticated/admin/einstellungen'
+    | '/_authenticated/admin/kontakt'
     | '/_authenticated/admin/manuell'
     | '/_authenticated/admin/traffic'
     | '/beleg-print/$art/$token'
@@ -599,6 +612,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminManuellRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/kontakt': {
+      id: '/_authenticated/admin/kontakt'
+      path: '/kontakt'
+      fullPath: '/admin/kontakt'
+      preLoaderRoute: typeof AuthenticatedAdminKontaktRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/einstellungen': {
       id: '/_authenticated/admin/einstellungen'
       path: '/einstellungen'
@@ -696,6 +716,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminIdRoute: typeof AuthenticatedAdminIdRoute
   AuthenticatedAdminEinstellungenRoute: typeof AuthenticatedAdminEinstellungenRoute
+  AuthenticatedAdminKontaktRoute: typeof AuthenticatedAdminKontaktRoute
   AuthenticatedAdminManuellRoute: typeof AuthenticatedAdminManuellRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -704,6 +725,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIdRoute: AuthenticatedAdminIdRoute,
   AuthenticatedAdminEinstellungenRoute: AuthenticatedAdminEinstellungenRoute,
+  AuthenticatedAdminKontaktRoute: AuthenticatedAdminKontaktRoute,
   AuthenticatedAdminManuellRoute: AuthenticatedAdminManuellRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
