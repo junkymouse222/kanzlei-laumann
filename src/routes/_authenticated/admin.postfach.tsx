@@ -9,6 +9,7 @@ import {
   replyMailboxMessage,
   resetMicrosoftMailboxConnection,
   saveMailboxSettings,
+  startMicrosoftMailboxLogin,
   testMailboxConnection,
   type MailboxListItem,
   type MailboxMessageDetail,
@@ -26,11 +27,13 @@ export const Route = createFileRoute("/_authenticated/admin/postfach")({
   component: PostfachPage,
 });
 
-const MS_SECURITY_URL = "https://mysignins.microsoft.com/security-info";
+const ENTRA_APP_REG =
+  "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade";
 const ENTRA_SECURITY_DEFAULTS =
   "https://entra.microsoft.com/#view/Microsoft_AAD_IAM/TenantOverview.ReactView";
 const PER_USER_MFA_URL =
   "https://account.activedirectory.windowsazure.com/UserManagement/MultifactorVerification.aspx";
+const MS_SECURITY_URL = "https://mysignins.microsoft.com/security-info";
 
 const fmtDate = (iso: string | null) =>
   iso
@@ -53,12 +56,16 @@ function PostfachPage() {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [msLogin, setMsLogin] = useState(false);
   const [testing, setTesting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [showUnlockHelp, setShowUnlockHelp] = useState(false);
+  const [showAppPwHelp, setShowAppPwHelp] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
 
   const [user, setUser] = useState("");
   const [fromName, setFromName] = useState(SITE.brand);
+  const [oauthClientId, setOauthClientId] = useState("");
+  const [oauthClientSecret, setOauthClientSecret] = useState("");
   const [appPassword, setAppPassword] = useState("");
 
   const [rows, setRows] = useState<MailboxListItem[]>([]);
@@ -74,10 +81,15 @@ function PostfachPage() {
   const [sending, setSending] = useState(false);
   const [sigPreview, setSigPreview] = useState<string>("");
 
+  const redirectUri =
+    settings?.oauthRedirectUri || `https://${SITE.domain}/api/public/mailbox/microsoft-oauth`;
+
   function applySettings(s: MailboxSettingsPublic) {
     setSettings(s);
     setUser(s.user);
     setFromName(s.fromName || SITE.brand);
+    setOauthClientId(s.oauthClientId || "");
+    setOauthClientSecret("");
     setAppPassword("");
     setShowSetup(!s.configured);
   }
@@ -114,22 +126,77 @@ function PostfachPage() {
     getMailboxSignaturePreview()
       .then((r) => setSigPreview(r.text))
       .catch(() => undefined);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oauth") === "connected") {
+      setMsg("Microsoft verbunden — Postfach ist bereit.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    const oauthErr = params.get("oauth_error");
+    if (oauthErr) {
+      setMsg(decodeURIComponent(oauthErr));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
-  function openMicrosoftSecurity() {
-    if (!user.trim()) {
-      setMsg("Bitte zuerst die Postfach-E-Mail eintragen.");
-      return;
+  async function persistOAuthBasics() {
+    if (!user.trim()) throw new Error("Bitte zuerst die Postfach-E-Mail eintragen.");
+    if (!oauthClientId.trim()) {
+      throw new Error("Bitte die Application (client) ID aus Entra eintragen.");
     }
-    setMsg(
-      "Microsoft geöffnet — mit GoDaddy-Organisationskonto anmelden. Wenn „App-Kennwörter“ fehlt: Hilfe unten („Kein App-Kennwort sichtbar?“).",
-    );
-    window.open(MS_SECURITY_URL, "_blank", "noopener,noreferrer");
+    const res = await saveMailboxSettings({
+      data: {
+        authMode: "oauth",
+        user: user.trim(),
+        fromName,
+        oauthClientId: oauthClientId.trim(),
+        oauthClientSecret: oauthClientSecret.trim() || undefined,
+        imapHost: M365_PRESET.imapHost,
+        imapPort: M365_PRESET.imapPort,
+        imapSecure: M365_PRESET.imapSecure,
+        smtpHost: M365_PRESET.smtpHost,
+        smtpPort: M365_PRESET.smtpPort,
+        smtpSecure: M365_PRESET.smtpSecure,
+      },
+    });
+    applySettings(res.settings);
+    return res.settings;
+  }
+
+  async function handleSaveClientId() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await persistOAuthBasics();
+      setMsg("Client-ID gespeichert. Als Nächstes „Mit Microsoft anmelden“.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleMicrosoftLogin() {
+    setMsLogin(true);
+    setMsg(null);
+    try {
+      await persistOAuthBasics();
+      const res = await startMicrosoftMailboxLogin();
+      if (res.status === "redirect" && res.authorizeUrl) {
+        window.location.href = res.authorizeUrl;
+        return;
+      }
+      setMsg("Unerwartete Antwort von Microsoft-Login.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Microsoft-Anmeldung fehlgeschlagen.");
+    } finally {
+      setMsLogin(false);
+    }
   }
 
   async function handleSaveAppPassword() {
     if (!user.trim() || !appPassword.trim()) {
-      setMsg("E-Mail und App-Kennwort (oder Kennwort) ausfüllen.");
+      setMsg("E-Mail und App-Kennwort ausfüllen.");
       return;
     }
     setSaving(true);
@@ -204,6 +271,22 @@ function PostfachPage() {
     }
   }
 
+  async function copyRedirectUri() {
+    try {
+      await navigator.clipboard.writeText(redirectUri);
+      setMsg("Redirect-URI kopiert.");
+    } catch {
+      setMsg(redirectUri);
+    }
+  }
+
+  const authLabel =
+    settings?.authMode === "oauth" && settings.hasOAuth
+      ? "Microsoft OAuth"
+      : settings?.hasPassword
+        ? "App-Kennwort"
+        : "—";
+
   return (
     <section className="container-prose py-16">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -214,7 +297,7 @@ function PostfachPage() {
           <h1 className="mt-2 text-4xl">Postfach</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            GoDaddy Microsoft 365 — Verbindung per App-Kennwort (nach kurzer Freischaltung).
+            Microsoft 365 — App in Entra registrieren, dann einmal anmelden.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -246,10 +329,60 @@ function PostfachPage() {
         <div className="mt-8 border border-border p-6">
           <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Bei GoDaddy siehst du oft nur Telefon / Passkey —{" "}
-            <strong className="text-foreground">kein App-Kennwort</strong>. Das liegt an Microsoft
-            „Security Defaults“. Einmal freischalten, dann geht’s.
+            In Entra eine App-Registrierung anlegen, die Redirect-URI eintragen, Client-ID hier
+            speichern — dann wie Mailbird mit Microsoft anmelden.
           </p>
+
+          <div className="mt-6 max-w-2xl space-y-3 border border-border bg-parchment/40 p-5 text-sm leading-relaxed text-foreground/90">
+            <p className="font-medium text-primary">Entra: App registrieren</p>
+            <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
+              <li>
+                Öffne{" "}
+                <a
+                  href={ENTRA_APP_REG}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-primary"
+                >
+                  Entra → App-Registrierungen
+                </a>{" "}
+                → <strong className="text-foreground">Neue Registrierung</strong>.
+              </li>
+              <li>
+                Name z. B. „{SITE.brand} Postfach“. Konten:{" "}
+                <strong className="text-foreground">Nur diese Organisation</strong>.
+              </li>
+              <li>
+                Plattform <strong className="text-foreground">Web</strong>, Redirect-URI genau:
+                <code className="mt-2 block break-all border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+                  {redirectUri}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => void copyRedirectUri()}
+                  className="mt-2 text-xs uppercase tracking-widest text-primary hover:underline"
+                >
+                  URI kopieren
+                </button>
+              </li>
+              <li>
+                Nach dem Anlegen:{" "}
+                <strong className="text-foreground">Application (client) ID</strong> kopieren
+                (Übersicht).
+              </li>
+              <li>
+                API-Berechtigungen → Hinzufügen →{" "}
+                <strong className="text-foreground">Office 365 Exchange Online</strong> →
+                Delegiert: <code className="text-xs">IMAP.AccessAsUser.All</code>,{" "}
+                <code className="text-xs">SMTP.Send</code> → Admin-Zustimmung erteilen.
+              </li>
+              <li>
+                Authentifizierung →{" "}
+                <strong className="text-foreground">Öffentliche Clientflows zulassen: Ja</strong>{" "}
+                (für PKCE). Optional: unter Zertifikate & Geheimnisse ein Client Secret erzeugen.
+              </li>
+            </ol>
+          </div>
 
           <div className="mt-6 grid max-w-xl gap-4">
             <label className="block">
@@ -276,109 +409,134 @@ function PostfachPage() {
                 autoComplete="off"
               />
             </label>
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Application (client) ID
+              </span>
+              <input
+                value={oauthClientId}
+                onChange={(e) => setOauthClientId(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
+                autoComplete="off"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Client Secret (optional)
+              </span>
+              <input
+                type="password"
+                value={oauthClientSecret}
+                onChange={(e) => setOauthClientSecret(e.target.value)}
+                placeholder={settings?.microsoftReady ? "leer = unverändert" : "nur wenn erstellt"}
+                className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
+                autoComplete="new-password"
+              />
+            </label>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={!user.trim()}
-              onClick={openMicrosoftSecurity}
+              disabled={saving || !user.trim() || !oauthClientId.trim()}
+              onClick={() => void handleSaveClientId()}
+              className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-primary hover:border-primary disabled:opacity-50"
+            >
+              {saving ? "Speichert …" : "Client-ID speichern"}
+            </button>
+            <button
+              type="button"
+              disabled={msLogin || !user.trim() || !oauthClientId.trim()}
+              onClick={() => void handleMicrosoftLogin()}
               className="inline-flex items-center gap-3 border border-[#8c8c8c] bg-white px-5 py-3 text-sm font-semibold text-[#5e5e5e] shadow-sm transition hover:bg-[#f3f3f3] disabled:opacity-50"
             >
               <MicrosoftLogo />
-              Microsoft öffnen (App-Kennwort)
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowUnlockHelp((v) => !v)}
-              className="border border-border px-4 py-3 text-xs uppercase tracking-widest text-primary hover:border-primary"
-            >
-              {showUnlockHelp ? "Hilfe ausblenden" : "Kein App-Kennwort sichtbar?"}
+              {msLogin ? "Weiterleitung …" : "Mit Microsoft anmelden"}
             </button>
           </div>
 
-          {showUnlockHelp && (
-            <div className="mt-5 max-w-2xl space-y-4 border border-border bg-parchment/50 p-5 text-sm leading-relaxed text-foreground/90">
-              <p className="font-medium text-primary">
-                App-Kennwörter einmal freischalten (du brauchst Admin-Rechte für {SITE.domain})
-              </p>
-              <ol className="list-decimal space-y-3 pl-5 text-muted-foreground">
-                <li>
-                  Öffne{" "}
-                  <a
-                    href={ENTRA_SECURITY_DEFAULTS}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-primary"
-                  >
-                    Entra Admin Center
-                  </a>{" "}
-                  und melde dich mit dem <strong className="text-foreground">Organisations-Admin</strong>{" "}
-                  an (GoDaddy Microsoft 365).
-                </li>
-                <li>
-                  Oben/Eigenschaften → <strong className="text-foreground">Security defaults verwalten</strong>{" "}
-                  → auf <strong className="text-foreground">Deaktiviert</strong> stellen und speichern.
-                </li>
-                <li>
-                  Öffne{" "}
-                  <a
-                    href={PER_USER_MFA_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-primary"
-                  >
-                    MFA pro Benutzer
-                  </a>
-                  , aktiviere MFA für dein Postfach-Konto (Status „aktiviert“).
-                </li>
-                <li>
-                  Danach erneut{" "}
-                  <a
-                    href={MS_SECURITY_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-primary"
-                  >
-                    Sicherheitsinfo
-                  </a>{" "}
-                  öffnen → dort erscheint <strong className="text-foreground">App-Kennwörter</strong> →
-                  neues Kennwort erzeugen.
-                </li>
-                <li>Kennwort unten einfügen und speichern.</li>
-              </ol>
-              <p className="text-xs text-muted-foreground">
-                Hinweis: Security Defaults sind bei GoDaddy oft vorausgewählt und verstecken
-                App-Kennwörter absichtlich. Nach dem Umschalten auf „MFA pro Benutzer“ sind sie wieder
-                da.
-              </p>
-            </div>
-          )}
-
-          <div className="mt-6 max-w-xl space-y-3 border-t border-border pt-5">
-            <label className="block">
-              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
-                {settings?.hasPassword
-                  ? "Neues App-Kennwort (leer = unverändert)"
-                  : "App-Kennwort"}
-              </span>
-              <input
-                type="password"
-                value={appPassword}
-                onChange={(e) => setAppPassword(e.target.value)}
-                placeholder="xxxx-xxxx-xxxx-xxxx"
-                className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
-                autoComplete="new-password"
-              />
-            </label>
+          <div className="mt-8 border-t border-border pt-5">
             <button
               type="button"
-              disabled={saving || !user.trim() || !appPassword.trim()}
-              onClick={handleSaveAppPassword}
-              className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+              onClick={() => setShowFallback((v) => !v)}
+              className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary"
             >
-              {saving ? "Verbindet …" : "Speichern & verbinden"}
+              {showFallback ? "▼" : "▶"} Alternative: App-Kennwort
             </button>
+            {showFallback && (
+              <div className="mt-4 max-w-xl space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Nur nötig, wenn OAuth nicht klappt. Bei Security Defaults oft erst freischalten.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAppPwHelp((v) => !v)}
+                  className="text-xs uppercase tracking-widest text-primary hover:underline"
+                >
+                  {showAppPwHelp ? "Hilfe ausblenden" : "Kein App-Kennwort sichtbar?"}
+                </button>
+                {showAppPwHelp && (
+                  <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                    <li>
+                      <a
+                        href={ENTRA_SECURITY_DEFAULTS}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-primary"
+                      >
+                        Security Defaults
+                      </a>{" "}
+                      deaktivieren.
+                    </li>
+                    <li>
+                      <a
+                        href={PER_USER_MFA_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-primary"
+                      >
+                        MFA pro Benutzer
+                      </a>{" "}
+                      für das Postfach aktivieren.
+                    </li>
+                    <li>
+                      Unter{" "}
+                      <a
+                        href={MS_SECURITY_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-primary"
+                      >
+                        Sicherheitsinfo
+                      </a>{" "}
+                      App-Kennwort erzeugen.
+                    </li>
+                  </ol>
+                )}
+                <label className="block">
+                  <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                    App-Kennwort
+                  </span>
+                  <input
+                    type="password"
+                    value={appPassword}
+                    onChange={(e) => setAppPassword(e.target.value)}
+                    placeholder="xxxx-xxxx-xxxx-xxxx"
+                    className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
+                    autoComplete="new-password"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={saving || !user.trim() || !appPassword.trim()}
+                  onClick={() => void handleSaveAppPassword()}
+                  className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+                >
+                  {saving ? "Verbindet …" : "Speichern & verbinden"}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2">
@@ -408,6 +566,7 @@ function PostfachPage() {
                   try {
                     const res = await resetMicrosoftMailboxConnection();
                     applySettings(res.settings);
+                    setOauthClientId("");
                     setMsg("Verbindung zurückgesetzt.");
                   } catch (e) {
                     setMsg(e instanceof Error ? e.message : "Reset fehlgeschlagen.");
@@ -422,7 +581,9 @@ function PostfachPage() {
 
           {sigPreview && (
             <div className="mt-6 border-t border-border pt-4">
-              <p className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">Signatur-Vorschau</p>
+              <p className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Signatur-Vorschau
+              </p>
               <pre className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{sigPreview}</pre>
             </div>
           )}
@@ -433,8 +594,8 @@ function PostfachPage() {
         <>
           <div className="mt-8 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt ·
-              App-Kennwort
+              Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt ·{" "}
+              {authLabel}
             </span>
             <span className="text-xs">{settings.user}</span>
           </div>
@@ -447,96 +608,83 @@ function PostfachPage() {
           )}
 
           <ul className="mt-4 divide-y divide-border border border-border">
-            {rows.map((row) => {
-              const open = openUid === row.uid;
-              return (
-                <li key={row.uid} className={row.unseen ? "bg-parchment/50" : "bg-background"}>
-                  <button
-                    type="button"
-                    onClick={() => openMessage(row.uid)}
-                    className="flex w-full flex-wrap items-baseline justify-between gap-3 px-4 py-4 text-left hover:bg-parchment/40"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-sm ${row.unseen ? "font-semibold text-primary" : "text-primary"}`}>
-                          {row.from}
-                        </span>
-                        {row.unseen && (
-                          <span className="border border-gold px-2 py-0.5 text-[0.65rem] uppercase tracking-widest text-gold">
-                            Neu
-                          </span>
+            {rows.map((r) => (
+              <li key={r.uid}>
+                <button
+                  type="button"
+                  onClick={() => void openMessage(r.uid)}
+                  className={`flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-parchment/60 ${
+                    r.unseen ? "bg-parchment/30" : ""
+                  }`}
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className={`text-sm ${r.unseen ? "font-semibold text-foreground" : ""}`}>
+                      {r.subject || "(kein Betreff)"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{fmtDate(r.date)}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {r.from || r.fromEmail}
+                    {r.preview ? ` — ${r.preview}` : ""}
+                  </span>
+                </button>
+
+                {openUid === r.uid && (
+                  <div className="border-t border-border bg-background px-4 py-4">
+                    {loadingDetail && (
+                      <p className="text-sm text-muted-foreground">Lade Nachricht …</p>
+                    )}
+                    {detail && (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          Von {detail.from || detail.fromEmail} · An {detail.to} ·{" "}
+                          {fmtDate(detail.date)}
+                        </div>
+                        {detail.html ? (
+                          <div
+                            className="prose prose-sm mt-4 max-w-none"
+                            dangerouslySetInnerHTML={{ __html: detail.html }}
+                          />
+                        ) : (
+                          <pre className="mt-4 whitespace-pre-wrap text-sm">{detail.text}</pre>
                         )}
-                      </div>
-                      <p className="mt-1 text-sm text-foreground/90">{row.subject}</p>
-                      {!open && row.preview && (
-                        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{row.preview}</p>
-                      )}
-                    </div>
-                    <time className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtDate(row.date)}</time>
-                  </button>
-
-                  {open && (
-                    <div className="border-t border-border bg-background px-4 py-5">
-                      {loadingDetail && <p className="text-sm text-muted-foreground">Lade …</p>}
-                      {detail && detail.uid === row.uid && (
-                        <>
-                          <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-[5rem_1fr]">
-                            <dt>Von</dt>
-                            <dd className="text-foreground">{detail.from}</dd>
-                            <dt>An</dt>
-                            <dd>{detail.to}</dd>
-                            <dt>Betreff</dt>
-                            <dd className="text-foreground">{detail.subject}</dd>
-                          </dl>
-                          <div className="mt-4 max-h-[28rem] overflow-auto border border-border bg-parchment/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                            {detail.text}
-                          </div>
-                          {detail.attachments.length > 0 && (
-                            <p className="mt-3 text-xs text-muted-foreground">
-                              Anhänge: {detail.attachments.map((a) => a.filename).join(", ")}
-                            </p>
-                          )}
-
-                          <div className="mt-6 border-t border-border pt-5">
-                            <h3 className="text-sm font-medium text-primary">Antworten</h3>
-                            <label className="mt-3 block">
-                              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">
-                                Betreff
-                              </span>
-                              <input
-                                value={replySubject}
-                                onChange={(e) => setReplySubject(e.target.value)}
-                                className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm"
-                              />
-                            </label>
-                            <label className="mt-3 block">
-                              <span className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">
-                                Nachricht
-                              </span>
-                              <textarea
-                                rows={8}
-                                value={replyBody}
-                                onChange={(e) => setReplyBody(e.target.value)}
-                                placeholder="Ihre Antwort …"
-                                className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              disabled={sending || !replyBody.trim()}
-                              onClick={handleReply}
-                              className="mt-3 border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
-                            >
-                              {sending ? "Sende …" : `Antwort an ${detail.fromEmail}`}
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
+                        <div className="mt-6 space-y-3 border-t border-border pt-4">
+                          <label className="block">
+                            <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                              Betreff
+                            </span>
+                            <input
+                              value={replySubject}
+                              onChange={(e) => setReplySubject(e.target.value)}
+                              className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                              Antwort
+                            </span>
+                            <textarea
+                              value={replyBody}
+                              onChange={(e) => setReplyBody(e.target.value)}
+                              rows={6}
+                              className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            disabled={sending || !replyBody.trim()}
+                            onClick={() => void handleReply()}
+                            className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+                          >
+                            {sending ? "Sendet …" : "Antwort senden"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
           </ul>
         </>
       )}

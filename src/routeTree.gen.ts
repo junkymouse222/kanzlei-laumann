@@ -32,6 +32,7 @@ import { Route as AuthenticatedAdminPostfachRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminManuellRouteImport } from './routes/_authenticated/admin.manuell'
 import { Route as AuthenticatedAdminEinstellungenRouteImport } from './routes/_authenticated/admin.einstellungen'
 import { Route as AuthenticatedAdminIdRouteImport } from './routes/_authenticated/admin.$id'
+import { Route as ApiPublicMailboxMicrosoftOauthRouteImport } from './routes/api/public/mailbox/microsoft-oauth'
 import { Route as ApiPublicHooksTrackRouteImport } from './routes/api/public/hooks/track'
 import { Route as ApiPublicHooksSendScheduledOffersRouteImport } from './routes/api/public/hooks/send-scheduled-offers'
 import { Route as ApiPublicHooksMarkPaidRouteImport } from './routes/api/public/hooks/mark-paid'
@@ -162,6 +163,12 @@ const AuthenticatedAdminIdRoute = AuthenticatedAdminIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const ApiPublicMailboxMicrosoftOauthRoute =
+  ApiPublicMailboxMicrosoftOauthRouteImport.update({
+    id: '/api/public/mailbox/microsoft-oauth',
+    path: '/api/public/mailbox/microsoft-oauth',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksTrackRoute = ApiPublicHooksTrackRouteImport.update({
   id: '/api/public/hooks/track',
   path: '/api/public/hooks/track',
@@ -260,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/mark-paid': typeof ApiPublicHooksMarkPaidRoute
   '/api/public/hooks/send-scheduled-offers': typeof ApiPublicHooksSendScheduledOffersRoute
   '/api/public/hooks/track': typeof ApiPublicHooksTrackRoute
+  '/api/public/mailbox/microsoft-oauth': typeof ApiPublicMailboxMicrosoftOauthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -294,6 +302,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/mark-paid': typeof ApiPublicHooksMarkPaidRoute
   '/api/public/hooks/send-scheduled-offers': typeof ApiPublicHooksSendScheduledOffersRoute
   '/api/public/hooks/track': typeof ApiPublicHooksTrackRoute
+  '/api/public/mailbox/microsoft-oauth': typeof ApiPublicMailboxMicrosoftOauthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -331,6 +340,7 @@ export interface FileRoutesById {
   '/api/public/hooks/mark-paid': typeof ApiPublicHooksMarkPaidRoute
   '/api/public/hooks/send-scheduled-offers': typeof ApiPublicHooksSendScheduledOffersRoute
   '/api/public/hooks/track': typeof ApiPublicHooksTrackRoute
+  '/api/public/mailbox/microsoft-oauth': typeof ApiPublicMailboxMicrosoftOauthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mark-paid'
     | '/api/public/hooks/send-scheduled-offers'
     | '/api/public/hooks/track'
+    | '/api/public/mailbox/microsoft-oauth'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mark-paid'
     | '/api/public/hooks/send-scheduled-offers'
     | '/api/public/hooks/track'
+    | '/api/public/mailbox/microsoft-oauth'
   id:
     | '__root__'
     | '/'
@@ -438,6 +450,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mark-paid'
     | '/api/public/hooks/send-scheduled-offers'
     | '/api/public/hooks/track'
+    | '/api/public/mailbox/microsoft-oauth'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -468,6 +481,7 @@ export interface RootRouteChildren {
   ApiPublicHooksMarkPaidRoute: typeof ApiPublicHooksMarkPaidRoute
   ApiPublicHooksSendScheduledOffersRoute: typeof ApiPublicHooksSendScheduledOffersRoute
   ApiPublicHooksTrackRoute: typeof ApiPublicHooksTrackRoute
+  ApiPublicMailboxMicrosoftOauthRoute: typeof ApiPublicMailboxMicrosoftOauthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -633,6 +647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/api/public/mailbox/microsoft-oauth': {
+      id: '/api/public/mailbox/microsoft-oauth'
+      path: '/api/public/mailbox/microsoft-oauth'
+      fullPath: '/api/public/mailbox/microsoft-oauth'
+      preLoaderRoute: typeof ApiPublicMailboxMicrosoftOauthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/track': {
       id: '/api/public/hooks/track'
       path: '/api/public/hooks/track'
@@ -776,6 +797,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksSendScheduledOffersRoute:
     ApiPublicHooksSendScheduledOffersRoute,
   ApiPublicHooksTrackRoute: ApiPublicHooksTrackRoute,
+  ApiPublicMailboxMicrosoftOauthRoute: ApiPublicMailboxMicrosoftOauthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

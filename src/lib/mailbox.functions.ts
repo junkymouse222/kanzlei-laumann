@@ -51,14 +51,13 @@ export function getMailboxMicrosoftRedirectUrisForSite(): string[] {
 }
 
 /**
- * Öffentliche Client-ID für Redirect-Login (eigene Entra-App).
- * Leer = Device-Code über Microsoft-Office-Client (GoDaddy-tauglich).
+ * Optionale fest verdrahtete Client-ID (selten). Primär: Admin hinterlegt die
+ * Application (client) ID der eigenen Entra-App-Registrierung.
  */
 export const BUILTIN_MS_MAILBOX_CLIENT_ID = "";
 
 /**
- * Microsoft Office Public Client – IMAP/SMTP OAuth per Device-Code ohne App-Registrierung
- * im GoDaddy-Tenant. Login läuft über microsoft.com/device (Organisations-/GoDaddy-Login).
+ * Microsoft Office Public Client – nur Legacy/Device-Code; nicht für Redirect-OAuth.
  */
 export const MS_OFFICE_PUBLIC_CLIENT_ID = "d3590ed6-52b3-4102-aeff-aad2292ab01c";
 
@@ -66,24 +65,25 @@ const EXCHANGE_RESOURCE_APP_ID = "00000002-0000-0ff1-ce00-000000000000";
 const IMAP_SCOPE_ID = "652390e4-393a-48de-9484-05f9b1212954";
 const SMTP_SCOPE_ID = "258f6531-6087-4cc4-bb90-092c5fb3ed3f";
 
-/** Client-ID nur für Browser-Redirect (eigene App). Office-Public-Client scheidet aus. */
-function resolveRedirectClientId(): string {
+/**
+ * Client-ID für Browser-Redirect (Authorization Code + PKCE).
+ * Reihenfolge: Env → Builtin → app_settings. Office-Public-Client scheidet aus.
+ */
+function resolveRedirectClientId(map?: Map<string, string>): string {
   const fromEnv = (process.env.MICROSOFT_MAILBOX_CLIENT_ID || "").trim();
   if (fromEnv && fromEnv !== MS_OFFICE_PUBLIC_CLIENT_ID) return fromEnv;
   if (BUILTIN_MS_MAILBOX_CLIENT_ID && BUILTIN_MS_MAILBOX_CLIENT_ID !== MS_OFFICE_PUBLIC_CLIENT_ID) {
     return BUILTIN_MS_MAILBOX_CLIENT_ID;
   }
+  if (map) {
+    const fromSettings = (map.get(KEYS.oauthClientId) || "").trim();
+    if (fromSettings && fromSettings !== MS_OFFICE_PUBLIC_CLIENT_ID) return fromSettings;
+  }
   return "";
 }
 
 function resolveMicrosoftClientId(map?: Map<string, string>): string {
-  const redirect = resolveRedirectClientId();
-  if (redirect) return redirect;
-  if (map) {
-    const fromSettings = (map.get(KEYS.oauthClientId) || "").trim();
-    if (fromSettings) return fromSettings;
-  }
-  return MS_OFFICE_PUBLIC_CLIENT_ID;
+  return resolveRedirectClientId(map);
 }
 
 function resolveMicrosoftClientSecret(map?: Map<string, string>): string {
@@ -150,8 +150,12 @@ export type MailboxSettingsPublic = {
   hasPassword: boolean;
   fromName: string;
   hasOAuth: boolean;
-  /** true = Microsoft-Button kann direkt redirecten (App hinterlegt) */
+  /** true = Microsoft-Button kann redirecten (Client-ID hinterlegt) */
   microsoftReady: boolean;
+  /** Application (client) ID der Entra-App — für Admin-UI */
+  oauthClientId: string;
+  /** Exakte Redirect-URI für die Entra-App-Registrierung */
+  oauthRedirectUri: string;
   /** Site-/Organisations-Hinweis für den Login */
   orgHint: string;
 };
@@ -248,6 +252,7 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
   const password = map.get(KEYS.password) || "";
   const authMode = (map.get(KEYS.authMode) || "password") === "oauth" ? "oauth" : "password";
   const hasOAuth = !!(map.get(KEYS.oauthRefresh) || "").trim();
+  const oauthClientId = resolveRedirectClientId(map);
   const configured =
     !!user &&
     !!imapHost &&
@@ -265,8 +270,9 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
     hasPassword: password.length > 0,
     fromName: (map.get(KEYS.fromName) || "").trim() || SITE.brand,
     hasOAuth,
-    /** Eigene Redirect-App freigeschaltet? Sonst App-Kennwort-Weg. */
-    microsoftReady: !!resolveRedirectClientId(),
+    microsoftReady: !!oauthClientId,
+    oauthClientId,
+    oauthRedirectUri: getMailboxMicrosoftRedirectUri(),
     orgHint: SITE.domain,
   };
 }
@@ -553,6 +559,9 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
         user: z.string().trim().email().max(255),
         password: z.string().max(500).optional(),
         fromName: z.string().trim().max(200).optional(),
+        oauthClientId: z.string().trim().max(100).optional(),
+        oauthClientSecret: z.string().max(500).optional(),
+        oauthTenant: z.string().trim().max(100).optional(),
       })
       .parse(input),
   )
@@ -568,6 +577,7 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     const smtpPort = data.smtpPort ?? M365_PRESET.smtpPort;
     const imapSecure = data.imapSecure ?? M365_PRESET.imapSecure;
     const smtpSecure = data.smtpSecure ?? M365_PRESET.smtpSecure;
+    const existing = await readSettingsMap();
 
     const rows: Array<{ site_key: string; key: string; value: string; updated_at: string }> = [
       { site_key: SITE.siteKey, key: KEYS.authMode, value: authMode, updated_at: now },
@@ -587,17 +597,29 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
       {
         site_key: SITE.siteKey,
         key: KEYS.oauthTenant,
-        value: resolveMicrosoftTenant(),
+        value: (data.oauthTenant || resolveMicrosoftTenant(existing) || "organizations").trim(),
         updated_at: now,
       },
     ];
 
-    const builtin = resolveMicrosoftClientId();
-    if (builtin) {
+    if (data.oauthClientId !== undefined) {
+      const id = data.oauthClientId.trim();
+      if (id === MS_OFFICE_PUBLIC_CLIENT_ID) {
+        throw new Error("Diese Client-ID eignet sich nicht für Redirect-Login. Bitte eigene Entra-App nutzen.");
+      }
       rows.push({
         site_key: SITE.siteKey,
         key: KEYS.oauthClientId,
-        value: builtin,
+        value: id,
+        updated_at: now,
+      });
+    }
+
+    if (data.oauthClientSecret !== undefined && data.oauthClientSecret.trim()) {
+      rows.push({
+        site_key: SITE.siteKey,
+        key: KEYS.oauthClientSecret,
+        value: data.oauthClientSecret.trim(),
         updated_at: now,
       });
     }
@@ -610,11 +632,8 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
           value: data.password,
           updated_at: now,
         });
-      } else {
-        const map = await readSettingsMap();
-        if (!map.get(KEYS.password)) {
-          throw new Error("Bitte App-Kennwort eintragen oder Microsoft-Anmeldung nutzen.");
-        }
+      } else if (!existing.get(KEYS.password)) {
+        throw new Error("Bitte App-Kennwort eintragen oder Microsoft-Anmeldung nutzen.");
       }
     }
 
@@ -799,9 +818,8 @@ async function createMailboxEntraApp(accessToken: string): Promise<{
 }
 
 /**
- * Startet Microsoft-Redirect-OAuth nur mit eigener Client-ID.
- * Device-Code über den Office-Client wird von GoDaddy/Security Defaults
- * mit AADSTS530035 blockiert — daher App-Kennwort als GoDaddy-Weg.
+ * Startet Microsoft-Redirect-OAuth (Authorization Code + PKCE) mit der
+ * in Entra registrierten App (Client-ID aus Einstellungen / Env).
  */
 export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -819,10 +837,10 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
     await upsertSetting(KEYS.smtpSecure, "false");
     await upsertSetting(KEYS.authMode, "oauth");
 
-    const redirectClientId = resolveRedirectClientId();
+    const redirectClientId = resolveRedirectClientId(map);
     if (!redirectClientId) {
       throw new Error(
-        "Bei GoDaddy ist der direkte Microsoft-OAuth oft blockiert (Fehler 530035 / Security Defaults). Bitte App-Kennwort nutzen: Mit Microsoft anmelden → App-Kennwort erzeugen → einfügen.",
+        "Bitte zuerst die Application (client) ID deiner Entra-App speichern (App-Registrierungen → Übersicht).",
       );
     }
 
