@@ -28,6 +28,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as JuliAngeboteFilenameRouteImport } from './routes/juli.angebote.$filename'
 import { Route as BelegPrintArtTokenRouteImport } from './routes/beleg-print.$art.$token'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin.traffic'
+import { Route as AuthenticatedAdminPostfachRouteImport } from './routes/_authenticated/admin.postfach'
 import { Route as AuthenticatedAdminManuellRouteImport } from './routes/_authenticated/admin.manuell'
 import { Route as AuthenticatedAdminEinstellungenRouteImport } from './routes/_authenticated/admin.einstellungen'
 import { Route as AuthenticatedAdminIdRouteImport } from './routes/_authenticated/admin.$id'
@@ -138,6 +139,12 @@ const AuthenticatedAdminTrafficRoute =
     path: '/traffic',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPostfachRoute =
+  AuthenticatedAdminPostfachRouteImport.update({
+    id: '/postfach',
+    path: '/postfach',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminManuellRoute =
   AuthenticatedAdminManuellRouteImport.update({
     id: '/manuell',
@@ -237,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/admin/$id': typeof AuthenticatedAdminIdRoute
   '/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
   '/admin/manuell': typeof AuthenticatedAdminManuellRoute
+  '/admin/postfach': typeof AuthenticatedAdminPostfachRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
   '/juli/angebote/$filename': typeof JuliAngeboteFilenameRoute
@@ -270,6 +278,7 @@ export interface FileRoutesByTo {
   '/admin/$id': typeof AuthenticatedAdminIdRoute
   '/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
   '/admin/manuell': typeof AuthenticatedAdminManuellRoute
+  '/admin/postfach': typeof AuthenticatedAdminPostfachRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
   '/juli/angebote/$filename': typeof JuliAngeboteFilenameRoute
@@ -306,6 +315,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/$id': typeof AuthenticatedAdminIdRoute
   '/_authenticated/admin/einstellungen': typeof AuthenticatedAdminEinstellungenRoute
   '/_authenticated/admin/manuell': typeof AuthenticatedAdminManuellRoute
+  '/_authenticated/admin/postfach': typeof AuthenticatedAdminPostfachRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/beleg-print/$art/$token': typeof BelegPrintArtTokenRoute
   '/juli/angebote/$filename': typeof JuliAngeboteFilenameRoute
@@ -342,6 +352,7 @@ export interface FileRouteTypes {
     | '/admin/$id'
     | '/admin/einstellungen'
     | '/admin/manuell'
+    | '/admin/postfach'
     | '/admin/traffic'
     | '/beleg-print/$art/$token'
     | '/juli/angebote/$filename'
@@ -375,6 +386,7 @@ export interface FileRouteTypes {
     | '/admin/$id'
     | '/admin/einstellungen'
     | '/admin/manuell'
+    | '/admin/postfach'
     | '/admin/traffic'
     | '/beleg-print/$art/$token'
     | '/juli/angebote/$filename'
@@ -410,6 +422,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/$id'
     | '/_authenticated/admin/einstellungen'
     | '/_authenticated/admin/manuell'
+    | '/_authenticated/admin/postfach'
     | '/_authenticated/admin/traffic'
     | '/beleg-print/$art/$token'
     | '/juli/angebote/$filename'
@@ -592,6 +605,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTrafficRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/postfach': {
+      id: '/_authenticated/admin/postfach'
+      path: '/postfach'
+      fullPath: '/admin/postfach'
+      preLoaderRoute: typeof AuthenticatedAdminPostfachRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/manuell': {
       id: '/_authenticated/admin/manuell'
       path: '/manuell'
@@ -697,6 +717,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminIdRoute: typeof AuthenticatedAdminIdRoute
   AuthenticatedAdminEinstellungenRoute: typeof AuthenticatedAdminEinstellungenRoute
   AuthenticatedAdminManuellRoute: typeof AuthenticatedAdminManuellRoute
+  AuthenticatedAdminPostfachRoute: typeof AuthenticatedAdminPostfachRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -705,6 +726,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIdRoute: AuthenticatedAdminIdRoute,
   AuthenticatedAdminEinstellungenRoute: AuthenticatedAdminEinstellungenRoute,
   AuthenticatedAdminManuellRoute: AuthenticatedAdminManuellRoute,
+  AuthenticatedAdminPostfachRoute: AuthenticatedAdminPostfachRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
