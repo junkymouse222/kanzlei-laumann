@@ -174,13 +174,16 @@ function PostfachPage() {
         return;
       }
 
-      // Einmalige Einrichtung (wie Mailbird hinter den Kulissen)
+      // Device-Login → Microsoft-/GoDaddy-Organisationskonto
+      const verificationUri = started.verificationUri;
       setSetup({
         userCode: started.userCode,
-        verificationUri: started.verificationUri,
+        verificationUri,
         message: started.message,
       });
-      setMsg("Einmalige Microsoft-Einrichtung — danach nur noch normal einloggen.");
+      setMsg("Microsoft-Login geöffnet — mit GoDaddy-/Organisationskonto anmelden.");
+      window.open(verificationUri, "_blank", "noopener,noreferrer");
+
       const intervalMs = Math.max(3, started.interval || 5) * 1000;
       pollRef.current = setInterval(() => {
         void (async () => {
@@ -189,12 +192,21 @@ function PostfachPage() {
             if (result.status === "pending") return;
             stopPoll();
             setSetup(null);
-            window.location.href = result.authorizeUrl;
+            if (result.status === "complete" && "settings" in result && result.settings) {
+              applySettings(result.settings);
+              setMsg("Microsoft-Konto verbunden — Postfach ist bereit.");
+              setOauthBusy(false);
+              if (result.settings.configured) await loadList();
+              return;
+            }
+            if (result.status === "redirect" && "authorizeUrl" in result) {
+              window.location.href = result.authorizeUrl;
+            }
           } catch (e) {
             stopPoll();
             setSetup(null);
             setOauthBusy(false);
-            setMsg(e instanceof Error ? e.message : "Einrichtung fehlgeschlagen.");
+            setMsg(e instanceof Error ? e.message : "Anmeldung fehlgeschlagen.");
           }
         })();
       }, intervalMs);
@@ -312,9 +324,8 @@ function PostfachPage() {
         <div className="mt-8 border border-border p-6">
           <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            E-Mail eintragen und mit Microsoft anmelden. Wichtig: das{" "}
-            <strong>Organisationskonto von {SITE.domain}</strong> verwenden — nicht ein privates
-            Microsoft-Konto und nicht die andere Kanzlei.
+            E-Mail eintragen und mit Microsoft anmelden. Es öffnet sich der Microsoft-Login — dort
+            mit dem <strong>GoDaddy-/Organisationskonto</strong> von {SITE.domain} einloggen (Arbeitskonto).
           </p>
 
           <div className="mt-6 grid max-w-xl gap-4">
@@ -374,8 +385,9 @@ function PostfachPage() {
                 </a>
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                Einmalig als <strong>Organisations-Admin von {SITE.domain}</strong> bestätigen.
-                Danach wirst du automatisch zum normalen Postfach-Login weitergeleitet.
+                Code oben auf der Microsoft-Seite eingeben und mit dem{" "}
+                <strong>GoDaddy-Organisationskonto</strong> anmelden (nicht privat). Danach kehrt
+                diese Seite automatisch zurück.
               </p>
               <button
                 type="button"

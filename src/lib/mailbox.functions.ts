@@ -51,26 +51,39 @@ export function getMailboxMicrosoftRedirectUrisForSite(): string[] {
 }
 
 /**
- * Öffentliche Client-ID der Kanzlei-Postfach-App (wie bei Mailbird fest eingebaut).
- * Nach dem einmaligen Auto-Anlegen hier eintragen bzw. per Env setzen.
+ * Öffentliche Client-ID für Redirect-Login (eigene Entra-App).
+ * Leer = Device-Code über Microsoft-Office-Client (GoDaddy-tauglich).
  */
 export const BUILTIN_MS_MAILBOX_CLIENT_ID = "";
+
+/**
+ * Microsoft Office Public Client – IMAP/SMTP OAuth per Device-Code ohne App-Registrierung
+ * im GoDaddy-Tenant. Login läuft über microsoft.com/device (Organisations-/GoDaddy-Login).
+ */
+export const MS_OFFICE_PUBLIC_CLIENT_ID = "d3590ed6-52b3-4102-aeff-aad2292ab01c";
 
 const EXCHANGE_RESOURCE_APP_ID = "00000002-0000-0ff1-ce00-000000000000";
 const IMAP_SCOPE_ID = "652390e4-393a-48de-9484-05f9b1212954";
 const SMTP_SCOPE_ID = "258f6531-6087-4cc4-bb90-092c5fb3ed3f";
-/** Azure CLI public client – nur für einmaliges Anlegen unserer Postfach-App. */
-const AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
+
+/** Client-ID nur für Browser-Redirect (eigene App). Office-Public-Client scheidet aus. */
+function resolveRedirectClientId(): string {
+  const fromEnv = (process.env.MICROSOFT_MAILBOX_CLIENT_ID || "").trim();
+  if (fromEnv && fromEnv !== MS_OFFICE_PUBLIC_CLIENT_ID) return fromEnv;
+  if (BUILTIN_MS_MAILBOX_CLIENT_ID && BUILTIN_MS_MAILBOX_CLIENT_ID !== MS_OFFICE_PUBLIC_CLIENT_ID) {
+    return BUILTIN_MS_MAILBOX_CLIENT_ID;
+  }
+  return "";
+}
 
 function resolveMicrosoftClientId(map?: Map<string, string>): string {
-  const fromEnv = (process.env.MICROSOFT_MAILBOX_CLIENT_ID || "").trim();
-  if (fromEnv) return fromEnv;
-  if (BUILTIN_MS_MAILBOX_CLIENT_ID.trim()) return BUILTIN_MS_MAILBOX_CLIENT_ID.trim();
+  const redirect = resolveRedirectClientId();
+  if (redirect) return redirect;
   if (map) {
     const fromSettings = (map.get(KEYS.oauthClientId) || "").trim();
     if (fromSettings) return fromSettings;
   }
-  return "";
+  return MS_OFFICE_PUBLIC_CLIENT_ID;
 }
 
 function resolveMicrosoftClientSecret(map?: Map<string, string>): string {
@@ -252,7 +265,7 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
     hasPassword: password.length > 0,
     fromName: (map.get(KEYS.fromName) || "").trim() || SITE.brand,
     hasOAuth,
-    microsoftReady: !!resolveMicrosoftClientId(map),
+    microsoftReady: true,
     orgHint: SITE.domain,
   };
 }
@@ -785,9 +798,10 @@ async function createMailboxEntraApp(accessToken: string): Promise<{
 }
 
 /**
- * Startet Microsoft-Login wie bei Mailbird.
- * - App schon da → authorizeUrl (Browser-Redirect)
- * - Sonst einmalig Bootstrap (Device-Code als Admin), danach Redirect
+ * Startet Microsoft-/GoDaddy-Login.
+ * 1) Wenn eigene Client-ID da → Redirect (Mailbird-Style)
+ * 2) Sonst Device-Code mit Microsoft-Office-Client → microsoft.com/device
+ *    (dort erscheint der normale Organisations-/GoDaddy-Login, ohne App-Erstellung)
  */
 export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -797,39 +811,34 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
     const user = (map.get(KEYS.user) || "").trim();
     if (!user) throw new Error("Bitte zuerst die Postfach-E-Mail speichern.");
 
-    // M365-Server sicherstellen
-    if (!(map.get(KEYS.imapHost) || "").trim()) {
-      await upsertSetting(KEYS.imapHost, M365_PRESET.imapHost);
-      await upsertSetting(KEYS.imapPort, String(M365_PRESET.imapPort));
-      await upsertSetting(KEYS.imapSecure, "true");
-      await upsertSetting(KEYS.smtpHost, M365_PRESET.smtpHost);
-      await upsertSetting(KEYS.smtpPort, String(M365_PRESET.smtpPort));
-      await upsertSetting(KEYS.smtpSecure, "false");
-    }
+    await upsertSetting(KEYS.imapHost, M365_PRESET.imapHost);
+    await upsertSetting(KEYS.imapPort, String(M365_PRESET.imapPort));
+    await upsertSetting(KEYS.imapSecure, "true");
+    await upsertSetting(KEYS.smtpHost, M365_PRESET.smtpHost);
+    await upsertSetting(KEYS.smtpPort, String(M365_PRESET.smtpPort));
+    await upsertSetting(KEYS.smtpSecure, "false");
     await upsertSetting(KEYS.authMode, "oauth");
 
-    const clientId = resolveMicrosoftClientId(map);
-    const tenant = resolveMicrosoftTenant(map);
-
-    if (clientId) {
+    const redirectClientId = resolveRedirectClientId();
+    if (redirectClientId) {
       const authorizeUrl = await buildAuthorizeUrl({
-        clientId,
-        tenant,
+        clientId: redirectClientId,
+        tenant: resolveMicrosoftTenant(map) || "organizations",
         user,
         userId: context.userId,
       });
       return { status: "redirect" as const, authorizeUrl };
     }
 
-    // Einmalig: Entra-App anlegen (Device-Code mit Azure-CLI-Client)
+    // GoDaddy-freundlich: kein App anlegen, direkt Microsoft-Login (Device Code)
     const deviceRes = await fetch(
       "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          client_id: AZURE_CLI_CLIENT_ID,
-          scope: "https://graph.microsoft.com/Application.ReadWrite.All offline_access",
+          client_id: MS_OFFICE_PUBLIC_CLIENT_ID,
+          scope: MS_MAIL_SCOPES,
         }),
       },
     );
@@ -848,13 +857,15 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
       throw new Error(
         deviceJson.error_description ||
           deviceJson.error ||
-          "Microsoft-Einrichtung konnte nicht gestartet werden.",
+          "Microsoft-Login konnte nicht gestartet werden.",
       );
     }
 
     await upsertSetting(
       KEYS.oauthBootstrap,
       JSON.stringify({
+        kind: "mailbox_login",
+        clientId: MS_OFFICE_PUBLIC_CLIENT_ID,
         deviceCode: deviceJson.device_code,
         userId: context.userId,
         expiresAt: Date.now() + Number(deviceJson.expires_in || 900) * 1000,
@@ -862,51 +873,53 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
     );
 
     return {
-      status: "setup" as const,
+      status: "device" as const,
       userCode: deviceJson.user_code,
-      verificationUri: deviceJson.verification_uri || "https://microsoft.com/devicelogin",
+      verificationUri: deviceJson.verification_uri || "https://login.microsoft.com/device",
       verificationUriComplete: deviceJson.verification_uri_complete || null,
       interval: Number(deviceJson.interval || 5),
       orgHint: SITE.domain,
       message:
-        deviceJson.message ||
-        `Einmalige Einrichtung für ${SITE.domain}: mit dem Organisationskonto dieser Kanzlei anmelden (nicht privat, nicht die andere Kanzlei).`,
+        "Mit dem Microsoft-/GoDaddy-Organisationskonto anmelden (Arbeitskonto). Danach ist das Postfach verbunden.",
     };
   });
 
-/** Pollt die einmalige Entra-App-Einrichtung und liefert danach die Redirect-URL. */
+/** Pollt den Microsoft Device-Login (GoDaddy/Outlook) bis Tokens da sind. */
 export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase as never, context.userId);
     const map = await readSettingsMap();
-    const existing = resolveMicrosoftClientId(map);
     const user = (map.get(KEYS.user) || "").trim();
     if (!user) throw new Error("Postfach-E-Mail fehlt.");
 
-    if (existing) {
-      const authorizeUrl = await buildAuthorizeUrl({
-        clientId: existing,
-        tenant: resolveMicrosoftTenant(map),
-        user,
-        userId: context.userId,
-      });
-      return { status: "redirect" as const, authorizeUrl };
+    // Schon verbunden?
+    if ((map.get(KEYS.oauthRefresh) || "").trim()) {
+      return {
+        status: "complete" as const,
+        settings: mapToPublic(await readSettingsMap()),
+      };
     }
 
     const raw = (map.get(KEYS.oauthBootstrap) || "").trim();
-    if (!raw) throw new Error("Keine offene Einrichtung. Bitte erneut auf Microsoft klicken.");
-    let pending: { deviceCode?: string; expiresAt?: number };
+    if (!raw) throw new Error("Keine offene Anmeldung. Bitte erneut auf Microsoft klicken.");
+    let pending: {
+      kind?: string;
+      clientId?: string;
+      deviceCode?: string;
+      expiresAt?: number;
+    };
     try {
-      pending = JSON.parse(raw) as { deviceCode?: string; expiresAt?: number };
+      pending = JSON.parse(raw) as typeof pending;
     } catch {
-      throw new Error("Einrichtungs-State ungültig.");
+      throw new Error("Anmelde-State ungültig.");
     }
-    if (!pending.deviceCode) throw new Error("Device-Code fehlt.");
+    if (!pending.deviceCode) throw new Error("Anmeldecode fehlt.");
     if (pending.expiresAt && pending.expiresAt < Date.now()) {
-      throw new Error("Einrichtung abgelaufen. Bitte erneut starten.");
+      throw new Error("Anmeldung abgelaufen. Bitte erneut starten.");
     }
 
+    const clientId = pending.clientId || MS_OFFICE_PUBLIC_CLIENT_ID;
     const tokenRes = await fetch(
       "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
       {
@@ -914,13 +927,15 @@ export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-          client_id: AZURE_CLI_CLIENT_ID,
+          client_id: clientId,
           device_code: pending.deviceCode,
         }),
       },
     );
     const tokenJson = (await tokenRes.json()) as {
       access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
       error?: string;
       error_description?: string;
     };
@@ -928,32 +943,26 @@ export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
     if (tokenJson.error === "authorization_pending" || tokenJson.error === "slow_down") {
       return { status: "pending" as const, slowDown: tokenJson.error === "slow_down" };
     }
-    if (!tokenRes.ok || !tokenJson.access_token) {
-      const hint =
-        tokenJson.error_description || tokenJson.error || "Microsoft-Einrichtung fehlgeschlagen.";
+    if (!tokenRes.ok || !tokenJson.access_token || !tokenJson.refresh_token) {
       throw new Error(
-        `${hint} — Bitte mit dem Organisations-Admin von ${SITE.domain} anmelden.`,
+        tokenJson.error_description ||
+          tokenJson.error ||
+          "Microsoft-Anmeldung fehlgeschlagen. Bitte Organisationskonto von GoDaddy/Outlook nutzen.",
       );
     }
 
-    const app = await createMailboxEntraApp(tokenJson.access_token);
-    // Nur für DIESE Site/Organisation speichern (Adam ≠ Laumann)
-    await upsertSetting(KEYS.oauthClientId, app.clientId);
-    if (app.clientSecret) await upsertSetting(KEYS.oauthClientSecret, app.clientSecret);
-    await upsertSetting(KEYS.oauthTenant, app.tenantId || "organizations");
-    await upsertSetting(KEYS.oauthBootstrap, "");
-    await upsertSetting(KEYS.authMode, "oauth");
-
-    const authorizeUrl = await buildAuthorizeUrl({
-      clientId: app.clientId,
-      tenant: app.tenantId || "organizations",
-      user,
-      userId: context.userId,
+    await upsertSetting(KEYS.oauthClientId, clientId);
+    await upsertSetting(KEYS.oauthTenant, "organizations");
+    await persistMicrosoftTokens({
+      accessToken: tokenJson.access_token,
+      refreshToken: tokenJson.refresh_token,
+      expiresIn: tokenJson.expires_in,
     });
+    await upsertSetting(KEYS.oauthBootstrap, "");
+
     return {
-      status: "redirect" as const,
-      authorizeUrl,
-      clientId: app.clientId,
+      status: "complete" as const,
+      settings: mapToPublic(await readSettingsMap()),
     };
   });
 
