@@ -1117,6 +1117,50 @@ export const getMailboxMessage = createServerFn({ method: "POST" })
     return fetchMessageByUid(data.uid);
   });
 
+const mailboxAttachmentSchema = z.object({
+  filename: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .transform((name) => name.replace(/[/\\]/g, "_")),
+  content: z.string().min(1).max(25_000_000),
+  contentType: z.string().trim().max(120).optional(),
+});
+
+function mailboxFromAddress(fromName: string, user: string): string {
+  const domain = SITE.domain.toLowerCase();
+  const userDomain = user.split("@")[1]?.toLowerCase() || "";
+  if (userDomain === domain) return `${fromName} <${user}>`;
+  // Resend verlangt verifizierte Absender-Domain → Fallback auf Site-From
+  return process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
+}
+
+async function sendMailboxViaResend(args: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  fromName: string;
+  user: string;
+  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
+  headers?: Record<string, string>;
+}) {
+  const { sendOfferEmail } = await import("@/lib/offer-email.server");
+  const send = await sendOfferEmail({
+    from: mailboxFromAddress(args.fromName, args.user),
+    replyTo: args.user,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
+    attachments: args.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
+    headers: args.headers,
+  });
+  if (!send.ok) throw new Error(send.error);
+  return send;
+}
+
 export const replyMailboxMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -1125,6 +1169,7 @@ export const replyMailboxMessage = createServerFn({ method: "POST" })
         uid: z.number().int().positive(),
         body: z.string().trim().min(1).max(50000),
         subject: z.string().trim().max(500).optional(),
+        attachments: z.array(mailboxAttachmentSchema).max(10).optional(),
       })
       .parse(input),
   )
@@ -1152,34 +1197,83 @@ export const replyMailboxMessage = createServerFn({ method: "POST" })
       <pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:12px;color:#555;">${escapeHtml(original.text.slice(0, 8000))}</pre>
     </div>`;
 
-    const transport = await createSmtpTransport(secrets);
-    const fromHeader = `${secrets.fromName} <${secrets.user}>`;
     const references = [original.references, original.messageId].filter(Boolean).join(" ").trim();
+    const headers: Record<string, string> = {};
+    if (original.messageId) headers["In-Reply-To"] = original.messageId;
+    if (references) headers.References = references;
 
     try {
-      const info = await transport.sendMail({
-        from: fromHeader,
+      const send = await sendMailboxViaResend({
         to: original.fromEmail,
         subject,
-        text: bodyText,
         html: bodyHtml,
-        headers: {
-          ...(original.messageId ? { "In-Reply-To": original.messageId } : {}),
-          ...(references ? { References: references } : {}),
-        },
+        text: bodyText,
+        fromName: secrets.fromName,
+        user: secrets.user,
+        attachments: data.attachments,
+        headers,
       });
       return {
         ok: true as const,
-        messageId: String(info.messageId || ""),
+        messageId: send.messageId,
         to: original.fromEmail,
         subject,
+        via: "resend" as const,
       };
     } catch (e) {
       throw new Error(
         `Antwort konnte nicht gesendet werden: ${e instanceof Error ? e.message : String(e)}`,
       );
-    } finally {
-      transport.close();
+    }
+  });
+
+/** Neue E-Mail über Resend (Anhänge möglich) — Empfang bleibt IMAP. */
+export const sendMailboxEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        to: z.string().trim().email().max(255),
+        subject: z.string().trim().min(1).max(500),
+        body: z.string().trim().min(1).max(50000),
+        attachments: z.array(mailboxAttachmentSchema).max(10).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const secrets = await loadSecrets();
+    if (!secrets.user) throw new Error("Bitte zuerst ein Postfach verbinden.");
+
+    const sigHtml = await buildMailboxSignatureHtml();
+    const sigText = await buildMailboxSignatureText();
+    const bodyText = `${data.body.trim()}\n\n${sigText}`;
+    const bodyHtml = `<div style="font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.6;color:#222;">
+      <p style="margin:0 0 16px 0;">${plainToHtml(data.body.trim())}</p>
+      ${sigHtml}
+    </div>`;
+
+    try {
+      const send = await sendMailboxViaResend({
+        to: data.to,
+        subject: data.subject.trim(),
+        html: bodyHtml,
+        text: bodyText,
+        fromName: secrets.fromName,
+        user: secrets.user,
+        attachments: data.attachments,
+      });
+      return {
+        ok: true as const,
+        messageId: send.messageId,
+        to: data.to,
+        subject: data.subject.trim(),
+        via: "resend" as const,
+      };
+    } catch (e) {
+      throw new Error(
+        `E-Mail konnte nicht gesendet werden: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   });
 

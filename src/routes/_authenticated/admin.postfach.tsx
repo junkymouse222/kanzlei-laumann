@@ -9,6 +9,7 @@ import {
   M365_PRESET,
   replyMailboxMessage,
   saveMailboxSettings,
+  sendMailboxEmail,
   testMailboxConnection,
   type MailboxListItem,
   type MailboxMessageDetail,
@@ -30,6 +31,33 @@ const fmtDate = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })
     : "—";
+
+type PendingAttachment = { filename: string; content: string; contentType?: string };
+
+async function readFilesAsAttachments(files: FileList | null): Promise<PendingAttachment[]> {
+  if (!files?.length) return [];
+  const out: PendingAttachment[] = [];
+  for (const file of Array.from(files)) {
+    if (file.size > 12 * 1024 * 1024) {
+      throw new Error(`${file.name} ist größer als 12 MB.`);
+    }
+    const content = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result || "");
+        resolve(dataUrl.includes(",") ? dataUrl.split(",")[1]! : dataUrl);
+      };
+      reader.onerror = () => reject(new Error(`${file.name} konnte nicht gelesen werden.`));
+      reader.readAsDataURL(file);
+    });
+    out.push({
+      filename: file.name,
+      content,
+      contentType: file.type || undefined,
+    });
+  }
+  return out;
+}
 
 function PostfachPage() {
   const [settings, setSettings] = useState<MailboxSettingsPublic | null>(null);
@@ -59,8 +87,15 @@ function PostfachPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [replySubject, setReplySubject] = useState("");
+  const [replyFiles, setReplyFiles] = useState<FileList | null>(null);
   const [sending, setSending] = useState(false);
   const [sigPreview, setSigPreview] = useState<string>("");
+
+  const [showCompose, setShowCompose] = useState(false);
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [composeFiles, setComposeFiles] = useState<FileList | null>(null);
 
   function applySettings(s: MailboxSettingsPublic) {
     setSettings(s);
@@ -184,11 +219,52 @@ function PostfachPage() {
     setSending(true);
     setMsg(null);
     try {
+      const attachments = await readFilesAsAttachments(replyFiles);
       const res = await replyMailboxMessage({
-        data: { uid: openUid, body: replyBody, subject: replySubject },
+        data: {
+          uid: openUid,
+          body: replyBody,
+          subject: replySubject,
+          attachments: attachments.length ? attachments : undefined,
+        },
       });
-      setMsg(`Antwort gesendet an ${res.to}.`);
+      setMsg(
+        `Antwort gesendet an ${res.to}${attachments.length ? ` · ${attachments.length} Anhang` : ""} (Resend).`,
+      );
       setReplyBody("");
+      setReplyFiles(null);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Senden fehlgeschlagen.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleCompose() {
+    if (!composeTo.trim() || !composeSubject.trim() || !composeBody.trim()) {
+      setMsg("Empfänger, Betreff und Text ausfüllen.");
+      return;
+    }
+    setSending(true);
+    setMsg(null);
+    try {
+      const attachments = await readFilesAsAttachments(composeFiles);
+      const res = await sendMailboxEmail({
+        data: {
+          to: composeTo.trim(),
+          subject: composeSubject.trim(),
+          body: composeBody,
+          attachments: attachments.length ? attachments : undefined,
+        },
+      });
+      setMsg(
+        `E-Mail gesendet an ${res.to}${attachments.length ? ` · ${attachments.length} Anhang` : ""} (Resend).`,
+      );
+      setComposeTo("");
+      setComposeSubject("");
+      setComposeBody("");
+      setComposeFiles(null);
+      setShowCompose(false);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Senden fehlgeschlagen.");
     } finally {
@@ -206,24 +282,33 @@ function PostfachPage() {
           <h1 className="mt-2 text-4xl">Postfach</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            Klassisch per IMAP/SMTP — Host, Port, Benutzer, Passwort.
+            Empfang per IMAP · Versand über Resend (inkl. Anhänge).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {settings?.configured && (
-            <button
-              type="button"
-              onClick={loadList}
-              disabled={loadingList}
-              className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
-            >
-              {loadingList ? "Lade …" : "Aktualisieren"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCompose((v) => !v)}
+                className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                {showCompose ? "Schreiben schließen" : "Neue E-Mail"}
+              </button>
+              <button
+                type="button"
+                onClick={loadList}
+                disabled={loadingList}
+                className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
+              >
+                {loadingList ? "Lade …" : "Aktualisieren"}
+              </button>
+            </>
           )}
           <button
             type="button"
             onClick={() => setShowSetup((v) => !v)}
-            className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
+            className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary hover:text-primary"
           >
             {showSetup ? "Zugang ausblenden" : "Zugang / Setup"}
           </button>
@@ -414,11 +499,74 @@ function PostfachPage() {
         </div>
       )}
 
+      {settings?.configured && showCompose && (
+        <div className="mt-8 border border-border p-6">
+          <h2 className="font-serif text-2xl text-primary">Neue E-Mail</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Versand über Resend · Absender {settings.user} (Reply-To)
+          </p>
+          <div className="mt-6 grid max-w-2xl gap-4">
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">An</span>
+              <input
+                value={composeTo}
+                onChange={(e) => setComposeTo(e.target.value)}
+                placeholder="empfaenger@beispiel.de"
+                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Betreff
+              </span>
+              <input
+                value={composeSubject}
+                onChange={(e) => setComposeSubject(e.target.value)}
+                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Nachricht
+              </span>
+              <textarea
+                value={composeBody}
+                onChange={(e) => setComposeBody(e.target.value)}
+                rows={8}
+                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Anhänge (max. 12 MB / Datei)
+              </span>
+              <input
+                type="file"
+                multiple
+                onChange={(e) => setComposeFiles(e.target.files)}
+                className="mt-2 block w-full text-sm text-muted-foreground"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={
+                sending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()
+              }
+              onClick={() => void handleCompose()}
+              className="w-fit border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+            >
+              {sending ? "Sendet …" : "Senden (Resend)"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {settings?.configured && (
         <>
           <div className="mt-8 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt · IMAP
+              Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt · IMAP /
+              Resend
             </span>
             <span className="text-xs">
               {settings.user} · {settings.imapHost}
@@ -495,13 +643,24 @@ function PostfachPage() {
                               className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
                             />
                           </label>
+                          <label className="block">
+                            <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                              Anhänge (max. 12 MB / Datei)
+                            </span>
+                            <input
+                              type="file"
+                              multiple
+                              onChange={(e) => setReplyFiles(e.target.files)}
+                              className="mt-2 block w-full text-sm text-muted-foreground"
+                            />
+                          </label>
                           <button
                             type="button"
                             disabled={sending || !replyBody.trim()}
                             onClick={() => void handleReply()}
                             className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
                           >
-                            {sending ? "Sendet …" : "Antwort senden"}
+                            {sending ? "Sendet …" : "Antwort senden (Resend)"}
                           </button>
                         </div>
                       </>

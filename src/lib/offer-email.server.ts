@@ -848,8 +848,18 @@ async function attachInlineLogo(
   return html;
 }
 
+type SendEmailParams = {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+  replyTo?: string | string[];
+  text?: string;
+  headers?: Record<string, string>;
+};
+
 async function sendViaLocalSmtp(
-  params: { to: string; subject: string; html: string; attachments?: EmailAttachment[] },
+  params: SendEmailParams,
   from: string,
   timeoutMs: number,
 ): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
@@ -891,6 +901,9 @@ async function sendViaLocalSmtp(
       to: params.to,
       subject: params.subject,
       html,
+      text: params.text,
+      replyTo: params.replyTo,
+      headers: params.headers,
       attachments,
     });
     return { ok: true, messageId: info.messageId ?? "" };
@@ -902,7 +915,7 @@ async function sendViaLocalSmtp(
 }
 
 async function sendViaSmtp(
-  params: { to: string; subject: string; html: string; attachments?: EmailAttachment[] },
+  params: SendEmailParams,
   from: string,
   apiKey: string,
   timeoutMs: number,
@@ -946,6 +959,9 @@ async function sendViaSmtp(
       to: params.to,
       subject: params.subject,
       html,
+      text: params.text,
+      replyTo: params.replyTo,
+      headers: params.headers,
       attachments,
     });
     return { ok: true, messageId: info.messageId ?? "" };
@@ -961,8 +977,13 @@ export async function sendOfferEmail(params: {
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
+  /** Absender, z. B. `Name <mail@domain.de>` — Default: OFFER_FROM_EMAIL / SITE.emailFrom */
+  from?: string;
+  replyTo?: string | string[];
+  text?: string;
+  headers?: Record<string, string>;
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
-  const FROM = process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
+  const FROM = (params.from || "").trim() || process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
   const configuredTimeoutMs = Number(process.env.RESEND_TIMEOUT_MS || 0);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0 ? configuredTimeoutMs : 120000;
   const transport = preferredEmailTransport();
@@ -989,6 +1010,9 @@ export async function sendOfferEmail(params: {
     subject: params.subject,
     html: params.html,
   };
+  if (params.text) body.text = params.text;
+  if (params.replyTo) body.reply_to = params.replyTo;
+  if (params.headers && Object.keys(params.headers).length) body.headers = params.headers;
   if (params.attachments?.length) {
     body.attachments = params.attachments.map((a) => ({ filename: a.filename, content: a.content }));
   }
