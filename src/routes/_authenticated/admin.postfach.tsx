@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getMailboxMessage,
   getMailboxSettings,
   getMailboxSignaturePreview,
   listMailboxMessages,
   M365_PRESET,
+  pollMicrosoftMailboxSetup,
   replyMailboxMessage,
   saveMailboxSettings,
   startMicrosoftMailboxLogin,
   testMailboxConnection,
-  type MailboxAuthMode,
   type MailboxListItem,
   type MailboxMessageDetail,
   type MailboxSettingsPublic,
@@ -51,20 +51,18 @@ function PostfachPage() {
   const [testing, setTesting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const [authMode, setAuthMode] = useState<MailboxAuthMode>("password");
-  const [imapHost, setImapHost] = useState("");
-  const [imapPort, setImapPort] = useState(993);
-  const [imapSecure, setImapSecure] = useState(true);
-  const [smtpHost, setSmtpHost] = useState("");
-  const [smtpPort, setSmtpPort] = useState(587);
-  const [smtpSecure, setSmtpSecure] = useState(false);
   const [user, setUser] = useState("");
-  const [password, setPassword] = useState("");
   const [fromName, setFromName] = useState(SITE.brand);
-  const [oauthClientId, setOauthClientId] = useState("");
-  const [oauthTenant, setOauthTenant] = useState("organizations");
-  const [oauthClientSecret, setOauthClientSecret] = useState("");
   const [oauthBusy, setOauthBusy] = useState(false);
+  const [setup, setSetup] = useState<{
+    userCode: string;
+    verificationUri: string;
+    message: string;
+  } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [password, setPassword] = useState("");
 
   const [rows, setRows] = useState<MailboxListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -79,35 +77,19 @@ function PostfachPage() {
   const [sending, setSending] = useState(false);
   const [sigPreview, setSigPreview] = useState<string>("");
 
-  function applySettings(s: MailboxSettingsPublic) {
-    setSettings(s);
-    setAuthMode(s.authMode);
-    setImapHost(s.imapHost);
-    setImapPort(s.imapPort);
-    setImapSecure(s.imapSecure);
-    setSmtpHost(s.smtpHost || s.imapHost);
-    setSmtpPort(s.smtpPort);
-    setSmtpSecure(s.smtpSecure);
-    setUser(s.user);
-    setFromName(s.fromName || SITE.brand);
-    setOauthClientId(s.oauthClientId);
-    setOauthTenant(s.oauthTenant || "organizations");
-    setOauthClientSecret("");
-    setPassword("");
-    setShowSetup(!s.configured);
+  function stopPoll() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
   }
 
-  function applyM365Preset() {
-    setImapHost(M365_PRESET.imapHost);
-    setImapPort(M365_PRESET.imapPort);
-    setImapSecure(M365_PRESET.imapSecure);
-    setSmtpHost(M365_PRESET.smtpHost);
-    setSmtpPort(M365_PRESET.smtpPort);
-    setSmtpSecure(M365_PRESET.smtpSecure);
-    setAuthMode("oauth");
-    setMsg(
-      "Microsoft-365-Server gesetzt. Client-ID speichern und „Mit Microsoft anmelden“ klicken.",
-    );
+  function applySettings(s: MailboxSettingsPublic) {
+    setSettings(s);
+    setUser(s.user);
+    setFromName(s.fromName || SITE.brand);
+    setPassword("");
+    setShowSetup(!s.configured);
   }
 
   async function loadSettings() {
@@ -140,7 +122,7 @@ function PostfachPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("oauth") === "connected") {
-      setMsg("Microsoft-Konto verbunden. Postfach ist bereit.");
+      setMsg("Microsoft-Konto verbunden — Postfach ist bereit.");
       setShowSetup(true);
       window.history.replaceState({}, "", "/admin/postfach");
     } else if (params.get("oauth_error")) {
@@ -152,36 +134,82 @@ function PostfachPage() {
     getMailboxSignaturePreview()
       .then((r) => setSigPreview(r.text))
       .catch(() => undefined);
+    return () => stopPoll();
   }, []);
 
-  async function handleSaveSettings() {
+  async function persistEmail(authMode: "oauth" | "password" = "oauth") {
+    const res = await saveMailboxSettings({
+      data: {
+        authMode,
+        user,
+        fromName,
+        imapHost: M365_PRESET.imapHost,
+        imapPort: M365_PRESET.imapPort,
+        imapSecure: M365_PRESET.imapSecure,
+        smtpHost: M365_PRESET.smtpHost,
+        smtpPort: M365_PRESET.smtpPort,
+        smtpSecure: M365_PRESET.smtpSecure,
+        password: password.trim() || undefined,
+      },
+    });
+    applySettings(res.settings);
+    return res.settings;
+  }
+
+  async function handleMicrosoftLogin() {
+    if (!user.trim()) {
+      setMsg("Bitte E-Mail-Adresse eintragen.");
+      return;
+    }
+    setOauthBusy(true);
+    setMsg(null);
+    setSetup(null);
+    stopPoll();
+    try {
+      await persistEmail("oauth");
+      const started = await startMicrosoftMailboxLogin();
+      if (started.status === "redirect") {
+        window.location.href = started.authorizeUrl;
+        return;
+      }
+
+      // Einmalige Einrichtung (wie Mailbird hinter den Kulissen)
+      setSetup({
+        userCode: started.userCode,
+        verificationUri: started.verificationUri,
+        message: started.message,
+      });
+      setMsg("Einmalige Microsoft-Einrichtung — danach nur noch normal einloggen.");
+      const intervalMs = Math.max(3, started.interval || 5) * 1000;
+      pollRef.current = setInterval(() => {
+        void (async () => {
+          try {
+            const result = await pollMicrosoftMailboxSetup();
+            if (result.status === "pending") return;
+            stopPoll();
+            setSetup(null);
+            window.location.href = result.authorizeUrl;
+          } catch (e) {
+            stopPoll();
+            setSetup(null);
+            setOauthBusy(false);
+            setMsg(e instanceof Error ? e.message : "Einrichtung fehlgeschlagen.");
+          }
+        })();
+      }, intervalMs);
+    } catch (e) {
+      setOauthBusy(false);
+      setMsg(e instanceof Error ? e.message : "Microsoft-Login fehlgeschlagen.");
+    }
+  }
+
+  async function handleSavePassword() {
     setSaving(true);
     setMsg(null);
     try {
-      const res = await saveMailboxSettings({
-        data: {
-          authMode,
-          imapHost,
-          imapPort,
-          imapSecure,
-          smtpHost: smtpHost || imapHost,
-          smtpPort,
-          smtpSecure,
-          user,
-          password: password.trim() || undefined,
-          fromName,
-          oauthClientId: oauthClientId.trim() || undefined,
-          oauthTenant: oauthTenant.trim() || "organizations",
-          oauthClientSecret: oauthClientSecret.trim() || undefined,
-        },
-      });
-      applySettings(res.settings);
-      setMsg(
-        authMode === "oauth"
-          ? "Gespeichert. Als Nächstes auf „Mit Microsoft anmelden“ klicken."
-          : "Postfach-Zugangsdaten gespeichert.",
-      );
-      if (res.settings.configured) await loadList();
+      const s = await persistEmail("password");
+      setMsg("App-Kennwort gespeichert.");
+      if (s.configured) await loadList();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
     } finally {
@@ -199,35 +227,6 @@ function PostfachPage() {
       setMsg(e instanceof Error ? e.message : "Verbindungstest fehlgeschlagen.");
     } finally {
       setTesting(false);
-    }
-  }
-
-  async function handleMicrosoftLogin() {
-    setOauthBusy(true);
-    setMsg(null);
-    try {
-      await saveMailboxSettings({
-        data: {
-          authMode: "oauth",
-          imapHost: imapHost || M365_PRESET.imapHost,
-          imapPort: imapPort || M365_PRESET.imapPort,
-          imapSecure,
-          smtpHost: smtpHost || M365_PRESET.smtpHost,
-          smtpPort: smtpPort || M365_PRESET.smtpPort,
-          smtpSecure,
-          user,
-          fromName,
-          oauthClientId: oauthClientId.trim(),
-          oauthTenant: oauthTenant.trim() || "organizations",
-          oauthClientSecret: oauthClientSecret.trim() || undefined,
-        },
-      });
-      const started = await startMicrosoftMailboxLogin();
-      // Weiterleitung zu Microsoft Organisations-Login
-      window.location.href = started.authorizeUrl;
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Microsoft-Login fehlgeschlagen.");
-      setOauthBusy(false);
     }
   }
 
@@ -270,8 +269,6 @@ function PostfachPage() {
     }
   }
 
-  const redirectUri = settings?.oauthRedirectUri || `${SITE.baseUrl}/api/public/mailbox/microsoft-oauth`;
-
   return (
     <section className="container-prose py-16">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -282,8 +279,7 @@ function PostfachPage() {
           <h1 className="mt-2 text-4xl">Postfach</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            GoDaddy / Outlook: mit Microsoft anmelden (Weiterleitung zum Organisations-Login) oder
-            App-Kennwort nutzen.
+            Wie bei Mailbird / Outlook: Microsoft anklicken, einloggen — fertig.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -313,167 +309,86 @@ function PostfachPage() {
 
       {(showSetup || loadingSettings || (settings && !settings.configured)) && (
         <div className="mt-8 border border-border p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                Empfohlen für GoDaddy mit Outlook: Microsoft-OAuth-Button — Sie werden zu Microsoft
-                weitergeleitet und melden sich mit dem Organisationskonto an.
+          <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            E-Mail eintragen und mit Microsoft anmelden. Keine Client-IDs, keine Server-Einstellungen.
+          </p>
+
+          <div className="mt-6 grid max-w-xl gap-4">
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                E-Mail-Adresse
+              </span>
+              <input
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
+                placeholder={SITE.email}
+                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                autoComplete="off"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                Anzeigename
+              </span>
+              <input
+                value={fromName}
+                onChange={(e) => setFromName(e.target.value)}
+                placeholder={SITE.brand}
+                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                autoComplete="off"
+              />
+            </label>
+          </div>
+
+          <div className="mt-6">
+            <button
+              type="button"
+              disabled={oauthBusy || !user.trim()}
+              onClick={handleMicrosoftLogin}
+              className="inline-flex items-center gap-3 border border-[#8c8c8c] bg-white px-5 py-3 text-sm font-semibold text-[#5e5e5e] shadow-sm transition hover:bg-[#f3f3f3] disabled:opacity-50"
+            >
+              <MicrosoftLogo />
+              {oauthBusy ? "Weiterleitung …" : "Mit Microsoft anmelden"}
+            </button>
+          </div>
+
+          {setup && (
+            <div className="mt-6 max-w-xl border border-border bg-parchment/40 p-4 text-sm">
+              <p className="text-foreground">{setup.message}</p>
+              <p className="mt-3">
+                Code:{" "}
+                <span className="font-mono text-lg tracking-widest text-primary">{setup.userCode}</span>
               </p>
+              <p className="mt-2">
+                <a
+                  href={setup.verificationUri}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-primary"
+                >
+                  {setup.verificationUri}
+                </a>
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Einmalig als Microsoft-Admin bestätigen. Danach wirst du automatisch zum normalen
+                Postfach-Login weitergeleitet.
+              </p>
+              <button
+                type="button"
+                className="mt-3 border border-border px-3 py-1.5 text-xs uppercase tracking-widest text-muted-foreground"
+                onClick={() => {
+                  stopPoll();
+                  setSetup(null);
+                  setOauthBusy(false);
+                }}
+              >
+                Abbrechen
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={applyM365Preset}
-              className="border border-border px-4 py-2 text-xs uppercase tracking-widest text-primary hover:border-primary"
-            >
-              GoDaddy / M365 Preset
-            </button>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setAuthMode("oauth")}
-              className={`border px-4 py-2 text-xs uppercase tracking-widest ${
-                authMode === "oauth"
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border text-muted-foreground hover:border-primary hover:text-primary"
-              }`}
-            >
-              Microsoft anmelden
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMode("password")}
-              className={`border px-4 py-2 text-xs uppercase tracking-widest ${
-                authMode === "password"
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border text-muted-foreground hover:border-primary hover:text-primary"
-              }`}
-            >
-              App-Kennwort
-            </button>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <Field label="E-Mail / Benutzer" value={user} onChange={setUser} placeholder={SITE.email} />
-            <Field label="Absendername" value={fromName} onChange={setFromName} placeholder={SITE.brand} />
-
-            {authMode === "password" ? (
-              <div className="md:col-span-2">
-                <Field
-                  label={settings?.hasPassword ? "App-Kennwort (leer = unverändert)" : "App-Kennwort"}
-                  value={password}
-                  onChange={setPassword}
-                  type="password"
-                  placeholder="Microsoft App-Kennwort, nicht das Login-Passwort"
-                />
-              </div>
-            ) : (
-              <>
-                <Field
-                  label="Azure App Client-ID"
-                  value={oauthClientId}
-                  onChange={setOauthClientId}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                />
-                <Field
-                  label="Tenant"
-                  value={oauthTenant}
-                  onChange={setOauthTenant}
-                  placeholder="organizations"
-                />
-                <div className="md:col-span-2">
-                  <Field
-                    label={
-                      settings?.hasClientSecret
-                        ? "Client Secret (leer = unverändert, optional)"
-                        : "Client Secret (optional, bei Web-App in Azure)"
-                    }
-                    value={oauthClientSecret}
-                    onChange={setOauthClientSecret}
-                    type="password"
-                    placeholder="nur nötig, wenn Azure ein Secret verlangt"
-                  />
-                </div>
-                <div className="md:col-span-2 space-y-2">
-                  <label className="block">
-                    <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
-                      Redirect-URI (in Azure eintragen)
-                    </span>
-                    <input
-                      readOnly
-                      value={redirectUri}
-                      className="mt-2 w-full border border-border bg-muted/40 px-3 py-2 font-mono text-xs"
-                      onFocus={(e) => e.currentTarget.select()}
-                    />
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    Entra-ID → App-Registrierung → Authentifizierung → Plattform „Web“ → diese URI.
-                    API-Berechtigungen (delegiert): IMAP.AccessAsUser.All, SMTP.Send, offline_access.
-                    Danach speichern und den Microsoft-Button nutzen.
-                    {settings?.hasOAuth ? " · Bereits verbunden." : ""}
-                  </p>
-                </div>
-
-                <div className="md:col-span-2">
-                  <button
-                    type="button"
-                    disabled={oauthBusy || !oauthClientId.trim() || !user.trim()}
-                    onClick={handleMicrosoftLogin}
-                    className="inline-flex items-center gap-3 border border-[#8c8c8c] bg-white px-5 py-3 text-sm font-semibold text-[#5e5e5e] shadow-sm transition hover:bg-[#f3f3f3] disabled:opacity-50"
-                  >
-                    <MicrosoftLogo />
-                    {oauthBusy ? "Weiterleitung …" : "Mit Microsoft anmelden"}
-                  </button>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Öffnet die Microsoft-Anmeldeseite (Organisationskonto / GoDaddy Outlook).
-                  </p>
-                </div>
-              </>
-            )}
-
-            <Field label="IMAP-Host" value={imapHost} onChange={setImapHost} placeholder="outlook.office365.com" />
-            <label className="block">
-              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">IMAP-Port</span>
-              <input
-                type="number"
-                value={imapPort}
-                onChange={(e) => setImapPort(Number(e.target.value) || 993)}
-                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <Field label="SMTP-Host" value={smtpHost} onChange={setSmtpHost} placeholder="smtp.office365.com" />
-            <label className="block">
-              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">SMTP-Port</span>
-              <input
-                type="number"
-                value={smtpPort}
-                onChange={(e) => setSmtpPort(Number(e.target.value) || 587)}
-                className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <div className="flex flex-col justify-end gap-2 text-sm md:col-span-2">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={imapSecure} onChange={(e) => setImapSecure(e.target.checked)} />
-                IMAP SSL/TLS (Port 993)
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} />
-                SMTP SSL on connect (aus = STARTTLS auf 587)
-              </label>
-            </div>
-          </div>
+          )}
 
           <div className="mt-6 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleSaveSettings}
-              className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
-            >
-              {saving ? "Speichern …" : "Speichern"}
-            </button>
             <button
               type="button"
               disabled={testing || !settings?.configured}
@@ -482,7 +397,42 @@ function PostfachPage() {
             >
               {testing ? "Teste …" : "Verbindung testen"}
             </button>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary"
+            >
+              {showAdvanced ? "Erweitert ausblenden" : "Erweitert: App-Kennwort"}
+            </button>
           </div>
+
+          {showAdvanced && (
+            <div className="mt-4 max-w-xl space-y-3 border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground">
+                Nur falls Microsoft-Login nicht möglich: App-Kennwort statt OAuth.
+              </p>
+              <label className="block">
+                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                  {settings?.hasPassword ? "App-Kennwort (leer = unverändert)" : "App-Kennwort"}
+                </span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                  autoComplete="new-password"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={saving || !user.trim() || !password.trim()}
+                onClick={handleSavePassword}
+                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+              >
+                {saving ? "Speichern …" : "App-Kennwort speichern"}
+              </button>
+            </div>
+          )}
 
           {sigPreview && (
             <div className="mt-6 border-t border-border pt-4">
@@ -498,7 +448,7 @@ function PostfachPage() {
           <div className="mt-8 flex items-center justify-between text-sm text-muted-foreground">
             <span>
               Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt
-              {settings.authMode === "oauth" ? " · Microsoft OAuth" : " · App-Kennwort"}
+              {settings.authMode === "oauth" ? " · Microsoft" : " · App-Kennwort"}
             </span>
             <span className="text-xs">{settings.user}</span>
           </div>
@@ -605,33 +555,5 @@ function PostfachPage() {
         </>
       )}
     </section>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-        autoComplete="off"
-      />
-    </label>
   );
 }

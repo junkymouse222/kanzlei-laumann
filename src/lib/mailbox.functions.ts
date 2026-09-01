@@ -33,11 +33,62 @@ const KEYS = {
   oauthExpires: "mailbox_oauth_expires_at",
   /** Kurzlebiger PKCE-State für Redirect-Login */
   oauthPending: "mailbox_oauth_pending",
+  /** Einmaliges Bootstrap der Entra-App (device code) */
+  oauthBootstrap: "mailbox_oauth_bootstrap",
 } as const;
 
 export function getMailboxMicrosoftRedirectUri(): string {
   const base = (process.env.PUBLIC_SITE_URL || SITE.baseUrl || "").replace(/\/$/, "");
   return `${base}/api/public/mailbox/microsoft-oauth`;
+}
+
+/**
+ * Feste Redirect-URIs der Produkt-App (multi-tenant, wie bei Mailbird).
+ * Beim Auto-Anlegen der Entra-App werden beide Domains hinterlegt.
+ */
+export const MAILBOX_MS_REDIRECT_URIS = [
+  "https://laumann-kanzlei.de/api/public/mailbox/microsoft-oauth",
+  "https://ra-adam.de/api/public/mailbox/microsoft-oauth",
+] as const;
+
+/**
+ * Öffentliche Client-ID der Kanzlei-Postfach-App (wie bei Mailbird fest eingebaut).
+ * Nach dem einmaligen Auto-Anlegen hier eintragen bzw. per Env setzen.
+ */
+export const BUILTIN_MS_MAILBOX_CLIENT_ID = "";
+
+const EXCHANGE_RESOURCE_APP_ID = "00000002-0000-0ff1-ce00-000000000000";
+const IMAP_SCOPE_ID = "652390e4-393a-48de-9484-05f9b1212954";
+const SMTP_SCOPE_ID = "258f6531-6087-4cc4-bb90-092c5fb3ed3f";
+/** Azure CLI public client – nur für einmaliges Anlegen unserer Postfach-App. */
+const AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
+
+function resolveMicrosoftClientId(map?: Map<string, string>): string {
+  const fromEnv = (process.env.MICROSOFT_MAILBOX_CLIENT_ID || "").trim();
+  if (fromEnv) return fromEnv;
+  if (BUILTIN_MS_MAILBOX_CLIENT_ID.trim()) return BUILTIN_MS_MAILBOX_CLIENT_ID.trim();
+  if (map) {
+    const fromSettings = (map.get(KEYS.oauthClientId) || "").trim();
+    if (fromSettings) return fromSettings;
+  }
+  return "";
+}
+
+function resolveMicrosoftClientSecret(map?: Map<string, string>): string {
+  const fromEnv = (process.env.MICROSOFT_MAILBOX_CLIENT_SECRET || "").trim();
+  if (fromEnv) return fromEnv;
+  if (map) return (map.get(KEYS.oauthClientSecret) || "").trim();
+  return "";
+}
+
+function resolveMicrosoftTenant(map?: Map<string, string>): string {
+  const fromEnv = (process.env.MICROSOFT_MAILBOX_TENANT || "").trim();
+  if (fromEnv) return fromEnv;
+  if (map) {
+    const t = (map.get(KEYS.oauthTenant) || "").trim();
+    if (t) return t;
+  }
+  return "organizations";
 }
 
 function base64Url(bytes: ArrayBuffer | Uint8Array): string {
@@ -86,12 +137,9 @@ export type MailboxSettingsPublic = {
   user: string;
   hasPassword: boolean;
   fromName: string;
-  oauthClientId: string;
-  oauthTenant: string;
   hasOAuth: boolean;
-  hasClientSecret: boolean;
-  /** In Azure als Redirect-URI eintragen */
-  oauthRedirectUri: string;
+  /** true = Microsoft-Button kann direkt redirecten (App hinterlegt) */
+  microsoftReady: boolean;
 };
 
 type MailboxSecrets = {
@@ -150,19 +198,22 @@ function parseBool(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
-async function upsertSetting(key: string, value: string) {
+async function upsertSettingForSites(key: string, value: string, siteKeys: string[]) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
-  const { error } = await admin.from("app_settings").upsert(
-    {
-      site_key: SITE.siteKey,
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "site_key,key" },
-  );
+  const now = new Date().toISOString();
+  const rows = siteKeys.map((site_key) => ({
+    site_key,
+    key,
+    value,
+    updated_at: now,
+  }));
+  const { error } = await admin.from("app_settings").upsert(rows, { onConflict: "site_key,key" });
   if (error) throw new Error(error.message);
+}
+
+async function upsertSetting(key: string, value: string) {
+  await upsertSettingForSites(key, value, [SITE.siteKey]);
 }
 
 async function readSettingsMap(): Promise<Map<string, string>> {
@@ -199,11 +250,8 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
     user,
     hasPassword: password.length > 0,
     fromName: (map.get(KEYS.fromName) || "").trim() || SITE.brand,
-    oauthClientId: (map.get(KEYS.oauthClientId) || "").trim(),
-    oauthTenant: (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations",
     hasOAuth,
-    hasClientSecret: !!(map.get(KEYS.oauthClientSecret) || "").trim(),
-    oauthRedirectUri: getMailboxMicrosoftRedirectUri(),
+    microsoftReady: !!resolveMicrosoftClientId(map),
   };
 }
 
@@ -268,9 +316,9 @@ async function refreshMicrosoftToken(args: {
 }
 
 async function ensureAccessToken(map: Map<string, string>): Promise<string> {
-  const clientId = (map.get(KEYS.oauthClientId) || "").trim();
-  const clientSecret = (map.get(KEYS.oauthClientSecret) || "").trim();
-  const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
+  const clientId = resolveMicrosoftClientId(map);
+  const clientSecret = resolveMicrosoftClientSecret(map);
+  const tenant = resolveMicrosoftTenant(map);
   const refresh = (map.get(KEYS.oauthRefresh) || "").trim();
   if (!clientId || !refresh) {
     throw new Error("Microsoft-Anmeldung fehlt. Bitte unter Postfach → „Mit Microsoft anmelden“ verbinden.");
@@ -480,18 +528,15 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     z
       .object({
         authMode: z.enum(["password", "oauth"]).optional(),
-        imapHost: z.string().trim().min(1).max(200),
-        imapPort: z.number().int().min(1).max(65535),
-        imapSecure: z.boolean(),
-        smtpHost: z.string().trim().min(1).max(200),
-        smtpPort: z.number().int().min(1).max(65535),
-        smtpSecure: z.boolean(),
+        imapHost: z.string().trim().min(1).max(200).optional(),
+        imapPort: z.number().int().min(1).max(65535).optional(),
+        imapSecure: z.boolean().optional(),
+        smtpHost: z.string().trim().min(1).max(200).optional(),
+        smtpPort: z.number().int().min(1).max(65535).optional(),
+        smtpSecure: z.boolean().optional(),
         user: z.string().trim().email().max(255),
         password: z.string().max(500).optional(),
         fromName: z.string().trim().max(200).optional(),
-        oauthClientId: z.string().trim().max(200).optional(),
-        oauthTenant: z.string().trim().max(200).optional(),
-        oauthClientSecret: z.string().max(500).optional(),
       })
       .parse(input),
   )
@@ -500,16 +545,22 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const now = new Date().toISOString();
-    const authMode = data.authMode || "password";
+    const authMode = data.authMode || "oauth";
+    const imapHost = (data.imapHost || M365_PRESET.imapHost).trim();
+    const smtpHost = (data.smtpHost || M365_PRESET.smtpHost).trim();
+    const imapPort = data.imapPort ?? M365_PRESET.imapPort;
+    const smtpPort = data.smtpPort ?? M365_PRESET.smtpPort;
+    const imapSecure = data.imapSecure ?? M365_PRESET.imapSecure;
+    const smtpSecure = data.smtpSecure ?? M365_PRESET.smtpSecure;
 
     const rows: Array<{ site_key: string; key: string; value: string; updated_at: string }> = [
       { site_key: SITE.siteKey, key: KEYS.authMode, value: authMode, updated_at: now },
-      { site_key: SITE.siteKey, key: KEYS.imapHost, value: data.imapHost, updated_at: now },
-      { site_key: SITE.siteKey, key: KEYS.imapPort, value: String(data.imapPort), updated_at: now },
-      { site_key: SITE.siteKey, key: KEYS.imapSecure, value: data.imapSecure ? "true" : "false", updated_at: now },
-      { site_key: SITE.siteKey, key: KEYS.smtpHost, value: data.smtpHost, updated_at: now },
-      { site_key: SITE.siteKey, key: KEYS.smtpPort, value: String(data.smtpPort), updated_at: now },
-      { site_key: SITE.siteKey, key: KEYS.smtpSecure, value: data.smtpSecure ? "true" : "false", updated_at: now },
+      { site_key: SITE.siteKey, key: KEYS.imapHost, value: imapHost, updated_at: now },
+      { site_key: SITE.siteKey, key: KEYS.imapPort, value: String(imapPort), updated_at: now },
+      { site_key: SITE.siteKey, key: KEYS.imapSecure, value: imapSecure ? "true" : "false", updated_at: now },
+      { site_key: SITE.siteKey, key: KEYS.smtpHost, value: smtpHost, updated_at: now },
+      { site_key: SITE.siteKey, key: KEYS.smtpPort, value: String(smtpPort), updated_at: now },
+      { site_key: SITE.siteKey, key: KEYS.smtpSecure, value: smtpSecure ? "true" : "false", updated_at: now },
       { site_key: SITE.siteKey, key: KEYS.user, value: data.user, updated_at: now },
       {
         site_key: SITE.siteKey,
@@ -519,23 +570,18 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
       },
       {
         site_key: SITE.siteKey,
-        key: KEYS.oauthClientId,
-        value: (data.oauthClientId || "").trim(),
-        updated_at: now,
-      },
-      {
-        site_key: SITE.siteKey,
         key: KEYS.oauthTenant,
-        value: (data.oauthTenant || "organizations").trim() || "organizations",
+        value: resolveMicrosoftTenant(),
         updated_at: now,
       },
     ];
 
-    if (data.oauthClientSecret && data.oauthClientSecret.trim()) {
+    const builtin = resolveMicrosoftClientId();
+    if (builtin) {
       rows.push({
         site_key: SITE.siteKey,
-        key: KEYS.oauthClientSecret,
-        value: data.oauthClientSecret.trim(),
+        key: KEYS.oauthClientId,
+        value: builtin,
         updated_at: now,
       });
     }
@@ -551,9 +597,7 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
       } else {
         const map = await readSettingsMap();
         if (!map.get(KEYS.password)) {
-          throw new Error(
-            "Bitte App-Passwort eintragen (GoDaddy/Outlook → Sicherheit → App-Kennwort) oder OAuth nutzen.",
-          );
+          throw new Error("Bitte App-Kennwort eintragen oder Microsoft-Anmeldung nutzen.");
         }
       }
     }
@@ -563,58 +607,283 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     return { ok: true as const, settings: mapToPublic(await readSettingsMap()) };
   });
 
+async function buildAuthorizeUrl(args: {
+  clientId: string;
+  tenant: string;
+  user: string;
+  userId: string;
+}): Promise<string> {
+  const redirectUri = getMailboxMicrosoftRedirectUri();
+  if (!redirectUri.startsWith("https://") && !redirectUri.startsWith("http://localhost")) {
+    throw new Error("Redirect-URI ungültig. PUBLIC_SITE_URL / SITE.baseUrl prüfen.");
+  }
+  const { verifier, challenge } = await createPkcePair();
+  const state = randomState();
+  await upsertSetting(
+    KEYS.oauthPending,
+    JSON.stringify({
+      state,
+      verifier,
+      userId: args.userId,
+      expiresAt: Date.now() + 15 * 60 * 1000,
+    }),
+  );
+  const params = new URLSearchParams({
+    client_id: args.clientId,
+    response_type: "code",
+    redirect_uri: redirectUri,
+    response_mode: "query",
+    scope: MS_MAIL_SCOPES,
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    login_hint: args.user,
+    prompt: "select_account",
+  });
+  return `https://login.microsoftonline.com/${encodeURIComponent(args.tenant)}/oauth2/v2.0/authorize?${params}`;
+}
+
+async function createMailboxEntraApp(accessToken: string): Promise<{
+  clientId: string;
+  clientSecret: string;
+}> {
+  const displayName = `Kanzlei Postfach (${SITE.brand})`;
+  const createRes = await fetch("https://graph.microsoft.com/v1.0/applications", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      displayName,
+      signInAudience: "AzureADMultipleOrgs",
+      isFallbackPublicClient: true,
+      web: {
+        redirectUris: [...MAILBOX_MS_REDIRECT_URIS],
+      },
+      requiredResourceAccess: [
+        {
+          resourceAppId: EXCHANGE_RESOURCE_APP_ID,
+          resourceAccess: [
+            { id: IMAP_SCOPE_ID, type: "Scope" },
+            { id: SMTP_SCOPE_ID, type: "Scope" },
+          ],
+        },
+      ],
+    }),
+  });
+  const created = (await createRes.json()) as {
+    id?: string;
+    appId?: string;
+    error?: { message?: string };
+  };
+  if (!createRes.ok || !created.appId || !created.id) {
+    throw new Error(created.error?.message || "Entra-App konnte nicht angelegt werden.");
+  }
+
+  // Optional secret (für Web-Clients); PKCE funktioniert auch ohne
+  let clientSecret = "";
+  const secretRes = await fetch(
+    `https://graph.microsoft.com/v1.0/applications/${created.id}/addPassword`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        passwordCredential: { displayName: "kanzlei-postfach", endDateTime: "2099-01-01T00:00:00Z" },
+      }),
+    },
+  );
+  if (secretRes.ok) {
+    const secretJson = (await secretRes.json()) as { secretText?: string };
+    clientSecret = secretJson.secretText || "";
+  }
+
+  // Service Principal anlegen (Consent im Home-Tenant)
+  await fetch("https://graph.microsoft.com/v1.0/servicePrincipals", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ appId: created.appId }),
+  }).catch(() => undefined);
+
+  return { clientId: created.appId, clientSecret };
+}
+
 /**
- * Startet Microsoft Redirect-OAuth (Authorization Code + PKCE).
- * UI leitet den Browser zu authorizeUrl weiter → Organisations-Login bei Microsoft.
+ * Startet Microsoft-Login wie bei Mailbird.
+ * - App schon da → authorizeUrl (Browser-Redirect)
+ * - Sonst einmalig Bootstrap (Device-Code als Admin), danach Redirect
  */
 export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase as never, context.userId);
     const map = await readSettingsMap();
-    const clientId = (map.get(KEYS.oauthClientId) || "").trim();
-    const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
     const user = (map.get(KEYS.user) || "").trim();
-    if (!clientId) {
-      throw new Error(
-        "Azure App Client-ID fehlt. Bitte zuerst speichern (Anleitung im Admin unter Postfach).",
-      );
-    }
     if (!user) throw new Error("Bitte zuerst die Postfach-E-Mail speichern.");
 
-    const redirectUri = getMailboxMicrosoftRedirectUri();
-    if (!redirectUri.startsWith("https://") && !redirectUri.startsWith("http://localhost")) {
-      throw new Error("Redirect-URI ungültig. PUBLIC_SITE_URL / SITE.baseUrl prüfen.");
+    // M365-Server sicherstellen
+    if (!(map.get(KEYS.imapHost) || "").trim()) {
+      await upsertSetting(KEYS.imapHost, M365_PRESET.imapHost);
+      await upsertSetting(KEYS.imapPort, String(M365_PRESET.imapPort));
+      await upsertSetting(KEYS.imapSecure, "true");
+      await upsertSetting(KEYS.smtpHost, M365_PRESET.smtpHost);
+      await upsertSetting(KEYS.smtpPort, String(M365_PRESET.smtpPort));
+      await upsertSetting(KEYS.smtpSecure, "false");
+    }
+    await upsertSetting(KEYS.authMode, "oauth");
+
+    const clientId = resolveMicrosoftClientId(map);
+    const tenant = resolveMicrosoftTenant(map);
+
+    if (clientId) {
+      const authorizeUrl = await buildAuthorizeUrl({
+        clientId,
+        tenant,
+        user,
+        userId: context.userId,
+      });
+      return { status: "redirect" as const, authorizeUrl };
     }
 
-    const { verifier, challenge } = await createPkcePair();
-    const state = randomState();
+    // Einmalig: Entra-App anlegen (Device-Code mit Azure-CLI-Client)
+    const deviceRes = await fetch(
+      "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: AZURE_CLI_CLIENT_ID,
+          scope: "https://graph.microsoft.com/Application.ReadWrite.All offline_access",
+        }),
+      },
+    );
+    const deviceJson = (await deviceRes.json()) as {
+      device_code?: string;
+      user_code?: string;
+      verification_uri?: string;
+      verification_uri_complete?: string;
+      expires_in?: number;
+      interval?: number;
+      message?: string;
+      error_description?: string;
+      error?: string;
+    };
+    if (!deviceRes.ok || !deviceJson.device_code || !deviceJson.user_code) {
+      throw new Error(
+        deviceJson.error_description ||
+          deviceJson.error ||
+          "Microsoft-Einrichtung konnte nicht gestartet werden.",
+      );
+    }
+
     await upsertSetting(
-      KEYS.oauthPending,
+      KEYS.oauthBootstrap,
       JSON.stringify({
-        state,
-        verifier,
+        deviceCode: deviceJson.device_code,
         userId: context.userId,
-        expiresAt: Date.now() + 15 * 60 * 1000,
+        expiresAt: Date.now() + Number(deviceJson.expires_in || 900) * 1000,
       }),
     );
 
-    const params = new URLSearchParams({
-      client_id: clientId,
-      response_type: "code",
-      redirect_uri: redirectUri,
-      response_mode: "query",
-      scope: MS_MAIL_SCOPES,
-      state,
-      code_challenge: challenge,
-      code_challenge_method: "S256",
-      login_hint: user,
-      prompt: "select_account",
-    });
-
     return {
-      authorizeUrl: `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize?${params}`,
-      redirectUri,
+      status: "setup" as const,
+      userCode: deviceJson.user_code,
+      verificationUri: deviceJson.verification_uri || "https://microsoft.com/devicelogin",
+      verificationUriComplete: deviceJson.verification_uri_complete || null,
+      interval: Number(deviceJson.interval || 5),
+      message:
+        deviceJson.message ||
+        "Einmalige Einrichtung: bei Microsoft anmelden, danach öffnet sich der normale Login.",
+    };
+  });
+
+/** Pollt die einmalige Entra-App-Einrichtung und liefert danach die Redirect-URL. */
+export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const map = await readSettingsMap();
+    const existing = resolveMicrosoftClientId(map);
+    const user = (map.get(KEYS.user) || "").trim();
+    if (!user) throw new Error("Postfach-E-Mail fehlt.");
+
+    if (existing) {
+      const authorizeUrl = await buildAuthorizeUrl({
+        clientId: existing,
+        tenant: resolveMicrosoftTenant(map),
+        user,
+        userId: context.userId,
+      });
+      return { status: "redirect" as const, authorizeUrl };
+    }
+
+    const raw = (map.get(KEYS.oauthBootstrap) || "").trim();
+    if (!raw) throw new Error("Keine offene Einrichtung. Bitte erneut auf Microsoft klicken.");
+    let pending: { deviceCode?: string; expiresAt?: number };
+    try {
+      pending = JSON.parse(raw) as { deviceCode?: string; expiresAt?: number };
+    } catch {
+      throw new Error("Einrichtungs-State ungültig.");
+    }
+    if (!pending.deviceCode) throw new Error("Device-Code fehlt.");
+    if (pending.expiresAt && pending.expiresAt < Date.now()) {
+      throw new Error("Einrichtung abgelaufen. Bitte erneut starten.");
+    }
+
+    const tokenRes = await fetch(
+      "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          client_id: AZURE_CLI_CLIENT_ID,
+          device_code: pending.deviceCode,
+        }),
+      },
+    );
+    const tokenJson = (await tokenRes.json()) as {
+      access_token?: string;
+      error?: string;
+      error_description?: string;
+    };
+
+    if (tokenJson.error === "authorization_pending" || tokenJson.error === "slow_down") {
+      return { status: "pending" as const, slowDown: tokenJson.error === "slow_down" };
+    }
+    if (!tokenRes.ok || !tokenJson.access_token) {
+      throw new Error(
+        tokenJson.error_description || tokenJson.error || "Microsoft-Einrichtung fehlgeschlagen.",
+      );
+    }
+
+    const app = await createMailboxEntraApp(tokenJson.access_token);
+    // Multi-tenant App für beide Kanzlei-Sites speichern
+    const bothSites = ["laumann", "adam"];
+    await upsertSettingForSites(KEYS.oauthClientId, app.clientId, bothSites);
+    if (app.clientSecret) {
+      await upsertSettingForSites(KEYS.oauthClientSecret, app.clientSecret, bothSites);
+    }
+    await upsertSettingForSites(KEYS.oauthTenant, "organizations", bothSites);
+    await upsertSetting(KEYS.oauthBootstrap, "");
+    await upsertSetting(KEYS.authMode, "oauth");
+
+    const authorizeUrl = await buildAuthorizeUrl({
+      clientId: app.clientId,
+      tenant: "organizations",
+      user,
+      userId: context.userId,
+    });
+    return {
+      status: "redirect" as const,
+      authorizeUrl,
+      clientId: app.clientId,
     };
   });
 
@@ -642,10 +911,10 @@ export async function completeMicrosoftMailboxOAuth(args: {
     throw new Error("Microsoft-Anmeldung abgelaufen. Bitte erneut starten.");
   }
 
-  const clientId = (map.get(KEYS.oauthClientId) || "").trim();
-  const clientSecret = (map.get(KEYS.oauthClientSecret) || "").trim();
-  const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
-  if (!clientId) throw new Error("Client-ID fehlt.");
+  const clientId = resolveMicrosoftClientId(map);
+  const clientSecret = resolveMicrosoftClientSecret(map);
+  const tenant = resolveMicrosoftTenant(map);
+  if (!clientId) throw new Error("Microsoft-App fehlt. Bitte erneut mit Microsoft anmelden.");
 
   const redirectUri = getMailboxMicrosoftRedirectUri();
   const body = new URLSearchParams({
