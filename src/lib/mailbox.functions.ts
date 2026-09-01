@@ -570,14 +570,16 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const now = new Date().toISOString();
-    const authMode = data.authMode || "oauth";
-    const imapHost = (data.imapHost || M365_PRESET.imapHost).trim();
-    const smtpHost = (data.smtpHost || M365_PRESET.smtpHost).trim();
-    const imapPort = data.imapPort ?? M365_PRESET.imapPort;
-    const smtpPort = data.smtpPort ?? M365_PRESET.smtpPort;
-    const imapSecure = data.imapSecure ?? M365_PRESET.imapSecure;
-    const smtpSecure = data.smtpSecure ?? M365_PRESET.smtpSecure;
+    const authMode = data.authMode || "password";
     const existing = await readSettingsMap();
+    const imapHost = (data.imapHost || existing.get(KEYS.imapHost) || "").trim();
+    const smtpHost = (data.smtpHost || existing.get(KEYS.smtpHost) || imapHost).trim();
+    if (!imapHost) throw new Error("IMAP-Host fehlt.");
+    if (!smtpHost) throw new Error("SMTP-Host fehlt.");
+    const imapPort = data.imapPort ?? parsePort(existing.get(KEYS.imapPort), 993);
+    const smtpPort = data.smtpPort ?? parsePort(existing.get(KEYS.smtpPort), 587);
+    const imapSecure = data.imapSecure ?? parseBool(existing.get(KEYS.imapSecure), true);
+    const smtpSecure = data.smtpSecure ?? parseBool(existing.get(KEYS.smtpSecure), false);
 
     const rows: Array<{ site_key: string; key: string; value: string; updated_at: string }> = [
       { site_key: SITE.siteKey, key: KEYS.authMode, value: authMode, updated_at: now },
@@ -594,37 +596,22 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
         value: (data.fromName || SITE.brand).trim(),
         updated_at: now,
       },
-      {
-        site_key: SITE.siteKey,
-        key: KEYS.oauthTenant,
-        value: (data.oauthTenant || resolveMicrosoftTenant(existing) || "organizations").trim(),
-        updated_at: now,
-      },
     ];
 
-    if (data.oauthClientId !== undefined) {
-      const id = data.oauthClientId.trim();
-      if (id === MS_OFFICE_PUBLIC_CLIENT_ID) {
-        throw new Error("Diese Client-ID eignet sich nicht für Redirect-Login. Bitte eigene Entra-App nutzen.");
-      }
-      rows.push({
-        site_key: SITE.siteKey,
-        key: KEYS.oauthClientId,
-        value: id,
-        updated_at: now,
-      });
-    }
-
-    if (data.oauthClientSecret !== undefined && data.oauthClientSecret.trim()) {
-      rows.push({
-        site_key: SITE.siteKey,
-        key: KEYS.oauthClientSecret,
-        value: data.oauthClientSecret.trim(),
-        updated_at: now,
-      });
-    }
-
     if (authMode === "password") {
+      // OAuth-Reste entfernen — Postfach läuft nur noch per Passwort/IMAP
+      for (const key of [
+        KEYS.oauthClientId,
+        KEYS.oauthClientSecret,
+        KEYS.oauthRefresh,
+        KEYS.oauthAccess,
+        KEYS.oauthExpires,
+        KEYS.oauthPending,
+        KEYS.oauthBootstrap,
+      ]) {
+        rows.push({ site_key: SITE.siteKey, key, value: "", updated_at: now });
+      }
+
       if (data.password && data.password.trim()) {
         rows.push({
           site_key: SITE.siteKey,
@@ -633,7 +620,23 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
           updated_at: now,
         });
       } else if (!existing.get(KEYS.password)) {
-        throw new Error("Bitte App-Kennwort eintragen oder Microsoft-Anmeldung nutzen.");
+        throw new Error("Bitte Passwort eintragen.");
+      }
+    } else if (data.oauthClientId !== undefined) {
+      const id = data.oauthClientId.trim();
+      rows.push({
+        site_key: SITE.siteKey,
+        key: KEYS.oauthClientId,
+        value: id,
+        updated_at: now,
+      });
+      if (data.oauthClientSecret !== undefined && data.oauthClientSecret.trim()) {
+        rows.push({
+          site_key: SITE.siteKey,
+          key: KEYS.oauthClientSecret,
+          value: data.oauthClientSecret.trim(),
+          updated_at: now,
+        });
       }
     }
 
@@ -865,11 +868,12 @@ export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
     return { status: "pending" as const, slowDown: false };
   });
 
-/** Trennt Microsoft-Verbindung (App-Zuordnung + Tokens), damit neu mit der richtigen Organisation eingerichtet werden kann. */
-export const resetMicrosoftMailboxConnection = createServerFn({ method: "POST" })
+/** Löscht gespeicherten Postfach-Zugang (Passwort + ggf. OAuth-Reste). */
+export const clearMailboxConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase as never, context.userId);
+    await upsertSetting(KEYS.password, "");
     await upsertSetting(KEYS.oauthClientId, "");
     await upsertSetting(KEYS.oauthClientSecret, "");
     await upsertSetting(KEYS.oauthRefresh, "");
@@ -877,10 +881,12 @@ export const resetMicrosoftMailboxConnection = createServerFn({ method: "POST" }
     await upsertSetting(KEYS.oauthExpires, "");
     await upsertSetting(KEYS.oauthPending, "");
     await upsertSetting(KEYS.oauthBootstrap, "");
-    await upsertSetting(KEYS.oauthTenant, "organizations");
-    await upsertSetting(KEYS.authMode, "oauth");
+    await upsertSetting(KEYS.authMode, "password");
     return { ok: true as const, settings: mapToPublic(await readSettingsMap()) };
   });
+
+/** @deprecated Alias — klarer Name: clearMailboxConnection */
+export const resetMicrosoftMailboxConnection = clearMailboxConnection;
 
 /** Wird vom OAuth-Callback-Endpunkt aufgerufen (Browser-Redirect von Microsoft). */
 export async function completeMicrosoftMailboxOAuth(args: {
