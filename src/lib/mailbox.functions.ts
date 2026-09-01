@@ -24,10 +24,33 @@ const KEYS = {
   user: "mailbox_user",
   password: "mailbox_password",
   fromName: "mailbox_from_name",
+  authMode: "mailbox_auth_mode",
+  oauthClientId: "mailbox_oauth_client_id",
+  oauthTenant: "mailbox_oauth_tenant",
+  oauthRefresh: "mailbox_oauth_refresh_token",
+  oauthAccess: "mailbox_oauth_access_token",
+  oauthExpires: "mailbox_oauth_expires_at",
 } as const;
+
+/** Microsoft Graph / Exchange Online OAuth scopes for IMAP + SMTP AUTH. */
+export const MS_MAIL_SCOPES =
+  "offline_access https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send";
+
+export const M365_PRESET = {
+  imapHost: "outlook.office365.com",
+  imapPort: 993,
+  imapSecure: true,
+  smtpHost: "smtp.office365.com",
+  smtpPort: 587,
+  /** false = STARTTLS auf Port 587 (nicht SSL-on-connect). */
+  smtpSecure: false,
+} as const;
+
+export type MailboxAuthMode = "password" | "oauth";
 
 export type MailboxSettingsPublic = {
   configured: boolean;
+  authMode: MailboxAuthMode;
   imapHost: string;
   imapPort: number;
   imapSecure: boolean;
@@ -35,12 +58,15 @@ export type MailboxSettingsPublic = {
   smtpPort: number;
   smtpSecure: boolean;
   user: string;
-  /** true wenn Passwort hinterlegt (Wert selbst nie an Client). */
   hasPassword: boolean;
   fromName: string;
+  oauthClientId: string;
+  oauthTenant: string;
+  hasOAuth: boolean;
 };
 
 type MailboxSecrets = {
+  authMode: MailboxAuthMode;
   imapHost: string;
   imapPort: number;
   imapSecure: boolean;
@@ -50,6 +76,9 @@ type MailboxSecrets = {
   user: string;
   password: string;
   fromName: string;
+  oauthClientId: string;
+  oauthTenant: string;
+  accessToken?: string;
 };
 
 export type MailboxListItem = {
@@ -92,6 +121,21 @@ function parseBool(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
+async function upsertSetting(key: string, value: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = supabaseAdmin as any;
+  const { error } = await admin.from("app_settings").upsert(
+    {
+      site_key: SITE.siteKey,
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "site_key,key" },
+  );
+  if (error) throw new Error(error.message);
+}
+
 async function readSettingsMap(): Promise<Map<string, string>> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
@@ -108,28 +152,121 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
   const user = (map.get(KEYS.user) || "").trim();
   const imapHost = (map.get(KEYS.imapHost) || "").trim();
   const password = map.get(KEYS.password) || "";
+  const authMode = (map.get(KEYS.authMode) || "password") === "oauth" ? "oauth" : "password";
+  const hasOAuth = !!(map.get(KEYS.oauthRefresh) || "").trim();
+  const configured =
+    !!user &&
+    !!imapHost &&
+    (authMode === "oauth" ? hasOAuth : password.length > 0);
   return {
-    configured: !!(user && imapHost && password),
+    configured,
+    authMode,
     imapHost,
     imapPort: parsePort(map.get(KEYS.imapPort), 993),
     imapSecure: parseBool(map.get(KEYS.imapSecure), true),
     smtpHost: (map.get(KEYS.smtpHost) || "").trim() || imapHost,
-    smtpPort: parsePort(map.get(KEYS.smtpPort), 465),
-    smtpSecure: parseBool(map.get(KEYS.smtpSecure), true),
+    smtpPort: parsePort(map.get(KEYS.smtpPort), 587),
+    smtpSecure: parseBool(map.get(KEYS.smtpSecure), false),
     user,
     hasPassword: password.length > 0,
     fromName: (map.get(KEYS.fromName) || "").trim() || SITE.brand,
+    oauthClientId: (map.get(KEYS.oauthClientId) || "").trim(),
+    oauthTenant: (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations",
+    hasOAuth,
   };
+}
+
+async function refreshMicrosoftToken(args: {
+  clientId: string;
+  tenant: string;
+  refreshToken: string;
+}): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }> {
+  const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(args.tenant)}/oauth2/v2.0/token`;
+  const body = new URLSearchParams({
+    client_id: args.clientId,
+    grant_type: "refresh_token",
+    refresh_token: args.refreshToken,
+    scope: MS_MAIL_SCOPES,
+  });
+  const res = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const json = (await res.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+  if (!res.ok || !json.access_token) {
+    throw new Error(
+      json.error_description ||
+        json.error ||
+        "Microsoft-Token konnte nicht erneuert werden. Bitte erneut mit Microsoft anmelden.",
+    );
+  }
+  const expiresAt = Date.now() + Math.max(60, Number(json.expires_in || 3600) - 120) * 1000;
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token || args.refreshToken,
+    expiresAt,
+  };
+}
+
+async function ensureAccessToken(map: Map<string, string>): Promise<string> {
+  const clientId = (map.get(KEYS.oauthClientId) || "").trim();
+  const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
+  const refresh = (map.get(KEYS.oauthRefresh) || "").trim();
+  if (!clientId || !refresh) {
+    throw new Error("Microsoft-Anmeldung fehlt. Bitte unter Postfach → „Mit Microsoft anmelden“ verbinden.");
+  }
+  const cached = (map.get(KEYS.oauthAccess) || "").trim();
+  const expiresAt = Number(map.get(KEYS.oauthExpires) || 0);
+  if (cached && expiresAt > Date.now()) return cached;
+
+  const tokens = await refreshMicrosoftToken({ clientId, tenant, refreshToken: refresh });
+  await upsertSetting(KEYS.oauthAccess, tokens.accessToken);
+  await upsertSetting(KEYS.oauthRefresh, tokens.refreshToken);
+  await upsertSetting(KEYS.oauthExpires, String(tokens.expiresAt));
+  return tokens.accessToken;
 }
 
 async function loadSecrets(): Promise<MailboxSecrets> {
   const map = await readSettingsMap();
   const pub = mapToPublic(map);
+  if (!pub.imapHost || !pub.user) {
+    throw new Error("Postfach nicht konfiguriert. Bitte Zugangsdaten speichern.");
+  }
+
+  if (pub.authMode === "oauth") {
+    const accessToken = await ensureAccessToken(map);
+    return {
+      authMode: "oauth",
+      imapHost: pub.imapHost,
+      imapPort: pub.imapPort,
+      imapSecure: pub.imapSecure,
+      smtpHost: pub.smtpHost || pub.imapHost,
+      smtpPort: pub.smtpPort,
+      smtpSecure: pub.smtpSecure,
+      user: pub.user,
+      password: "",
+      fromName: pub.fromName,
+      oauthClientId: pub.oauthClientId,
+      oauthTenant: pub.oauthTenant,
+      accessToken,
+    };
+  }
+
   const password = map.get(KEYS.password) || "";
-  if (!pub.imapHost || !pub.user || !password) {
-    throw new Error("Postfach nicht konfiguriert. Bitte unter Admin → Postfach die Zugangsdaten speichern.");
+  if (!password) {
+    throw new Error(
+      "Kein Passwort hinterlegt. Für GoDaddy/Outlook: App-Passwort erstellen oder Microsoft-OAuth nutzen.",
+    );
   }
   return {
+    authMode: "password",
     imapHost: pub.imapHost,
     imapPort: pub.imapPort,
     imapSecure: pub.imapSecure,
@@ -139,6 +276,8 @@ async function loadSecrets(): Promise<MailboxSecrets> {
     user: pub.user,
     password,
     fromName: pub.fromName,
+    oauthClientId: pub.oauthClientId,
+    oauthTenant: pub.oauthTenant,
   };
 }
 
@@ -164,6 +303,35 @@ function formatAddress(value: unknown): { display: string; email: string } {
   return { display: String(value), email: "" };
 }
 
+function imapAuth(secrets: MailboxSecrets): { user: string; pass?: string; accessToken?: string } {
+  if (secrets.authMode === "oauth" && secrets.accessToken) {
+    return { user: secrets.user, accessToken: secrets.accessToken };
+  }
+  return { user: secrets.user, pass: secrets.password };
+}
+
+async function createSmtpTransport(secrets: MailboxSecrets) {
+  const nodemailer = await import("nodemailer");
+  const createTransport =
+    (nodemailer as any).createTransport || (nodemailer as any).default.createTransport;
+
+  const useStartTls = secrets.smtpPort === 587 || !secrets.smtpSecure;
+  const auth =
+    secrets.authMode === "oauth" && secrets.accessToken
+      ? { type: "OAuth2", user: secrets.user, accessToken: secrets.accessToken }
+      : { user: secrets.user, pass: secrets.password };
+
+  return createTransport({
+    host: secrets.smtpHost,
+    port: secrets.smtpPort,
+    secure: useStartTls ? false : secrets.smtpSecure,
+    requireTLS: useStartTls,
+    auth,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+  });
+}
+
 async function withImap<T>(fn: (client: any) => Promise<T>): Promise<T> {
   const secrets = await loadSecrets();
   const { ImapFlow } = await import("imapflow");
@@ -171,7 +339,7 @@ async function withImap<T>(fn: (client: any) => Promise<T>): Promise<T> {
     host: secrets.imapHost,
     port: secrets.imapPort,
     secure: secrets.imapSecure,
-    auth: { user: secrets.user, pass: secrets.password },
+    auth: imapAuth(secrets),
     logger: false,
     connectionTimeout: 20000,
     greetingTimeout: 20000,
@@ -192,7 +360,6 @@ async function withImap<T>(fn: (client: any) => Promise<T>): Promise<T> {
   }
 }
 
-/** HTML-Signatur mit aktivem Verwalter + Kanzlei-Stammdaten. */
 export async function buildMailboxSignatureHtml(): Promise<string> {
   const { loadActiveVerwalter } = await import("@/lib/settings.functions");
   const verwalter = await loadActiveVerwalter();
@@ -254,6 +421,7 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
+        authMode: z.enum(["password", "oauth"]).optional(),
         imapHost: z.string().trim().min(1).max(200),
         imapPort: z.number().int().min(1).max(65535),
         imapSecure: z.boolean(),
@@ -263,6 +431,8 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
         user: z.string().trim().email().max(255),
         password: z.string().max(500).optional(),
         fromName: z.string().trim().max(200).optional(),
+        oauthClientId: z.string().trim().max(200).optional(),
+        oauthTenant: z.string().trim().max(200).optional(),
       })
       .parse(input),
   )
@@ -271,8 +441,10 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const now = new Date().toISOString();
+    const authMode = data.authMode || "password";
 
     const rows: Array<{ site_key: string; key: string; value: string; updated_at: string }> = [
+      { site_key: SITE.siteKey, key: KEYS.authMode, value: authMode, updated_at: now },
       { site_key: SITE.siteKey, key: KEYS.imapHost, value: data.imapHost, updated_at: now },
       { site_key: SITE.siteKey, key: KEYS.imapPort, value: String(data.imapPort), updated_at: now },
       { site_key: SITE.siteKey, key: KEYS.imapSecure, value: data.imapSecure ? "true" : "false", updated_at: now },
@@ -286,25 +458,152 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
         value: (data.fromName || SITE.brand).trim(),
         updated_at: now,
       },
+      {
+        site_key: SITE.siteKey,
+        key: KEYS.oauthClientId,
+        value: (data.oauthClientId || "").trim(),
+        updated_at: now,
+      },
+      {
+        site_key: SITE.siteKey,
+        key: KEYS.oauthTenant,
+        value: (data.oauthTenant || "organizations").trim() || "organizations",
+        updated_at: now,
+      },
     ];
 
-    if (data.password && data.password.trim()) {
-      rows.push({
-        site_key: SITE.siteKey,
-        key: KEYS.password,
-        value: data.password,
-        updated_at: now,
-      });
-    } else {
-      const map = await readSettingsMap();
-      if (!map.get(KEYS.password)) {
-        throw new Error("Bitte ein Passwort für das Postfach angeben.");
+    if (authMode === "password") {
+      if (data.password && data.password.trim()) {
+        rows.push({
+          site_key: SITE.siteKey,
+          key: KEYS.password,
+          value: data.password,
+          updated_at: now,
+        });
+      } else {
+        const map = await readSettingsMap();
+        if (!map.get(KEYS.password)) {
+          throw new Error(
+            "Bitte App-Passwort eintragen (GoDaddy/Outlook → Sicherheit → App-Kennwort) oder OAuth nutzen.",
+          );
+        }
       }
     }
 
     const { error } = await admin.from("app_settings").upsert(rows, { onConflict: "site_key,key" });
     if (error) throw new Error(error.message);
     return { ok: true as const, settings: mapToPublic(await readSettingsMap()) };
+  });
+
+/** Startet Microsoft Device-Code-Login (GoDaddy/Outlook OAuth). */
+export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const map = await readSettingsMap();
+    const clientId = (map.get(KEYS.oauthClientId) || "").trim();
+    const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
+    const user = (map.get(KEYS.user) || "").trim();
+    if (!clientId) {
+      throw new Error(
+        "Azure App Client-ID fehlt. Bitte zuerst speichern (Anleitung im Admin unter Postfach).",
+      );
+    }
+    if (!user) throw new Error("Bitte zuerst die Postfach-E-Mail speichern.");
+
+    const url = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/devicecode`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        scope: MS_MAIL_SCOPES,
+      }),
+    });
+    const json = (await res.json()) as {
+      device_code?: string;
+      user_code?: string;
+      verification_uri?: string;
+      expires_in?: number;
+      interval?: number;
+      message?: string;
+      error?: string;
+      error_description?: string;
+    };
+    if (!res.ok || !json.device_code || !json.user_code) {
+      throw new Error(json.error_description || json.error || "Device-Login konnte nicht gestartet werden.");
+    }
+    return {
+      deviceCode: json.device_code,
+      userCode: json.user_code,
+      verificationUri: json.verification_uri || "https://microsoft.com/devicelogin",
+      expiresIn: Number(json.expires_in || 900),
+      interval: Number(json.interval || 5),
+      message: json.message || `Code ${json.user_code} unter ${json.verification_uri} eingeben.`,
+      emailHint: user,
+    };
+  });
+
+/** Ein Poll-Schritt für Microsoft Device-Code (UI pollt alle paar Sekunden). */
+export const pollMicrosoftMailboxLogin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ deviceCode: z.string().min(10) }).parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    const map = await readSettingsMap();
+    const clientId = (map.get(KEYS.oauthClientId) || "").trim();
+    const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
+    if (!clientId) throw new Error("Client-ID fehlt.");
+
+    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        client_id: clientId,
+        device_code: data.deviceCode,
+      }),
+    });
+    const json = (await res.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+      error_description?: string;
+    };
+
+    if (json.access_token && json.refresh_token) {
+      const expiresAt = Date.now() + Math.max(60, Number(json.expires_in || 3600) - 120) * 1000;
+      await upsertSetting(KEYS.authMode, "oauth");
+      await upsertSetting(KEYS.oauthAccess, json.access_token);
+      await upsertSetting(KEYS.oauthRefresh, json.refresh_token);
+      await upsertSetting(KEYS.oauthExpires, String(expiresAt));
+      await upsertSetting(KEYS.imapHost, M365_PRESET.imapHost);
+      await upsertSetting(KEYS.imapPort, String(M365_PRESET.imapPort));
+      await upsertSetting(KEYS.imapSecure, "true");
+      await upsertSetting(KEYS.smtpHost, M365_PRESET.smtpHost);
+      await upsertSetting(KEYS.smtpPort, String(M365_PRESET.smtpPort));
+      await upsertSetting(KEYS.smtpSecure, "false");
+      return {
+        status: "complete" as const,
+        settings: mapToPublic(await readSettingsMap()),
+      };
+    }
+
+    if (json.error === "authorization_pending" || json.error === "slow_down") {
+      return {
+        status: "pending" as const,
+        slowDown: json.error === "slow_down",
+      };
+    }
+    if (json.error === "expired_token") {
+      throw new Error("Anmeldecode abgelaufen. Bitte erneut starten.");
+    }
+    if (json.error === "access_denied") {
+      throw new Error("Anmeldung abgebrochen.");
+    }
+    throw new Error(json.error_description || json.error || "Microsoft-Login fehlgeschlagen.");
   });
 
 export const testMailboxConnection = createServerFn({ method: "POST" })
@@ -315,32 +614,26 @@ export const testMailboxConnection = createServerFn({ method: "POST" })
     await withImap(async (client) => {
       const lock = await client.getMailboxLock("INBOX");
       try {
-        // touch mailbox
         void client.mailbox;
       } finally {
         lock.release();
       }
     });
 
-    // SMTP check
-    const nodemailer = await import("nodemailer");
-    const createTransport =
-      (nodemailer as any).createTransport || (nodemailer as any).default.createTransport;
-    const transport = createTransport({
-      host: secrets.smtpHost,
-      port: secrets.smtpPort,
-      secure: secrets.smtpSecure,
-      auth: { user: secrets.user, pass: secrets.password },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-    });
+    const transport = await createSmtpTransport(secrets);
     try {
       await transport.verify();
     } finally {
       transport.close();
     }
 
-    return { ok: true as const, message: "IMAP und SMTP Verbindung erfolgreich." };
+    return {
+      ok: true as const,
+      message:
+        secrets.authMode === "oauth"
+          ? "Microsoft OAuth: IMAP und SMTP OK."
+          : "IMAP und SMTP Verbindung erfolgreich.",
+    };
   });
 
 export const listMailboxMessages = createServerFn({ method: "POST" })
@@ -371,7 +664,6 @@ export const listMailboxMessages = createServerFn({ method: "POST" })
           uid: true,
           flags: true,
           envelope: true,
-          bodyStructure: true,
           source: { start: 0, maxLength: 1200 },
         })) {
           const env = msg.envelope || {};
@@ -510,18 +802,7 @@ export const replyMailboxMessage = createServerFn({ method: "POST" })
       <pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:12px;color:#555;">${escapeHtml(original.text.slice(0, 8000))}</pre>
     </div>`;
 
-    const nodemailer = await import("nodemailer");
-    const createTransport =
-      (nodemailer as any).createTransport || (nodemailer as any).default.createTransport;
-    const transport = createTransport({
-      host: secrets.smtpHost,
-      port: secrets.smtpPort,
-      secure: secrets.smtpSecure,
-      auth: { user: secrets.user, pass: secrets.password },
-      connectionTimeout: 20000,
-      greetingTimeout: 20000,
-    });
-
+    const transport = await createSmtpTransport(secrets);
     const fromHeader = `${secrets.fromName} <${secrets.user}>`;
     const references = [original.references, original.messageId].filter(Boolean).join(" ").trim();
 
