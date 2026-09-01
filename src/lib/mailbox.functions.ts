@@ -27,10 +27,36 @@ const KEYS = {
   authMode: "mailbox_auth_mode",
   oauthClientId: "mailbox_oauth_client_id",
   oauthTenant: "mailbox_oauth_tenant",
+  oauthClientSecret: "mailbox_oauth_client_secret",
   oauthRefresh: "mailbox_oauth_refresh_token",
   oauthAccess: "mailbox_oauth_access_token",
   oauthExpires: "mailbox_oauth_expires_at",
+  /** Kurzlebiger PKCE-State für Redirect-Login */
+  oauthPending: "mailbox_oauth_pending",
 } as const;
+
+export function getMailboxMicrosoftRedirectUri(): string {
+  const base = (process.env.PUBLIC_SITE_URL || SITE.baseUrl || "").replace(/\/$/, "");
+  return `${base}/api/public/mailbox/microsoft-oauth`;
+}
+
+function base64Url(bytes: ArrayBuffer | Uint8Array): string {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin = "";
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]!);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function createPkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const random = crypto.getRandomValues(new Uint8Array(32));
+  const verifier = base64Url(random);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return { verifier, challenge: base64Url(digest) };
+}
+
+function randomState(): string {
+  return base64Url(crypto.getRandomValues(new Uint8Array(24)));
+}
 
 /** Microsoft Graph / Exchange Online OAuth scopes for IMAP + SMTP AUTH. */
 export const MS_MAIL_SCOPES =
@@ -63,6 +89,9 @@ export type MailboxSettingsPublic = {
   oauthClientId: string;
   oauthTenant: string;
   hasOAuth: boolean;
+  hasClientSecret: boolean;
+  /** In Azure als Redirect-URI eintragen */
+  oauthRedirectUri: string;
 };
 
 type MailboxSecrets = {
@@ -173,11 +202,33 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
     oauthClientId: (map.get(KEYS.oauthClientId) || "").trim(),
     oauthTenant: (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations",
     hasOAuth,
+    hasClientSecret: !!(map.get(KEYS.oauthClientSecret) || "").trim(),
+    oauthRedirectUri: getMailboxMicrosoftRedirectUri(),
   };
+}
+
+async function persistMicrosoftTokens(args: {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn?: number;
+}) {
+  const expiresAt = Date.now() + Math.max(60, Number(args.expiresIn || 3600) - 120) * 1000;
+  await upsertSetting(KEYS.authMode, "oauth");
+  await upsertSetting(KEYS.oauthAccess, args.accessToken);
+  await upsertSetting(KEYS.oauthRefresh, args.refreshToken);
+  await upsertSetting(KEYS.oauthExpires, String(expiresAt));
+  await upsertSetting(KEYS.imapHost, M365_PRESET.imapHost);
+  await upsertSetting(KEYS.imapPort, String(M365_PRESET.imapPort));
+  await upsertSetting(KEYS.imapSecure, "true");
+  await upsertSetting(KEYS.smtpHost, M365_PRESET.smtpHost);
+  await upsertSetting(KEYS.smtpPort, String(M365_PRESET.smtpPort));
+  await upsertSetting(KEYS.smtpSecure, "false");
+  await upsertSetting(KEYS.oauthPending, "");
 }
 
 async function refreshMicrosoftToken(args: {
   clientId: string;
+  clientSecret?: string;
   tenant: string;
   refreshToken: string;
 }): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }> {
@@ -188,6 +239,7 @@ async function refreshMicrosoftToken(args: {
     refresh_token: args.refreshToken,
     scope: MS_MAIL_SCOPES,
   });
+  if (args.clientSecret) body.set("client_secret", args.clientSecret);
   const res = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -217,6 +269,7 @@ async function refreshMicrosoftToken(args: {
 
 async function ensureAccessToken(map: Map<string, string>): Promise<string> {
   const clientId = (map.get(KEYS.oauthClientId) || "").trim();
+  const clientSecret = (map.get(KEYS.oauthClientSecret) || "").trim();
   const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
   const refresh = (map.get(KEYS.oauthRefresh) || "").trim();
   if (!clientId || !refresh) {
@@ -226,7 +279,12 @@ async function ensureAccessToken(map: Map<string, string>): Promise<string> {
   const expiresAt = Number(map.get(KEYS.oauthExpires) || 0);
   if (cached && expiresAt > Date.now()) return cached;
 
-  const tokens = await refreshMicrosoftToken({ clientId, tenant, refreshToken: refresh });
+  const tokens = await refreshMicrosoftToken({
+    clientId,
+    clientSecret: clientSecret || undefined,
+    tenant,
+    refreshToken: refresh,
+  });
   await upsertSetting(KEYS.oauthAccess, tokens.accessToken);
   await upsertSetting(KEYS.oauthRefresh, tokens.refreshToken);
   await upsertSetting(KEYS.oauthExpires, String(tokens.expiresAt));
@@ -433,6 +491,7 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
         fromName: z.string().trim().max(200).optional(),
         oauthClientId: z.string().trim().max(200).optional(),
         oauthTenant: z.string().trim().max(200).optional(),
+        oauthClientSecret: z.string().max(500).optional(),
       })
       .parse(input),
   )
@@ -472,6 +531,15 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
       },
     ];
 
+    if (data.oauthClientSecret && data.oauthClientSecret.trim()) {
+      rows.push({
+        site_key: SITE.siteKey,
+        key: KEYS.oauthClientSecret,
+        value: data.oauthClientSecret.trim(),
+        updated_at: now,
+      });
+    }
+
     if (authMode === "password") {
       if (data.password && data.password.trim()) {
         rows.push({
@@ -495,7 +563,10 @@ export const saveMailboxSettings = createServerFn({ method: "POST" })
     return { ok: true as const, settings: mapToPublic(await readSettingsMap()) };
   });
 
-/** Startet Microsoft Device-Code-Login (GoDaddy/Outlook OAuth). */
+/**
+ * Startet Microsoft Redirect-OAuth (Authorization Code + PKCE).
+ * UI leitet den Browser zu authorizeUrl weiter → Organisations-Login bei Microsoft.
+ */
 export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -511,100 +582,109 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
     }
     if (!user) throw new Error("Bitte zuerst die Postfach-E-Mail speichern.");
 
-    const url = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/devicecode`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        scope: MS_MAIL_SCOPES,
-      }),
-    });
-    const json = (await res.json()) as {
-      device_code?: string;
-      user_code?: string;
-      verification_uri?: string;
-      expires_in?: number;
-      interval?: number;
-      message?: string;
-      error?: string;
-      error_description?: string;
-    };
-    if (!res.ok || !json.device_code || !json.user_code) {
-      throw new Error(json.error_description || json.error || "Device-Login konnte nicht gestartet werden.");
+    const redirectUri = getMailboxMicrosoftRedirectUri();
+    if (!redirectUri.startsWith("https://") && !redirectUri.startsWith("http://localhost")) {
+      throw new Error("Redirect-URI ungültig. PUBLIC_SITE_URL / SITE.baseUrl prüfen.");
     }
+
+    const { verifier, challenge } = await createPkcePair();
+    const state = randomState();
+    await upsertSetting(
+      KEYS.oauthPending,
+      JSON.stringify({
+        state,
+        verifier,
+        userId: context.userId,
+        expiresAt: Date.now() + 15 * 60 * 1000,
+      }),
+    );
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: "code",
+      redirect_uri: redirectUri,
+      response_mode: "query",
+      scope: MS_MAIL_SCOPES,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      login_hint: user,
+      prompt: "select_account",
+    });
+
     return {
-      deviceCode: json.device_code,
-      userCode: json.user_code,
-      verificationUri: json.verification_uri || "https://microsoft.com/devicelogin",
-      expiresIn: Number(json.expires_in || 900),
-      interval: Number(json.interval || 5),
-      message: json.message || `Code ${json.user_code} unter ${json.verification_uri} eingeben.`,
-      emailHint: user,
+      authorizeUrl: `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize?${params}`,
+      redirectUri,
     };
   });
 
-/** Ein Poll-Schritt für Microsoft Device-Code (UI pollt alle paar Sekunden). */
-export const pollMicrosoftMailboxLogin = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ deviceCode: z.string().min(10) }).parse(input))
-  .handler(async ({ context, data }) => {
-    await assertAdmin(context.supabase as never, context.userId);
-    const map = await readSettingsMap();
-    const clientId = (map.get(KEYS.oauthClientId) || "").trim();
-    const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
-    if (!clientId) throw new Error("Client-ID fehlt.");
+/** Wird vom OAuth-Callback-Endpunkt aufgerufen (Browser-Redirect von Microsoft). */
+export async function completeMicrosoftMailboxOAuth(args: {
+  code: string;
+  state: string;
+}): Promise<{ ok: true }> {
+  const map = await readSettingsMap();
+  const pendingRaw = (map.get(KEYS.oauthPending) || "").trim();
+  if (!pendingRaw) throw new Error("Keine offene Microsoft-Anmeldung. Bitte erneut starten.");
 
-    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
-    const res = await fetch(tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        client_id: clientId,
-        device_code: data.deviceCode,
-      }),
-    });
-    const json = (await res.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-      error?: string;
-      error_description?: string;
-    };
+  let pending: { state?: string; verifier?: string; expiresAt?: number };
+  try {
+    pending = JSON.parse(pendingRaw) as { state?: string; verifier?: string; expiresAt?: number };
+  } catch {
+    throw new Error("OAuth-State ungültig. Bitte erneut anmelden.");
+  }
 
-    if (json.access_token && json.refresh_token) {
-      const expiresAt = Date.now() + Math.max(60, Number(json.expires_in || 3600) - 120) * 1000;
-      await upsertSetting(KEYS.authMode, "oauth");
-      await upsertSetting(KEYS.oauthAccess, json.access_token);
-      await upsertSetting(KEYS.oauthRefresh, json.refresh_token);
-      await upsertSetting(KEYS.oauthExpires, String(expiresAt));
-      await upsertSetting(KEYS.imapHost, M365_PRESET.imapHost);
-      await upsertSetting(KEYS.imapPort, String(M365_PRESET.imapPort));
-      await upsertSetting(KEYS.imapSecure, "true");
-      await upsertSetting(KEYS.smtpHost, M365_PRESET.smtpHost);
-      await upsertSetting(KEYS.smtpPort, String(M365_PRESET.smtpPort));
-      await upsertSetting(KEYS.smtpSecure, "false");
-      return {
-        status: "complete" as const,
-        settings: mapToPublic(await readSettingsMap()),
-      };
-    }
+  if (!pending.state || pending.state !== args.state) {
+    throw new Error("OAuth-State stimmt nicht. Bitte erneut anmelden.");
+  }
+  if (!pending.verifier) throw new Error("PKCE-Verifier fehlt. Bitte erneut anmelden.");
+  if (pending.expiresAt && pending.expiresAt < Date.now()) {
+    throw new Error("Microsoft-Anmeldung abgelaufen. Bitte erneut starten.");
+  }
 
-    if (json.error === "authorization_pending" || json.error === "slow_down") {
-      return {
-        status: "pending" as const,
-        slowDown: json.error === "slow_down",
-      };
-    }
-    if (json.error === "expired_token") {
-      throw new Error("Anmeldecode abgelaufen. Bitte erneut starten.");
-    }
-    if (json.error === "access_denied") {
-      throw new Error("Anmeldung abgebrochen.");
-    }
-    throw new Error(json.error_description || json.error || "Microsoft-Login fehlgeschlagen.");
+  const clientId = (map.get(KEYS.oauthClientId) || "").trim();
+  const clientSecret = (map.get(KEYS.oauthClientSecret) || "").trim();
+  const tenant = (map.get(KEYS.oauthTenant) || "organizations").trim() || "organizations";
+  if (!clientId) throw new Error("Client-ID fehlt.");
+
+  const redirectUri = getMailboxMicrosoftRedirectUri();
+  const body = new URLSearchParams({
+    client_id: clientId,
+    grant_type: "authorization_code",
+    code: args.code,
+    redirect_uri: redirectUri,
+    code_verifier: pending.verifier,
+    scope: MS_MAIL_SCOPES,
   });
+  if (clientSecret) body.set("client_secret", clientSecret);
+
+  const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
+  const res = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const json = (await res.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!res.ok || !json.access_token || !json.refresh_token) {
+    throw new Error(
+      json.error_description || json.error || "Token-Austausch mit Microsoft fehlgeschlagen.",
+    );
+  }
+
+  await persistMicrosoftTokens({
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    expiresIn: json.expires_in,
+  });
+  return { ok: true };
+}
 
 export const testMailboxConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
