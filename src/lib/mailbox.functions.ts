@@ -265,7 +265,8 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
     hasPassword: password.length > 0,
     fromName: (map.get(KEYS.fromName) || "").trim() || SITE.brand,
     hasOAuth,
-    microsoftReady: true,
+    /** Eigene Redirect-App freigeschaltet? Sonst App-Kennwort-Weg. */
+    microsoftReady: !!resolveRedirectClientId(),
     orgHint: SITE.domain,
   };
 }
@@ -798,10 +799,9 @@ async function createMailboxEntraApp(accessToken: string): Promise<{
 }
 
 /**
- * Startet Microsoft-/GoDaddy-Login.
- * 1) Wenn eigene Client-ID da → Redirect (Mailbird-Style)
- * 2) Sonst Device-Code mit Microsoft-Office-Client → microsoft.com/device
- *    (dort erscheint der normale Organisations-/GoDaddy-Login, ohne App-Erstellung)
+ * Startet Microsoft-Redirect-OAuth nur mit eigener Client-ID.
+ * Device-Code über den Office-Client wird von GoDaddy/Security Defaults
+ * mit AADSTS530035 blockiert — daher App-Kennwort als GoDaddy-Weg.
  */
 export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -820,150 +820,31 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
     await upsertSetting(KEYS.authMode, "oauth");
 
     const redirectClientId = resolveRedirectClientId();
-    if (redirectClientId) {
-      const authorizeUrl = await buildAuthorizeUrl({
-        clientId: redirectClientId,
-        tenant: resolveMicrosoftTenant(map) || "organizations",
-        user,
-        userId: context.userId,
-      });
-      return { status: "redirect" as const, authorizeUrl };
-    }
-
-    // GoDaddy-freundlich: kein App anlegen, direkt Microsoft-Login (Device Code)
-    const deviceRes = await fetch(
-      "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: MS_OFFICE_PUBLIC_CLIENT_ID,
-          scope: MS_MAIL_SCOPES,
-        }),
-      },
-    );
-    const deviceJson = (await deviceRes.json()) as {
-      device_code?: string;
-      user_code?: string;
-      verification_uri?: string;
-      verification_uri_complete?: string;
-      expires_in?: number;
-      interval?: number;
-      message?: string;
-      error_description?: string;
-      error?: string;
-    };
-    if (!deviceRes.ok || !deviceJson.device_code || !deviceJson.user_code) {
+    if (!redirectClientId) {
       throw new Error(
-        deviceJson.error_description ||
-          deviceJson.error ||
-          "Microsoft-Login konnte nicht gestartet werden.",
+        "Bei GoDaddy ist der direkte Microsoft-OAuth oft blockiert (Fehler 530035 / Security Defaults). Bitte App-Kennwort nutzen: Mit Microsoft anmelden → App-Kennwort erzeugen → einfügen.",
       );
     }
 
-    await upsertSetting(
-      KEYS.oauthBootstrap,
-      JSON.stringify({
-        kind: "mailbox_login",
-        clientId: MS_OFFICE_PUBLIC_CLIENT_ID,
-        deviceCode: deviceJson.device_code,
-        userId: context.userId,
-        expiresAt: Date.now() + Number(deviceJson.expires_in || 900) * 1000,
-      }),
-    );
-
-    return {
-      status: "device" as const,
-      userCode: deviceJson.user_code,
-      verificationUri: deviceJson.verification_uri || "https://login.microsoft.com/device",
-      verificationUriComplete: deviceJson.verification_uri_complete || null,
-      interval: Number(deviceJson.interval || 5),
-      orgHint: SITE.domain,
-      message:
-        "Mit dem Microsoft-/GoDaddy-Organisationskonto anmelden (Arbeitskonto). Danach ist das Postfach verbunden.",
-    };
+    const authorizeUrl = await buildAuthorizeUrl({
+      clientId: redirectClientId,
+      tenant: resolveMicrosoftTenant(map) || "organizations",
+      user,
+      userId: context.userId,
+    });
+    return { status: "redirect" as const, authorizeUrl };
   });
 
-/** Pollt den Microsoft Device-Login (GoDaddy/Outlook) bis Tokens da sind. */
+/** Legacy-Poll (nur noch wenn Redirect-OAuth aktiv). */
 export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase as never, context.userId);
     const map = await readSettingsMap();
-    const user = (map.get(KEYS.user) || "").trim();
-    if (!user) throw new Error("Postfach-E-Mail fehlt.");
-
-    // Schon verbunden?
     if ((map.get(KEYS.oauthRefresh) || "").trim()) {
-      return {
-        status: "complete" as const,
-        settings: mapToPublic(await readSettingsMap()),
-      };
+      return { status: "complete" as const, settings: mapToPublic(await readSettingsMap()) };
     }
-
-    const raw = (map.get(KEYS.oauthBootstrap) || "").trim();
-    if (!raw) throw new Error("Keine offene Anmeldung. Bitte erneut auf Microsoft klicken.");
-    let pending: {
-      kind?: string;
-      clientId?: string;
-      deviceCode?: string;
-      expiresAt?: number;
-    };
-    try {
-      pending = JSON.parse(raw) as typeof pending;
-    } catch {
-      throw new Error("Anmelde-State ungültig.");
-    }
-    if (!pending.deviceCode) throw new Error("Anmeldecode fehlt.");
-    if (pending.expiresAt && pending.expiresAt < Date.now()) {
-      throw new Error("Anmeldung abgelaufen. Bitte erneut starten.");
-    }
-
-    const clientId = pending.clientId || MS_OFFICE_PUBLIC_CLIENT_ID;
-    const tokenRes = await fetch(
-      "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-          client_id: clientId,
-          device_code: pending.deviceCode,
-        }),
-      },
-    );
-    const tokenJson = (await tokenRes.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-      error?: string;
-      error_description?: string;
-    };
-
-    if (tokenJson.error === "authorization_pending" || tokenJson.error === "slow_down") {
-      return { status: "pending" as const, slowDown: tokenJson.error === "slow_down" };
-    }
-    if (!tokenRes.ok || !tokenJson.access_token || !tokenJson.refresh_token) {
-      throw new Error(
-        tokenJson.error_description ||
-          tokenJson.error ||
-          "Microsoft-Anmeldung fehlgeschlagen. Bitte Organisationskonto von GoDaddy/Outlook nutzen.",
-      );
-    }
-
-    await upsertSetting(KEYS.oauthClientId, clientId);
-    await upsertSetting(KEYS.oauthTenant, "organizations");
-    await persistMicrosoftTokens({
-      accessToken: tokenJson.access_token,
-      refreshToken: tokenJson.refresh_token,
-      expiresIn: tokenJson.expires_in,
-    });
-    await upsertSetting(KEYS.oauthBootstrap, "");
-
-    return {
-      status: "complete" as const,
-      settings: mapToPublic(await readSettingsMap()),
-    };
+    return { status: "pending" as const, slowDown: false };
   });
 
 /** Trennt Microsoft-Verbindung (App-Zuordnung + Tokens), damit neu mit der richtigen Organisation eingerichtet werden kann. */

@@ -1,12 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getMailboxMessage,
   getMailboxSettings,
   getMailboxSignaturePreview,
   listMailboxMessages,
   M365_PRESET,
-  pollMicrosoftMailboxSetup,
   replyMailboxMessage,
   resetMicrosoftMailboxConnection,
   saveMailboxSettings,
@@ -27,6 +26,9 @@ export const Route = createFileRoute("/_authenticated/admin/postfach")({
   }),
   component: PostfachPage,
 });
+
+/** Microsoft Security – dort mit GoDaddy-/Org-Konto einloggen und App-Kennwort erzeugen. */
+const MS_SECURITY_URL = "https://mysignins.microsoft.com/security-info";
 
 const fmtDate = (iso: string | null) =>
   iso
@@ -54,16 +56,8 @@ function PostfachPage() {
 
   const [user, setUser] = useState("");
   const [fromName, setFromName] = useState(SITE.brand);
-  const [oauthBusy, setOauthBusy] = useState(false);
-  const [setup, setSetup] = useState<{
-    userCode: string;
-    verificationUri: string;
-    message: string;
-  } | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [password, setPassword] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [step, setStep] = useState<"idle" | "awaiting_password">("idle");
 
   const [rows, setRows] = useState<MailboxListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -78,18 +72,11 @@ function PostfachPage() {
   const [sending, setSending] = useState(false);
   const [sigPreview, setSigPreview] = useState<string>("");
 
-  function stopPoll() {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }
-
   function applySettings(s: MailboxSettingsPublic) {
     setSettings(s);
     setUser(s.user);
     setFromName(s.fromName || SITE.brand);
-    setPassword("");
+    setAppPassword("");
     setShowSetup(!s.configured);
   }
 
@@ -135,111 +122,97 @@ function PostfachPage() {
     getMailboxSignaturePreview()
       .then((r) => setSigPreview(r.text))
       .catch(() => undefined);
-    return () => stopPoll();
   }, []);
 
-  async function persistEmail(authMode: "oauth" | "password" = "oauth") {
-    const res = await saveMailboxSettings({
-      data: {
-        authMode,
-        user,
-        fromName,
-        imapHost: M365_PRESET.imapHost,
-        imapPort: M365_PRESET.imapPort,
-        imapSecure: M365_PRESET.imapSecure,
-        smtpHost: M365_PRESET.smtpHost,
-        smtpPort: M365_PRESET.smtpPort,
-        smtpSecure: M365_PRESET.smtpSecure,
-        password: password.trim() || undefined,
-      },
-    });
-    applySettings(res.settings);
-    return res.settings;
-  }
-
-  async function handleMicrosoftLogin() {
+  /** Öffnet Microsoft-Login (GoDaddy/Org) zum Erzeugen eines App-Kennworts. */
+  function handleOpenMicrosoftLogin() {
     if (!user.trim()) {
-      setMsg("Bitte E-Mail-Adresse eintragen.");
+      setMsg("Bitte zuerst die Postfach-E-Mail eintragen.");
       return;
     }
-    setOauthBusy(true);
-    setMsg(null);
-    setSetup(null);
-    stopPoll();
-    try {
-      await persistEmail("oauth");
-      const started = await startMicrosoftMailboxLogin();
-      if (started.status === "redirect") {
-        window.location.href = started.authorizeUrl;
-        return;
-      }
-
-      // Device-Login → Microsoft-/GoDaddy-Organisationskonto
-      const verificationUri = started.verificationUri;
-      setSetup({
-        userCode: started.userCode,
-        verificationUri,
-        message: started.message,
-      });
-      setMsg("Microsoft-Login geöffnet — mit GoDaddy-/Organisationskonto anmelden.");
-      window.open(verificationUri, "_blank", "noopener,noreferrer");
-
-      const intervalMs = Math.max(3, started.interval || 5) * 1000;
-      pollRef.current = setInterval(() => {
-        void (async () => {
-          try {
-            const result = await pollMicrosoftMailboxSetup();
-            if (result.status === "pending") return;
-            stopPoll();
-            setSetup(null);
-            if (result.status === "complete" && "settings" in result && result.settings) {
-              applySettings(result.settings);
-              setMsg("Microsoft-Konto verbunden — Postfach ist bereit.");
-              setOauthBusy(false);
-              if (result.settings.configured) await loadList();
-              return;
-            }
-            if (result.status === "redirect" && "authorizeUrl" in result) {
-              window.location.href = result.authorizeUrl;
-            }
-          } catch (e) {
-            stopPoll();
-            setSetup(null);
-            setOauthBusy(false);
-            setMsg(e instanceof Error ? e.message : "Anmeldung fehlgeschlagen.");
-          }
-        })();
-      }, intervalMs);
-    } catch (e) {
-      setOauthBusy(false);
-      setMsg(e instanceof Error ? e.message : "Microsoft-Login fehlgeschlagen.");
-    }
+    setStep("awaiting_password");
+    setMsg(
+      "Microsoft-Login geöffnet. Mit dem GoDaddy-Organisationskonto anmelden → Sicherheitsinfo → App-Kennwörter → neues Kennwort erzeugen und hier einfügen.",
+    );
+    window.open(MS_SECURITY_URL, "_blank", "noopener,noreferrer");
   }
 
-  async function handleSavePassword() {
+  async function handleSaveAppPassword() {
+    if (!user.trim() || !appPassword.trim()) {
+      setMsg("E-Mail und App-Kennwort ausfüllen.");
+      return;
+    }
     setSaving(true);
     setMsg(null);
     try {
-      const s = await persistEmail("password");
-      setMsg("App-Kennwort gespeichert.");
-      if (s.configured) await loadList();
+      const res = await saveMailboxSettings({
+        data: {
+          authMode: "password",
+          user: user.trim(),
+          fromName,
+          password: appPassword.trim(),
+          imapHost: M365_PRESET.imapHost,
+          imapPort: M365_PRESET.imapPort,
+          imapSecure: M365_PRESET.imapSecure,
+          smtpHost: M365_PRESET.smtpHost,
+          smtpPort: M365_PRESET.smtpPort,
+          smtpSecure: M365_PRESET.smtpSecure,
+        },
+      });
+      applySettings(res.settings);
+      setAppPassword("");
+      setStep("idle");
+      setMsg("Verbunden. Postfach wird geladen …");
+      const test = await testMailboxConnection();
+      setMsg(test.message);
+      if (res.settings.configured) await loadList();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+      setMsg(
+        e instanceof Error
+          ? e.message
+          : "Verbindung fehlgeschlagen. App-Kennwort und SMTP AUTH in GoDaddy/M365 prüfen.",
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleTest() {
-    setTesting(true);
+  async function handleOAuthRedirect() {
+    if (!user.trim()) {
+      setMsg("Bitte E-Mail eintragen.");
+      return;
+    }
     setMsg(null);
     try {
-      const res = await testMailboxConnection();
-      setMsg(res.message);
+      await saveMailboxSettings({
+        data: {
+          authMode: "oauth",
+          user: user.trim(),
+          fromName,
+          imapHost: M365_PRESET.imapHost,
+          imapPort: M365_PRESET.imapPort,
+          imapSecure: M365_PRESET.imapSecure,
+          smtpHost: M365_PRESET.smtpHost,
+          smtpPort: M365_PRESET.smtpPort,
+          smtpSecure: M365_PRESET.smtpSecure,
+        },
+      });
+      const started = await startMicrosoftMailboxLogin();
+      if (started.status === "redirect") {
+        window.location.href = started.authorizeUrl;
+        return;
+      }
+      setMsg(
+        "Bei GoDaddy ist der direkte OAuth-Login oft blockiert (Fehler 530035). Bitte App-Kennwort nutzen — Button oben öffnet den Microsoft-Login.",
+      );
+      setStep("awaiting_password");
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Verbindungstest fehlgeschlagen.");
-    } finally {
-      setTesting(false);
+      setMsg(
+        e instanceof Error
+          ? e.message
+          : "OAuth nicht verfügbar. Bitte App-Kennwort über Microsoft-Login nutzen.",
+      );
+      setStep("awaiting_password");
     }
   }
 
@@ -292,7 +265,7 @@ function PostfachPage() {
           <h1 className="mt-2 text-4xl">Postfach</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            Wie bei Mailbird / Outlook: Microsoft anklicken, einloggen — fertig.
+            GoDaddy Microsoft 365: über Microsoft einloggen, App-Kennwort erzeugen, fertig.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -323,15 +296,16 @@ function PostfachPage() {
       {(showSetup || loadingSettings || (settings && !settings.configured)) && (
         <div className="mt-8 border border-border p-6">
           <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
-          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            E-Mail eintragen und mit Microsoft anmelden. Es öffnet sich der Microsoft-Login — dort
-            mit dem <strong>GoDaddy-/Organisationskonto</strong> von {SITE.domain} einloggen (Arbeitskonto).
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            GoDaddy blockiert den direkten Office-OAuth oft (Fehler 530035). Der Weg, der funktioniert:
+            Microsoft-Login öffnen → mit Organisationskonto anmelden → App-Kennwort erzeugen → hier
+            einfügen.
           </p>
 
           <div className="mt-6 grid max-w-xl gap-4">
             <label className="block">
               <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
-                E-Mail-Adresse
+                E-Mail-Adresse (GoDaddy / Outlook)
               </span>
               <input
                 value={user}
@@ -355,59 +329,76 @@ function PostfachPage() {
             </label>
           </div>
 
-          <div className="mt-6">
+          <ol className="mt-6 max-w-xl list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+            <li>
+              Auf den Microsoft-Button klicken und mit dem{" "}
+              <strong className="text-foreground">GoDaddy-Organisationskonto</strong> von{" "}
+              {SITE.domain} anmelden.
+            </li>
+            <li>
+              Unter Sicherheitsinfo → <strong className="text-foreground">App-Kennwörter</strong> ein
+              neues Kennwort erzeugen (Name z. B. „Kanzlei Postfach“).
+            </li>
+            <li>Das Kennwort hier einfügen und speichern.</li>
+          </ol>
+
+          <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={oauthBusy || !user.trim()}
-              onClick={handleMicrosoftLogin}
+              disabled={!user.trim()}
+              onClick={handleOpenMicrosoftLogin}
               className="inline-flex items-center gap-3 border border-[#8c8c8c] bg-white px-5 py-3 text-sm font-semibold text-[#5e5e5e] shadow-sm transition hover:bg-[#f3f3f3] disabled:opacity-50"
             >
               <MicrosoftLogo />
-              {oauthBusy ? "Weiterleitung …" : "Mit Microsoft anmelden"}
+              Mit Microsoft anmelden (App-Kennwort)
             </button>
           </div>
 
-          {setup && (
-            <div className="mt-6 max-w-xl border border-border bg-parchment/40 p-4 text-sm">
-              <p className="text-foreground">{setup.message}</p>
-              <p className="mt-3">
-                Code:{" "}
-                <span className="font-mono text-lg tracking-widest text-primary">{setup.userCode}</span>
-              </p>
-              <p className="mt-2">
-                <a
-                  href={setup.verificationUri}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline hover:text-primary"
-                >
-                  {setup.verificationUri}
-                </a>
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Code oben auf der Microsoft-Seite eingeben und mit dem{" "}
-                <strong>GoDaddy-Organisationskonto</strong> anmelden (nicht privat). Danach kehrt
-                diese Seite automatisch zurück.
-              </p>
+          {(step === "awaiting_password" || settings?.hasPassword) && (
+            <div className="mt-6 max-w-xl space-y-3 border-t border-border pt-5">
+              <label className="block">
+                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                  {settings?.hasPassword
+                    ? "Neues App-Kennwort (leer = unverändert)"
+                    : "App-Kennwort von Microsoft"}
+                </span>
+                <input
+                  type="password"
+                  value={appPassword}
+                  onChange={(e) => setAppPassword(e.target.value)}
+                  placeholder="xxxx-xxxx-xxxx-xxxx"
+                  className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
+                  autoComplete="new-password"
+                />
+              </label>
               <button
                 type="button"
-                className="mt-3 border border-border px-3 py-1.5 text-xs uppercase tracking-widest text-muted-foreground"
-                onClick={() => {
-                  stopPoll();
-                  setSetup(null);
-                  setOauthBusy(false);
-                }}
+                disabled={saving || !user.trim() || !appPassword.trim()}
+                onClick={handleSaveAppPassword}
+                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
               >
-                Abbrechen
+                {saving ? "Verbindet …" : "Speichern & verbinden"}
               </button>
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-4">
             <button
               type="button"
               disabled={testing || !settings?.configured}
-              onClick={handleTest}
+              onClick={() => {
+                void (async () => {
+                  setTesting(true);
+                  try {
+                    const res = await testMailboxConnection();
+                    setMsg(res.message);
+                  } catch (e) {
+                    setMsg(e instanceof Error ? e.message : "Test fehlgeschlagen.");
+                  } finally {
+                    setTesting(false);
+                  }
+                })();
+              }}
               className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-primary hover:border-primary disabled:opacity-50"
             >
               {testing ? "Teste …" : "Verbindung testen"}
@@ -419,11 +410,8 @@ function PostfachPage() {
                   try {
                     const res = await resetMicrosoftMailboxConnection();
                     applySettings(res.settings);
-                    setSetup(null);
-                    setOauthBusy(false);
-                    setMsg(
-                      `Microsoft-Verbindung zurückgesetzt. Bitte erneut mit dem Organisationskonto von ${SITE.domain} anmelden.`,
-                    );
+                    setStep("idle");
+                    setMsg("Verbindung zurückgesetzt.");
                   } catch (e) {
                     setMsg(e instanceof Error ? e.message : "Reset fehlgeschlagen.");
                   }
@@ -431,44 +419,18 @@ function PostfachPage() {
               }}
               className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary"
             >
-              Microsoft neu verbinden
+              Neu verbinden
             </button>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary"
-            >
-              {showAdvanced ? "Erweitert ausblenden" : "Erweitert: App-Kennwort"}
-            </button>
-          </div>
-
-          {showAdvanced && (
-            <div className="mt-4 max-w-xl space-y-3 border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground">
-                Nur falls Microsoft-Login nicht möglich: App-Kennwort statt OAuth.
-              </p>
-              <label className="block">
-                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
-                  {settings?.hasPassword ? "App-Kennwort (leer = unverändert)" : "App-Kennwort"}
-                </span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-                  autoComplete="new-password"
-                />
-              </label>
+            {settings?.microsoftReady ? (
               <button
                 type="button"
-                disabled={saving || !user.trim() || !password.trim()}
-                onClick={handleSavePassword}
-                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+                onClick={() => void handleOAuthRedirect()}
+                className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary"
               >
-                {saving ? "Speichern …" : "App-Kennwort speichern"}
+                OAuth-Redirect (falls freigeschaltet)
               </button>
-            </div>
-          )}
+            ) : null}
+          </div>
 
           {sigPreview && (
             <div className="mt-6 border-t border-border pt-4">
