@@ -8,6 +8,7 @@ import {
   M365_PRESET,
   pollMicrosoftMailboxSetup,
   replyMailboxMessage,
+  resetMicrosoftMailboxConnection,
   saveMailboxSettings,
   startMicrosoftMailboxLogin,
   testMailboxConnection,
@@ -311,7 +312,9 @@ function PostfachPage() {
         <div className="mt-8 border border-border p-6">
           <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            E-Mail eintragen und mit Microsoft anmelden. Keine Client-IDs, keine Server-Einstellungen.
+            E-Mail eintragen und mit Microsoft anmelden. Wichtig: das{" "}
+            <strong>Organisationskonto von {SITE.domain}</strong> verwenden — nicht ein privates
+            Microsoft-Konto und nicht die andere Kanzlei.
           </p>
 
           <div className="mt-6 grid max-w-xl gap-4">
@@ -371,8 +374,8 @@ function PostfachPage() {
                 </a>
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                Einmalig als Microsoft-Admin bestätigen. Danach wirst du automatisch zum normalen
-                Postfach-Login weitergeleitet.
+                Einmalig als <strong>Organisations-Admin von {SITE.domain}</strong> bestätigen.
+                Danach wirst du automatisch zum normalen Postfach-Login weitergeleitet.
               </p>
               <button
                 type="button"
@@ -396,6 +399,27 @@ function PostfachPage() {
               className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-primary hover:border-primary disabled:opacity-50"
             >
               {testing ? "Teste …" : "Verbindung testen"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const res = await resetMicrosoftMailboxConnection();
+                    applySettings(res.settings);
+                    setSetup(null);
+                    setOauthBusy(false);
+                    setMsg(
+                      `Microsoft-Verbindung zurückgesetzt. Bitte erneut mit dem Organisationskonto von ${SITE.domain} anmelden.`,
+                    );
+                  } catch (e) {
+                    setMsg(e instanceof Error ? e.message : "Reset fehlgeschlagen.");
+                  }
+                })();
+              }}
+              className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary"
+            >
+              Microsoft neu verbinden
             </button>
             <button
               type="button"

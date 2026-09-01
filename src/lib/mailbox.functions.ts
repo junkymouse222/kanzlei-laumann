@@ -43,13 +43,12 @@ export function getMailboxMicrosoftRedirectUri(): string {
 }
 
 /**
- * Feste Redirect-URIs der Produkt-App (multi-tenant, wie bei Mailbird).
- * Beim Auto-Anlegen der Entra-App werden beide Domains hinterlegt.
+ * Redirect-URI nur für die aktuelle Site (jede Kanzlei = eigene Microsoft-Organisation).
  */
-export const MAILBOX_MS_REDIRECT_URIS = [
-  "https://laumann-kanzlei.de/api/public/mailbox/microsoft-oauth",
-  "https://ra-adam.de/api/public/mailbox/microsoft-oauth",
-] as const;
+export function getMailboxMicrosoftRedirectUrisForSite(): string[] {
+  const primary = getMailboxMicrosoftRedirectUri();
+  return [primary];
+}
 
 /**
  * Öffentliche Client-ID der Kanzlei-Postfach-App (wie bei Mailbird fest eingebaut).
@@ -140,6 +139,8 @@ export type MailboxSettingsPublic = {
   hasOAuth: boolean;
   /** true = Microsoft-Button kann direkt redirecten (App hinterlegt) */
   microsoftReady: boolean;
+  /** Site-/Organisations-Hinweis für den Login */
+  orgHint: string;
 };
 
 type MailboxSecrets = {
@@ -252,6 +253,7 @@ function mapToPublic(map: Map<string, string>): MailboxSettingsPublic {
     fromName: (map.get(KEYS.fromName) || "").trim() || SITE.brand,
     hasOAuth,
     microsoftReady: !!resolveMicrosoftClientId(map),
+    orgHint: SITE.domain,
   };
 }
 
@@ -640,14 +642,32 @@ async function buildAuthorizeUrl(args: {
     login_hint: args.user,
     prompt: "select_account",
   });
+  const domain = args.user.includes("@") ? args.user.split("@")[1] : SITE.domain;
+  if (domain) params.set("domain_hint", domain);
   return `https://login.microsoftonline.com/${encodeURIComponent(args.tenant)}/oauth2/v2.0/authorize?${params}`;
 }
 
 async function createMailboxEntraApp(accessToken: string): Promise<{
   clientId: string;
   clientSecret: string;
+  tenantId: string;
 }> {
-  const displayName = `Kanzlei Postfach (${SITE.brand})`;
+  // Tenant der angemeldeten Organisation ermitteln
+  let tenantId = "organizations";
+  try {
+    const orgRes = await fetch("https://graph.microsoft.com/v1.0/organization?$select=id", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (orgRes.ok) {
+      const orgJson = (await orgRes.json()) as { value?: Array<{ id?: string }> };
+      tenantId = orgJson.value?.[0]?.id || tenantId;
+    }
+  } catch {
+    /* optional */
+  }
+
+  const displayName = `Kanzlei Postfach · ${SITE.brand} · ${SITE.domain}`;
+  const redirectUris = getMailboxMicrosoftRedirectUrisForSite();
   const createRes = await fetch("https://graph.microsoft.com/v1.0/applications", {
     method: "POST",
     headers: {
@@ -656,10 +676,11 @@ async function createMailboxEntraApp(accessToken: string): Promise<{
     },
     body: JSON.stringify({
       displayName,
-      signInAudience: "AzureADMultipleOrgs",
+      // Nur diese Organisation (Adam ≠ Laumann)
+      signInAudience: "AzureADMyOrg",
       isFallbackPublicClient: true,
       web: {
-        redirectUris: [...MAILBOX_MS_REDIRECT_URIS],
+        redirectUris,
       },
       requiredResourceAccess: [
         {
@@ -678,10 +699,14 @@ async function createMailboxEntraApp(accessToken: string): Promise<{
     error?: { message?: string };
   };
   if (!createRes.ok || !created.appId || !created.id) {
-    throw new Error(created.error?.message || "Entra-App konnte nicht angelegt werden.");
+    throw new Error(
+      created.error?.message ||
+        "Entra-App konnte nicht angelegt werden. Bitte mit dem Organisations-Admin von " +
+          SITE.domain +
+          " anmelden (nicht privat, nicht die andere Kanzlei).",
+    );
   }
 
-  // Optional secret (für Web-Clients); PKCE funktioniert auch ohne
   let clientSecret = "";
   const secretRes = await fetch(
     `https://graph.microsoft.com/v1.0/applications/${created.id}/addPassword`,
@@ -701,17 +726,62 @@ async function createMailboxEntraApp(accessToken: string): Promise<{
     clientSecret = secretJson.secretText || "";
   }
 
-  // Service Principal anlegen (Consent im Home-Tenant)
-  await fetch("https://graph.microsoft.com/v1.0/servicePrincipals", {
+  // Service Principal + Admin-Consent für IMAP/SMTP in DIESEM Tenant
+  let spId = "";
+  const spRes = await fetch("https://graph.microsoft.com/v1.0/servicePrincipals", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ appId: created.appId }),
-  }).catch(() => undefined);
+  });
+  if (spRes.ok) {
+    const spJson = (await spRes.json()) as { id?: string };
+    spId = spJson.id || "";
+  } else {
+    // existiert ggf. schon
+    const findSp = await fetch(
+      `https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '${created.appId}'`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (findSp.ok) {
+      const findJson = (await findSp.json()) as { value?: Array<{ id?: string }> };
+      spId = findJson.value?.[0]?.id || "";
+    }
+  }
 
-  return { clientId: created.appId, clientSecret };
+  if (spId) {
+    try {
+      const exoSpRes = await fetch(
+        `https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '${EXCHANGE_RESOURCE_APP_ID}'&$select=id`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (exoSpRes.ok) {
+        const exoJson = (await exoSpRes.json()) as { value?: Array<{ id?: string }> };
+        const exoId = exoJson.value?.[0]?.id;
+        if (exoId) {
+          await fetch("https://graph.microsoft.com/v1.0/oauth2PermissionGrants", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              clientId: spId,
+              consentType: "AllPrincipals",
+              resourceId: exoId,
+              scope: "IMAP.AccessAsUser.All SMTP.Send",
+            }),
+          });
+        }
+      }
+    } catch {
+      /* Consent kann später im Login erteilt werden */
+    }
+  }
+
+  return { clientId: created.appId, clientSecret, tenantId };
 }
 
 /**
@@ -797,9 +867,10 @@ export const startMicrosoftMailboxLogin = createServerFn({ method: "POST" })
       verificationUri: deviceJson.verification_uri || "https://microsoft.com/devicelogin",
       verificationUriComplete: deviceJson.verification_uri_complete || null,
       interval: Number(deviceJson.interval || 5),
+      orgHint: SITE.domain,
       message:
         deviceJson.message ||
-        "Einmalige Einrichtung: bei Microsoft anmelden, danach öffnet sich der normale Login.",
+        `Einmalige Einrichtung für ${SITE.domain}: mit dem Organisationskonto dieser Kanzlei anmelden (nicht privat, nicht die andere Kanzlei).`,
     };
   });
 
@@ -858,25 +929,24 @@ export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
       return { status: "pending" as const, slowDown: tokenJson.error === "slow_down" };
     }
     if (!tokenRes.ok || !tokenJson.access_token) {
+      const hint =
+        tokenJson.error_description || tokenJson.error || "Microsoft-Einrichtung fehlgeschlagen.";
       throw new Error(
-        tokenJson.error_description || tokenJson.error || "Microsoft-Einrichtung fehlgeschlagen.",
+        `${hint} — Bitte mit dem Organisations-Admin von ${SITE.domain} anmelden.`,
       );
     }
 
     const app = await createMailboxEntraApp(tokenJson.access_token);
-    // Multi-tenant App für beide Kanzlei-Sites speichern
-    const bothSites = ["laumann", "adam"];
-    await upsertSettingForSites(KEYS.oauthClientId, app.clientId, bothSites);
-    if (app.clientSecret) {
-      await upsertSettingForSites(KEYS.oauthClientSecret, app.clientSecret, bothSites);
-    }
-    await upsertSettingForSites(KEYS.oauthTenant, "organizations", bothSites);
+    // Nur für DIESE Site/Organisation speichern (Adam ≠ Laumann)
+    await upsertSetting(KEYS.oauthClientId, app.clientId);
+    if (app.clientSecret) await upsertSetting(KEYS.oauthClientSecret, app.clientSecret);
+    await upsertSetting(KEYS.oauthTenant, app.tenantId || "organizations");
     await upsertSetting(KEYS.oauthBootstrap, "");
     await upsertSetting(KEYS.authMode, "oauth");
 
     const authorizeUrl = await buildAuthorizeUrl({
       clientId: app.clientId,
-      tenant: "organizations",
+      tenant: app.tenantId || "organizations",
       user,
       userId: context.userId,
     });
@@ -885,6 +955,23 @@ export const pollMicrosoftMailboxSetup = createServerFn({ method: "POST" })
       authorizeUrl,
       clientId: app.clientId,
     };
+  });
+
+/** Trennt Microsoft-Verbindung (App-Zuordnung + Tokens), damit neu mit der richtigen Organisation eingerichtet werden kann. */
+export const resetMicrosoftMailboxConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase as never, context.userId);
+    await upsertSetting(KEYS.oauthClientId, "");
+    await upsertSetting(KEYS.oauthClientSecret, "");
+    await upsertSetting(KEYS.oauthRefresh, "");
+    await upsertSetting(KEYS.oauthAccess, "");
+    await upsertSetting(KEYS.oauthExpires, "");
+    await upsertSetting(KEYS.oauthPending, "");
+    await upsertSetting(KEYS.oauthBootstrap, "");
+    await upsertSetting(KEYS.oauthTenant, "organizations");
+    await upsertSetting(KEYS.authMode, "oauth");
+    return { ok: true as const, settings: mapToPublic(await readSettingsMap()) };
   });
 
 /** Wird vom OAuth-Callback-Endpunkt aufgerufen (Browser-Redirect von Microsoft). */
