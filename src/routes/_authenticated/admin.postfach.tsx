@@ -9,7 +9,6 @@ import {
   replyMailboxMessage,
   resetMicrosoftMailboxConnection,
   saveMailboxSettings,
-  startMicrosoftMailboxLogin,
   testMailboxConnection,
   type MailboxListItem,
   type MailboxMessageDetail,
@@ -27,8 +26,11 @@ export const Route = createFileRoute("/_authenticated/admin/postfach")({
   component: PostfachPage,
 });
 
-/** Microsoft Security – dort mit GoDaddy-/Org-Konto einloggen und App-Kennwort erzeugen. */
 const MS_SECURITY_URL = "https://mysignins.microsoft.com/security-info";
+const ENTRA_SECURITY_DEFAULTS =
+  "https://entra.microsoft.com/#view/Microsoft_AAD_IAM/TenantOverview.ReactView";
+const PER_USER_MFA_URL =
+  "https://account.activedirectory.windowsazure.com/UserManagement/MultifactorVerification.aspx";
 
 const fmtDate = (iso: string | null) =>
   iso
@@ -53,11 +55,11 @@ function PostfachPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showUnlockHelp, setShowUnlockHelp] = useState(false);
 
   const [user, setUser] = useState("");
   const [fromName, setFromName] = useState(SITE.brand);
   const [appPassword, setAppPassword] = useState("");
-  const [step, setStep] = useState<"idle" | "awaiting_password">("idle");
 
   const [rows, setRows] = useState<MailboxListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -108,38 +110,26 @@ function PostfachPage() {
   }
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("oauth") === "connected") {
-      setMsg("Microsoft-Konto verbunden — Postfach ist bereit.");
-      setShowSetup(true);
-      window.history.replaceState({}, "", "/admin/postfach");
-    } else if (params.get("oauth_error")) {
-      setMsg(params.get("oauth_error"));
-      setShowSetup(true);
-      window.history.replaceState({}, "", "/admin/postfach");
-    }
     loadSettings();
     getMailboxSignaturePreview()
       .then((r) => setSigPreview(r.text))
       .catch(() => undefined);
   }, []);
 
-  /** Öffnet Microsoft-Login (GoDaddy/Org) zum Erzeugen eines App-Kennworts. */
-  function handleOpenMicrosoftLogin() {
+  function openMicrosoftSecurity() {
     if (!user.trim()) {
       setMsg("Bitte zuerst die Postfach-E-Mail eintragen.");
       return;
     }
-    setStep("awaiting_password");
     setMsg(
-      "Microsoft-Login geöffnet. Mit dem GoDaddy-Organisationskonto anmelden → Sicherheitsinfo → App-Kennwörter → neues Kennwort erzeugen und hier einfügen.",
+      "Microsoft geöffnet — mit GoDaddy-Organisationskonto anmelden. Wenn „App-Kennwörter“ fehlt: Hilfe unten („Kein App-Kennwort sichtbar?“).",
     );
     window.open(MS_SECURITY_URL, "_blank", "noopener,noreferrer");
   }
 
   async function handleSaveAppPassword() {
     if (!user.trim() || !appPassword.trim()) {
-      setMsg("E-Mail und App-Kennwort ausfüllen.");
+      setMsg("E-Mail und App-Kennwort (oder Kennwort) ausfüllen.");
       return;
     }
     setSaving(true);
@@ -161,58 +151,17 @@ function PostfachPage() {
       });
       applySettings(res.settings);
       setAppPassword("");
-      setStep("idle");
-      setMsg("Verbunden. Postfach wird geladen …");
       const test = await testMailboxConnection();
       setMsg(test.message);
       if (res.settings.configured) await loadList();
     } catch (e) {
       setMsg(
         e instanceof Error
-          ? e.message
-          : "Verbindung fehlgeschlagen. App-Kennwort und SMTP AUTH in GoDaddy/M365 prüfen.",
+          ? `${e.message} — Falls Authentifizierung fehlschlägt: in GoDaddy/Exchange „SMTP AUTH“ für das Postfach aktivieren.`
+          : "Verbindung fehlgeschlagen.",
       );
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleOAuthRedirect() {
-    if (!user.trim()) {
-      setMsg("Bitte E-Mail eintragen.");
-      return;
-    }
-    setMsg(null);
-    try {
-      await saveMailboxSettings({
-        data: {
-          authMode: "oauth",
-          user: user.trim(),
-          fromName,
-          imapHost: M365_PRESET.imapHost,
-          imapPort: M365_PRESET.imapPort,
-          imapSecure: M365_PRESET.imapSecure,
-          smtpHost: M365_PRESET.smtpHost,
-          smtpPort: M365_PRESET.smtpPort,
-          smtpSecure: M365_PRESET.smtpSecure,
-        },
-      });
-      const started = await startMicrosoftMailboxLogin();
-      if (started.status === "redirect") {
-        window.location.href = started.authorizeUrl;
-        return;
-      }
-      setMsg(
-        "Bei GoDaddy ist der direkte OAuth-Login oft blockiert (Fehler 530035). Bitte App-Kennwort nutzen — Button oben öffnet den Microsoft-Login.",
-      );
-      setStep("awaiting_password");
-    } catch (e) {
-      setMsg(
-        e instanceof Error
-          ? e.message
-          : "OAuth nicht verfügbar. Bitte App-Kennwort über Microsoft-Login nutzen.",
-      );
-      setStep("awaiting_password");
     }
   }
 
@@ -265,7 +214,7 @@ function PostfachPage() {
           <h1 className="mt-2 text-4xl">Postfach</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            GoDaddy Microsoft 365: über Microsoft einloggen, App-Kennwort erzeugen, fertig.
+            GoDaddy Microsoft 365 — Verbindung per App-Kennwort (nach kurzer Freischaltung).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -297,15 +246,15 @@ function PostfachPage() {
         <div className="mt-8 border border-border p-6">
           <h2 className="font-serif text-2xl text-primary">Postfach verbinden</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            GoDaddy blockiert den direkten Office-OAuth oft (Fehler 530035). Der Weg, der funktioniert:
-            Microsoft-Login öffnen → mit Organisationskonto anmelden → App-Kennwort erzeugen → hier
-            einfügen.
+            Bei GoDaddy siehst du oft nur Telefon / Passkey —{" "}
+            <strong className="text-foreground">kein App-Kennwort</strong>. Das liegt an Microsoft
+            „Security Defaults“. Einmal freischalten, dann geht’s.
           </p>
 
           <div className="mt-6 grid max-w-xl gap-4">
             <label className="block">
               <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
-                E-Mail-Adresse (GoDaddy / Outlook)
+                E-Mail-Adresse
               </span>
               <input
                 value={user}
@@ -329,60 +278,110 @@ function PostfachPage() {
             </label>
           </div>
 
-          <ol className="mt-6 max-w-xl list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-            <li>
-              Auf den Microsoft-Button klicken und mit dem{" "}
-              <strong className="text-foreground">GoDaddy-Organisationskonto</strong> von{" "}
-              {SITE.domain} anmelden.
-            </li>
-            <li>
-              Unter Sicherheitsinfo → <strong className="text-foreground">App-Kennwörter</strong> ein
-              neues Kennwort erzeugen (Name z. B. „Kanzlei Postfach“).
-            </li>
-            <li>Das Kennwort hier einfügen und speichern.</li>
-          </ol>
-
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
               disabled={!user.trim()}
-              onClick={handleOpenMicrosoftLogin}
+              onClick={openMicrosoftSecurity}
               className="inline-flex items-center gap-3 border border-[#8c8c8c] bg-white px-5 py-3 text-sm font-semibold text-[#5e5e5e] shadow-sm transition hover:bg-[#f3f3f3] disabled:opacity-50"
             >
               <MicrosoftLogo />
-              Mit Microsoft anmelden (App-Kennwort)
+              Microsoft öffnen (App-Kennwort)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUnlockHelp((v) => !v)}
+              className="border border-border px-4 py-3 text-xs uppercase tracking-widest text-primary hover:border-primary"
+            >
+              {showUnlockHelp ? "Hilfe ausblenden" : "Kein App-Kennwort sichtbar?"}
             </button>
           </div>
 
-          {(step === "awaiting_password" || settings?.hasPassword) && (
-            <div className="mt-6 max-w-xl space-y-3 border-t border-border pt-5">
-              <label className="block">
-                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
-                  {settings?.hasPassword
-                    ? "Neues App-Kennwort (leer = unverändert)"
-                    : "App-Kennwort von Microsoft"}
-                </span>
-                <input
-                  type="password"
-                  value={appPassword}
-                  onChange={(e) => setAppPassword(e.target.value)}
-                  placeholder="xxxx-xxxx-xxxx-xxxx"
-                  className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
-                  autoComplete="new-password"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={saving || !user.trim() || !appPassword.trim()}
-                onClick={handleSaveAppPassword}
-                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
-              >
-                {saving ? "Verbindet …" : "Speichern & verbinden"}
-              </button>
+          {showUnlockHelp && (
+            <div className="mt-5 max-w-2xl space-y-4 border border-border bg-parchment/50 p-5 text-sm leading-relaxed text-foreground/90">
+              <p className="font-medium text-primary">
+                App-Kennwörter einmal freischalten (du brauchst Admin-Rechte für {SITE.domain})
+              </p>
+              <ol className="list-decimal space-y-3 pl-5 text-muted-foreground">
+                <li>
+                  Öffne{" "}
+                  <a
+                    href={ENTRA_SECURITY_DEFAULTS}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-primary"
+                  >
+                    Entra Admin Center
+                  </a>{" "}
+                  und melde dich mit dem <strong className="text-foreground">Organisations-Admin</strong>{" "}
+                  an (GoDaddy Microsoft 365).
+                </li>
+                <li>
+                  Oben/Eigenschaften → <strong className="text-foreground">Security defaults verwalten</strong>{" "}
+                  → auf <strong className="text-foreground">Deaktiviert</strong> stellen und speichern.
+                </li>
+                <li>
+                  Öffne{" "}
+                  <a
+                    href={PER_USER_MFA_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-primary"
+                  >
+                    MFA pro Benutzer
+                  </a>
+                  , aktiviere MFA für dein Postfach-Konto (Status „aktiviert“).
+                </li>
+                <li>
+                  Danach erneut{" "}
+                  <a
+                    href={MS_SECURITY_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-primary"
+                  >
+                    Sicherheitsinfo
+                  </a>{" "}
+                  öffnen → dort erscheint <strong className="text-foreground">App-Kennwörter</strong> →
+                  neues Kennwort erzeugen.
+                </li>
+                <li>Kennwort unten einfügen und speichern.</li>
+              </ol>
+              <p className="text-xs text-muted-foreground">
+                Hinweis: Security Defaults sind bei GoDaddy oft vorausgewählt und verstecken
+                App-Kennwörter absichtlich. Nach dem Umschalten auf „MFA pro Benutzer“ sind sie wieder
+                da.
+              </p>
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-4">
+          <div className="mt-6 max-w-xl space-y-3 border-t border-border pt-5">
+            <label className="block">
+              <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                {settings?.hasPassword
+                  ? "Neues App-Kennwort (leer = unverändert)"
+                  : "App-Kennwort"}
+              </span>
+              <input
+                type="password"
+                value={appPassword}
+                onChange={(e) => setAppPassword(e.target.value)}
+                placeholder="xxxx-xxxx-xxxx-xxxx"
+                className="mt-2 w-full border border-border bg-background px-3 py-2 font-mono text-sm"
+                autoComplete="new-password"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={saving || !user.trim() || !appPassword.trim()}
+              onClick={handleSaveAppPassword}
+              className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+            >
+              {saving ? "Verbindet …" : "Speichern & verbinden"}
+            </button>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2">
             <button
               type="button"
               disabled={testing || !settings?.configured}
@@ -390,8 +389,7 @@ function PostfachPage() {
                 void (async () => {
                   setTesting(true);
                   try {
-                    const res = await testMailboxConnection();
-                    setMsg(res.message);
+                    setMsg((await testMailboxConnection()).message);
                   } catch (e) {
                     setMsg(e instanceof Error ? e.message : "Test fehlgeschlagen.");
                   } finally {
@@ -410,7 +408,6 @@ function PostfachPage() {
                   try {
                     const res = await resetMicrosoftMailboxConnection();
                     applySettings(res.settings);
-                    setStep("idle");
                     setMsg("Verbindung zurückgesetzt.");
                   } catch (e) {
                     setMsg(e instanceof Error ? e.message : "Reset fehlgeschlagen.");
@@ -421,15 +418,6 @@ function PostfachPage() {
             >
               Neu verbinden
             </button>
-            {settings?.microsoftReady ? (
-              <button
-                type="button"
-                onClick={() => void handleOAuthRedirect()}
-                className="border border-border px-5 py-2.5 text-xs uppercase tracking-widest text-muted-foreground hover:border-primary"
-              >
-                OAuth-Redirect (falls freigeschaltet)
-              </button>
-            ) : null}
           </div>
 
           {sigPreview && (
@@ -445,8 +433,8 @@ function PostfachPage() {
         <>
           <div className="mt-8 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt
-              {settings.authMode === "oauth" ? " · Microsoft" : " · App-Kennwort"}
+              Posteingang · {rows.filter((r) => r.unseen).length} ungelesen · {total} gesamt ·
+              App-Kennwort
             </span>
             <span className="text-xs">{settings.user}</span>
           </div>
@@ -529,7 +517,7 @@ function PostfachPage() {
                                 rows={8}
                                 value={replyBody}
                                 onChange={(e) => setReplyBody(e.target.value)}
-                                placeholder="Ihre Antwort … (Signatur wird automatisch angehängt)"
+                                placeholder="Ihre Antwort …"
                                 className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm"
                               />
                             </label>
