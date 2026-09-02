@@ -391,6 +391,10 @@ export function renderOfferRequestConfirmationHtml(opts: {
   const contactName = (opts.contactName || SITE.verwalter).trim();
   const contactRole = (opts.contactRole || SITE.role).trim();
   const contactAddress = formalPersonAddress(contactName, contactRole);
+  const samePerson = contactName.toLowerCase() === signer.toLowerCase();
+  const followUpHtml = samePerson
+    ? `<p style="margin:0 0 16px 0;">Ich melde mich anschließend mit dem Angebot bei Ihnen.</p>`
+    : `${followUpHtml}`;
 
   const items = (opts.itemNames ?? [])
     .map((n) => shortProductLabel(n))
@@ -608,6 +612,129 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Text-Signatur wie in Angebot-/Rechnungsmails („Viele Grüße“ + Fußzeile). */
+export function renderEmailSignatureText(signerName: string, signerRole: string): string {
+  const offices = SITE.offices.map(
+    (o) => `${o.label}: ${o.street}, ${o.postalCode} ${o.city}`,
+  );
+  return ["Viele Grüße", signerName, "", signerRole, SITE.brand, ...offices, `USt-IdNr. ${SITE.ustId}`].join(
+    "\n",
+  );
+}
+
+/** HTML-Signatur wie in Angebot-/Rechnungsmails. */
+export function renderEmailSignatureHtml(signerName: string, signerRole: string): string {
+  const signer = escapeHtml(signerName);
+  const role = escapeHtml(signerRole);
+  return `<p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+<p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+  ${role}<br/>
+  ${escapeHtml(SITE.brand)}<br/>
+  ${SITE.offices
+    .map(
+      (o) =>
+        `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+    )
+    .join("<br/>\n  ")}<br/>
+  USt-IdNr. ${escapeHtml(SITE.ustId)}
+</p>`;
+}
+
+/**
+ * Komplette Transaktions-Mail im gleichen Layout wie die automatischen Mails
+ * (560px, Georgia, Kopfzeile Absender · Marke · Datum am oberen Rand).
+ */
+export function wrapTransactionalEmailHtml(opts: {
+  title: string;
+  bodyHtml: string;
+  signerName: string;
+  headerDate?: string;
+}): string {
+  const signer = escapeHtml(opts.signerName);
+  // Gleiches Datumsformat wie Angebot-/Rechnungsmails (toLocaleDateString("de-DE"))
+  const datum = opts.headerDate || new Date().toLocaleDateString("de-DE");
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(datum)}
+          </p>
+          ${opts.bodyHtml}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/** Fließtext → Absätze wie in den automatischen Mails. */
+export function plainTextToEmailParagraphs(text: string): string {
+  const normalized = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) return "";
+  return normalized
+    .split(/\n{2,}/)
+    .map((block) => {
+      const inner = escapeHtml(block.trim()).replace(/\n/g, "<br/>");
+      return `<p style="margin:0 0 16px 0;">${inner}</p>`;
+    })
+    .join("\n");
+}
+
+export async function loadEmailSigner(): Promise<{ name: string; role: string }> {
+  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const verwalter = await loadActiveVerwalter();
+  return { name: verwalter.name, role: verwalter.role };
+}
+
+/** Baut eine Postfach-Mail exakt im Layout der automatischen Mails. */
+export async function renderMailboxOutboundHtml(opts: {
+  subject: string;
+  userBody: string;
+  quotedOriginal?: string;
+}): Promise<{ html: string; text: string; signerName: string; signatureText: string }> {
+  const signer = await loadEmailSigner();
+  const sigText = renderEmailSignatureText(signer.name, signer.role);
+  const normalizedBody = opts.userBody.replace(/\r\n/g, "\n").trimEnd();
+  let userPart = normalizedBody;
+  if (sigText && normalizedBody.endsWith(sigText.trim())) {
+    userPart = normalizedBody.slice(0, -sigText.trim().length).trim();
+  } else {
+    const marker = "\nViele Grüße\n";
+    const idx = normalizedBody.lastIndexOf(marker);
+    if (idx >= 0) userPart = normalizedBody.slice(0, idx).trim();
+    else if (normalizedBody.startsWith("Viele Grüße\n")) userPart = "";
+  }
+
+  const textParts = [userPart, "", sigText];
+  if (opts.quotedOriginal) {
+    textParts.push("", "——— Originalnachricht ———", opts.quotedOriginal.slice(0, 8000));
+  }
+
+  const quoteHtml = opts.quotedOriginal
+    ? `<hr style="border:none;border-top:1px solid #ddd;margin:28px 0 12px 0;" />
+          <p style="margin:0 0 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#888;">——— Originalnachricht ———</p>
+          <p style="margin:0;font-size:12px;line-height:1.55;color:#555;">${escapeHtml(opts.quotedOriginal.slice(0, 8000)).replace(/\r\n|\n|\r/g, "<br/>")}</p>`
+    : "";
+
+  const bodyHtml = `${plainTextToEmailParagraphs(userPart)}
+          ${renderEmailSignatureHtml(signer.name, signer.role)}
+          ${quoteHtml}`;
+
+  return {
+    html: wrapTransactionalEmailHtml({
+      title: opts.subject,
+      bodyHtml,
+      signerName: signer.name,
+    }),
+    text: textParts.join("\n"),
+    signerName: signer.name,
+    signatureText: sigText,
+  };
 }
 
 export type EmailAttachment = { filename: string; content: string /* base64 */ };
@@ -866,8 +993,18 @@ async function attachInlineLogo(
   return html;
 }
 
+type SendEmailParams = {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+  replyTo?: string | string[];
+  text?: string;
+  headers?: Record<string, string>;
+};
+
 async function sendViaLocalSmtp(
-  params: { to: string; subject: string; html: string; attachments?: EmailAttachment[] },
+  params: SendEmailParams,
   from: string,
   timeoutMs: number,
 ): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
@@ -909,6 +1046,9 @@ async function sendViaLocalSmtp(
       to: params.to,
       subject: params.subject,
       html,
+      text: params.text,
+      replyTo: params.replyTo,
+      headers: params.headers,
       attachments,
     });
     return { ok: true, messageId: info.messageId ?? "" };
@@ -920,7 +1060,7 @@ async function sendViaLocalSmtp(
 }
 
 async function sendViaSmtp(
-  params: { to: string; subject: string; html: string; attachments?: EmailAttachment[] },
+  params: SendEmailParams,
   from: string,
   apiKey: string,
   timeoutMs: number,
@@ -964,6 +1104,9 @@ async function sendViaSmtp(
       to: params.to,
       subject: params.subject,
       html,
+      text: params.text,
+      replyTo: params.replyTo,
+      headers: params.headers,
       attachments,
     });
     return { ok: true, messageId: info.messageId ?? "" };
@@ -979,8 +1122,13 @@ export async function sendOfferEmail(params: {
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
+  /** Absender, z. B. `Name <mail@domain.de>` — Default: OFFER_FROM_EMAIL / SITE.emailFrom */
+  from?: string;
+  replyTo?: string | string[];
+  text?: string;
+  headers?: Record<string, string>;
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
-  const FROM = process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
+  const FROM = (params.from || "").trim() || process.env.OFFER_FROM_EMAIL || SITE.emailFrom;
   const configuredTimeoutMs = Number(process.env.RESEND_TIMEOUT_MS || 0);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0 ? configuredTimeoutMs : 120000;
   const transport = preferredEmailTransport();
@@ -1007,6 +1155,9 @@ export async function sendOfferEmail(params: {
     subject: params.subject,
     html: params.html,
   };
+  if (params.text) body.text = params.text;
+  if (params.replyTo) body.reply_to = params.replyTo;
+  if (params.headers && Object.keys(params.headers).length) body.headers = params.headers;
   if (params.attachments?.length) {
     body.attachments = params.attachments.map((a) => ({ filename: a.filename, content: a.content }));
   }

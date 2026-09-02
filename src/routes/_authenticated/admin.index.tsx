@@ -258,6 +258,12 @@ function AdminListPage() {
             )}
           </div>
           <Link
+            to="/admin/postfach"
+            className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            Postfach
+          </Link>
+          <Link
             to="/admin/kontakt"
             className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
           >
