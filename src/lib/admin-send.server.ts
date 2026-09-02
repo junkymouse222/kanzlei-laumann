@@ -14,8 +14,9 @@ import {
 import { ensureOfferShortLinks } from "@/lib/tly.server";
 import { renderInvoicePdf, renderOfferPdf, toBase64 } from "@/lib/pdf.server";
 import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals } from "@/lib/offer-totals";
+import { SITE } from "@/lib/site";
 
-type AdminSendResult = { ok: true; messageId?: string; rechnung_nr?: string };
+type AdminSendResult = { ok: true; messageId?: string; rechnung_nr?: string; mahnung?: boolean };
 
 export class AdminSendError extends Error {
   status: number;
@@ -186,7 +187,7 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
+      subject: `Ihr Angebot ${offer.angebot_nr as string} — ${SITE.brand}`,
       html,
       attachments: [{ filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
@@ -360,7 +361,7 @@ export async function sendInvoiceForOffer(input: InvoiceSendInput): Promise<Admi
     }, (items ?? []) as never);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihre Rechnung ${rechnung_nr} — Kanzlei Laumann`,
+      subject: `Ihre Rechnung ${rechnung_nr} — ${SITE.brand}`,
       html,
       attachments: [{ filename: `Rechnung-${rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
@@ -715,7 +716,7 @@ export async function sendPaymentConfirmationFromAdmin(
   });
   const send = await sendOfferEmail({
     to: offer.customer_email as string,
-    subject: `Zahlungseingang bestätigt — ${belegRef} — Kanzlei Laumann`,
+    subject: `Zahlungseingang bestätigt — ${belegRef} — ${SITE.brand}`,
     html,
   });
 
@@ -787,7 +788,7 @@ export async function sendOfferReminderFromAdmin(
 
   const send = await sendOfferEmail({
     to: offer.customer_email as string,
-    subject: `Erinnerung: Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
+    subject: `Erinnerung: Ihr Angebot ${offer.angebot_nr as string} — ${SITE.brand}`,
     html,
     attachments: [{ filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) }],
   });
@@ -874,12 +875,19 @@ export async function sendInvoiceReminderFromAdmin(
     bank_bic: offer.bank_bic as string,
   };
 
-  const html = renderInvoiceReminderHtml(offerForRender as never);
+  const faelligDate = offer.rechnung_faellig_am
+    ? new Date(`${offer.rechnung_faellig_am as string}T23:59:59`)
+    : null;
+  const isMahnung = !!(faelligDate && faelligDate.getTime() < Date.now());
+
+  const html = renderInvoiceReminderHtml(offerForRender as never, { mahnung: isMahnung });
   const pdfBytes = await renderInvoicePdf(offerForRender as never, (items ?? []) as never, invoice);
 
   const send = await sendOfferEmail({
     to: offer.customer_email as string,
-    subject: `Erinnerung: Ihre Rechnung ${offer.rechnung_nr as string} — Kanzlei Laumann`,
+    subject: isMahnung
+      ? `Mahnung: Ihre Rechnung ${offer.rechnung_nr as string} — ${SITE.brand}`
+      : `Erinnerung: Ihre Rechnung ${offer.rechnung_nr as string} — ${SITE.brand}`,
     html,
     attachments: [{ filename: `Rechnung-${offer.rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
   });
@@ -898,5 +906,10 @@ export async function sendInvoiceReminderFromAdmin(
     console.warn("[admin-invoice-reminder] tracking update failed:", trackErr.message);
   }
 
-  return { ok: true, messageId: send.messageId, rechnung_nr: offer.rechnung_nr as string };
+  return {
+    ok: true,
+    messageId: send.messageId,
+    rechnung_nr: offer.rechnung_nr as string,
+    mahnung: isMahnung,
+  };
 }

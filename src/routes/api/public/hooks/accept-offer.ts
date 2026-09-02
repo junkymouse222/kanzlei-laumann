@@ -155,7 +155,7 @@ async function loadOffer(token: string) {
   const { data, error } = await admin
     .from("offer_requests")
     .select(
-      "id, angebot_nr, accepted_at, customer_name, customer_email, rechnung_nr, rechnung_sent_at, rechnung_status, accept_link_opened_at, accept_link_open_count, accept_confirm_shown_at",
+      "id, angebot_nr, accepted_at, customer_name, customer_company, customer_email, rechnung_nr, rechnung_sent_at, rechnung_status, accept_link_opened_at, accept_link_open_count, accept_confirm_shown_at",
     )
     .eq("accept_token", token)
     .maybeSingle();
@@ -165,6 +165,7 @@ async function loadOffer(token: string) {
     angebot_nr: string;
     accepted_at: string | null;
     customer_name: string;
+    customer_company: string | null;
     customer_email: string;
     rechnung_nr: string | null;
     rechnung_sent_at: string | null;
@@ -199,10 +200,30 @@ async function trackAcceptLinkOpen(offerId: string): Promise<void> {
     const patch: Record<string, unknown> = {
       accept_link_open_count: prevCount + 1,
     };
-    if (!prevOpened) patch.accept_link_opened_at = now;
+    const isFirstOpen = !prevOpened;
+    if (isFirstOpen) patch.accept_link_opened_at = now;
 
     const { error } = await admin.from("offer_requests").update(patch).eq("id", offerId).is("accepted_at", null);
     if (error) console.error("[accept-offer] link-open track failed", error.message);
+
+    if (isFirstOpen && !error) {
+      const { data: meta } = await admin
+        .from("offer_requests")
+        .select("angebot_nr, customer_name, customer_company, site_key")
+        .eq("id", offerId)
+        .maybeSingle();
+      if (meta) {
+        const who = (meta.customer_company || meta.customer_name || "Kunde") as string;
+        const { createAdminNotification } = await import("@/lib/admin-notifications.server");
+        await createAdminNotification({
+          eventType: "accept_link_opened",
+          title: `Annahme-Link geöffnet · ${meta.angebot_nr}`,
+          body: `${who} hat den Annahme-Link geöffnet.`,
+          offerRequestId: offerId,
+          siteKey: (meta.site_key as string | null) ?? undefined,
+        });
+      }
+    }
   } catch (e) {
     console.error("[accept-offer] link-open track error", e);
   }
@@ -397,6 +418,19 @@ async function handlePost(request: Request): Promise<Response> {
   if (upErr || !updated) {
     console.error("[accept-offer] status update failed", upErr?.message ?? "no row");
     return render("error");
+  }
+
+  try {
+    const { createAdminNotification } = await import("@/lib/admin-notifications.server");
+    const who = offer.customer_company || offer.customer_name || "Kunde";
+    await createAdminNotification({
+      eventType: "offer_accepted",
+      title: `Angebot angenommen · ${offer.angebot_nr}`,
+      body: `${who} hat Angebot ${offer.angebot_nr} angenommen.`,
+      offerRequestId: offer.id,
+    });
+  } catch (e) {
+    console.error("[accept-offer] admin notification failed", e);
   }
 
   await logAcceptTraffic(`/accept-offer/accepted/${offer.angebot_nr}`, request, {

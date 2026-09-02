@@ -523,13 +523,14 @@ export function renderOfferReminderHtml(
 </body></html>`;
 }
 
-/** Kurze Zahlungserinnerung für versendete, noch unbezahlte Rechnungen. */
+/** Kurze Zahlungserinnerung / Mahnung für versendete, noch unbezahlte Rechnungen. */
 export function renderInvoiceReminderHtml(
   offer: OfferRow & {
     rechnung_nr: string;
     rechnung_faellig_am?: string | null;
     total?: number | string | null;
   },
+  opts: { mahnung?: boolean } = {},
 ): string {
   const datum = new Date().toLocaleDateString("de-DE");
   const faellig = offer.rechnung_faellig_am
@@ -542,8 +543,17 @@ export function renderInvoiceReminderHtml(
     offer.total != null && Number.isFinite(Number(offer.total))
       ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(offer.total))
       : null;
+  const isMahnung = !!opts.mahnung;
+  const headline = isMahnung ? "Mahnung" : "Erinnerung";
+  const intro = isMahnung
+    ? `trotz Fälligkeit ist unsere Rechnung <strong>${escapeHtml(offer.rechnung_nr)}</strong>${
+        totalStr ? ` über <strong>${escapeHtml(totalStr)}</strong>` : ""
+      } noch offen${faellig ? ` (fällig am <strong>${faellig}</strong>)` : ""}. Wir bitten Sie, den Betrag umgehend zu überweisen.`
+    : `kurz zur Erinnerung: unsere Rechnung <strong>${escapeHtml(offer.rechnung_nr)}</strong>${
+        totalStr ? ` über <strong>${escapeHtml(totalStr)}</strong>` : ""
+      } ist noch offen${faellig ? ` (fällig am <strong>${faellig}</strong>)` : ""}.`;
 
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Erinnerung Rechnung ${escapeHtml(offer.rechnung_nr)}</title></head>
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${headline} Rechnung ${escapeHtml(offer.rechnung_nr)}</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
     <tr><td align="center">
@@ -553,9 +563,7 @@ export function renderInvoiceReminderHtml(
             ${signer} · ${escapeHtml(SITE.brand)} · ${datum}
           </p>
           <p style="margin:0 0 16px 0;">${customerGreeting(offer.customer_name)}</p>
-          <p style="margin:0 0 16px 0;">kurz zur Erinnerung: unsere Rechnung <strong>${escapeHtml(offer.rechnung_nr)}</strong>${
-            totalStr ? ` über <strong>${escapeHtml(totalStr)}</strong>` : ""
-          } ist noch offen${faellig ? ` (fällig am <strong>${faellig}</strong>)` : ""}.</p>
+          <p style="margin:0 0 16px 0;">${intro}</p>
           <p style="margin:0 0 16px 0;">Die Rechnung ist noch einmal als PDF angehängt — dort finden Sie alle Zahlungsdaten. Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer.</p>
           ${
             offer.paid_at
@@ -564,7 +572,7 @@ export function renderInvoiceReminderHtml(
                 ? `<p style="margin:0 0 16px 0;">Nach der Überweisung können Sie uns hier kurz Bescheid geben:<br/><a href="${ctaUrl}" style="color:#1a2b3d;font-weight:600;">→ Zahlung bestätigen</a></p>`
                 : `<p style="margin:0 0 16px 0;">Nach der Überweisung antworten Sie einfach kurz auf diese Mail — dann wissen wir Bescheid.</p>`
           }
-          <p style="margin:0 0 16px 0;">Falls die Zahlung bereits unterwegs ist, vielen Dank — dann können Sie diese Erinnerung ignorieren.</p>
+          <p style="margin:0 0 16px 0;">Falls die Zahlung bereits unterwegs ist, vielen Dank — dann können Sie diese ${isMahnung ? "Mahnung" : "Erinnerung"} ignorieren.</p>
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
             ${signerRole}<br/>
