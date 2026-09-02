@@ -160,8 +160,9 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
   const mwstRate = normalizePercentRate(mwst_rate ?? offer.mwst_rate, DEFAULT_MWST_RATE);
   const liefer = lieferkosten ?? Number(offer.lieferkosten ?? 0);
   const totals = computeOfferTotals({ subtotal, rabattRate, lieferkosten: liefer, mwstRate });
-  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const { loadActiveVerwalter, loadOfferValidityDays } = await import("@/lib/settings.functions");
   const verwalter = await loadActiveVerwalter();
+  const offerValidityDays = await loadOfferValidityDays();
   const offerForRender = {
     ...offer,
     subtotal,
@@ -186,7 +187,9 @@ export async function sendOfferFromAdmin(request: Request, input: unknown): Prom
     const acceptUrl =
       ((offerForRender as { accept_short_url?: string | null }).accept_short_url as string | null) ||
       offerAcceptUrl(offer.accept_token as string | null);
-    html = renderOfferHtml(offerForRender as never, (items ?? []) as never);
+    html = renderOfferHtml(offerForRender as never, (items ?? []) as never, {
+      validityDays: offerValidityDays,
+    });
     const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
@@ -277,7 +280,9 @@ export async function sendInvoiceForOffer(input: InvoiceSendInput): Promise<Admi
 
   const rechnung_nr: string = (offer.rechnung_nr as string | null) ?? nextRechnungNr();
   const datum = new Date();
-  const tage = data.faellig_tage ?? 14;
+  const { loadActiveVerwalter, loadInvoiceDueDays } = await import("@/lib/settings.functions");
+  const configuredDueDays = await loadInvoiceDueDays();
+  const tage = data.faellig_tage ?? configuredDueDays;
   const faellig = new Date(datum.getTime() + tage * 24 * 3600 * 1000);
   const invoice = {
     rechnung_nr,
@@ -291,7 +296,6 @@ export async function sendInvoiceForOffer(input: InvoiceSendInput): Promise<Admi
     paid: !!offer.paid_at,
   };
 
-  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
   const verwalter = await loadActiveVerwalter();
 
   try {
@@ -349,19 +353,23 @@ export async function sendInvoiceForOffer(input: InvoiceSendInput): Promise<Admi
       (items ?? []) as never,
       invoice,
     );
-    const html = renderInvoiceHtml({
-      ...(offer as any),
-      rechnung_nr,
-      rechnung_faellig_am: faellig.toISOString().slice(0, 10),
-      pay_token: offer.pay_token as string | null,
-      paid_at: offer.paid_at as string | null,
-      bank_inhaber: invoice.bank_inhaber,
-      bank_name: invoice.bank_name,
-      bank_iban: invoice.bank_iban,
-      bank_bic: invoice.bank_bic,
-      tracking_number: tracking.tracking_number,
-      tracking_url: tracking.tracking_url,
-    }, (items ?? []) as never);
+    const html = renderInvoiceHtml(
+      {
+        ...(offer as any),
+        rechnung_nr,
+        rechnung_faellig_am: faellig.toISOString().slice(0, 10),
+        pay_token: offer.pay_token as string | null,
+        paid_at: offer.paid_at as string | null,
+        bank_inhaber: invoice.bank_inhaber,
+        bank_name: invoice.bank_name,
+        bank_iban: invoice.bank_iban,
+        bank_bic: invoice.bank_bic,
+        tracking_number: tracking.tracking_number,
+        tracking_url: tracking.tracking_url,
+      },
+      (items ?? []) as never,
+      { dueDays: tage },
+    );
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
       subject: `Ihre Rechnung ${rechnung_nr} — ${SITE.brand}`,
@@ -489,7 +497,7 @@ export async function sendInvoiceAfterAccept(offerId: string): Promise<
   }
 
   try {
-    const result = await sendInvoiceForOffer({ id: offerId, faellig_tage: 14, ...bank });
+    const result = await sendInvoiceForOffer({ id: offerId, ...bank });
     return { ok: true, messageId: result.messageId, rechnung_nr: result.rechnung_nr ?? "" };
   } catch (e) {
     return { ok: false, error: errMsg(e) };
@@ -771,8 +779,9 @@ export async function sendOfferReminderFromAdmin(
     .order("pos", { ascending: true });
   if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
 
-  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const { loadActiveVerwalter, loadOfferValidityDays } = await import("@/lib/settings.functions");
   const verwalter = await loadActiveVerwalter();
+  const offerValidityDays = await loadOfferValidityDays();
   const offerForRender = {
     ...offer,
     verwalter_name: (offer.verwalter_name as string | null)?.trim() || verwalter.name,
@@ -786,7 +795,7 @@ export async function sendOfferReminderFromAdmin(
   const acceptUrl =
     ((offerForRender as { accept_short_url?: string | null }).accept_short_url as string | null) ||
     offerAcceptUrl(offer.accept_token as string | null);
-  const html = renderOfferReminderHtml(offerForRender as never);
+  const html = renderOfferReminderHtml(offerForRender as never, { validityDays: offerValidityDays });
   const pdfBytes = await renderOfferPdf(offerForRender as never, (items ?? []) as never, acceptUrl);
 
   const send = await sendOfferEmail({
@@ -853,8 +862,9 @@ export async function sendInvoiceReminderFromAdmin(
     .order("pos", { ascending: true });
   if (itemsErr) throw new AdminSendError(itemsErr.message, 500);
 
-  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const { loadActiveVerwalter, loadInvoiceDueDays } = await import("@/lib/settings.functions");
   const verwalter = await loadActiveVerwalter();
+  const invoiceDueDays = await loadInvoiceDueDays();
   const offerForRender = {
     ...offer,
     verwalter_name: (offer.verwalter_name as string | null)?.trim() || verwalter.name,
@@ -871,7 +881,7 @@ export async function sendInvoiceReminderFromAdmin(
     datum: offer.rechnung_sent_at ? new Date(offer.rechnung_sent_at as string) : new Date(),
     faellig_am: offer.rechnung_faellig_am
       ? new Date(offer.rechnung_faellig_am as string)
-      : new Date(Date.now() + 14 * 24 * 3600 * 1000),
+      : new Date(Date.now() + invoiceDueDays * 24 * 3600 * 1000),
     bank_inhaber: offer.bank_inhaber as string,
     bank_name: offer.bank_name as string,
     bank_iban: offer.bank_iban as string,

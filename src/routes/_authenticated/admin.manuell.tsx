@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { listManualConfirmations, type ManualConfirmationRow } from "@/lib/admin.functions";
-import { listBankAccounts, type BankAccountRow } from "@/lib/settings.functions";
+import { listBankAccounts, getAdminSettings, DEFAULT_INVOICE_DUE_DAYS, type BankAccountRow } from "@/lib/settings.functions";
 import { PRODUKTE } from "@/lib/katalog";
 import { supabase } from "@/integrations/supabase/client";
 import { SITE } from "@/lib/site";
@@ -87,13 +87,13 @@ function blankItem(): InvoiceItem {
   };
 }
 
-function emptyForm(row: ManualConfirmationRow): InvoiceForm {
+function emptyForm(row: ManualConfirmationRow, invoiceDueDays = DEFAULT_INVOICE_DUE_DAYS): InvoiceForm {
   return {
     customer_email: row.customer_email || "",
     items: [blankItem()],
     mwst_rate: "19",
     lieferkosten: "0",
-    faellig_tage: "14",
+    faellig_tage: String(invoiceDueDays),
     bank_inhaber: "",
     bank_name: "",
     bank_iban: "",
@@ -113,6 +113,7 @@ function ManualConfirmationsPage() {
   const [banks, setBanks] = useState<BankAccountRow[]>([]);
   const [selectedBankId, setSelectedBankId] = useState("");
   const [katalogPick, setKatalogPick] = useState("");
+  const [defaultInvoiceDueDays, setDefaultInvoiceDueDays] = useState(DEFAULT_INVOICE_DUE_DAYS);
 
   async function load() {
     setLoading(true);
@@ -131,6 +132,9 @@ function ManualConfirmationsPage() {
     load();
     listBankAccounts()
       .then((r) => setBanks(r.banks))
+      .catch(() => undefined);
+    getAdminSettings()
+      .then((s) => setDefaultInvoiceDueDays(s.invoiceDueDays))
       .catch(() => undefined);
   }, []);
 
@@ -168,7 +172,7 @@ function ManualConfirmationsPage() {
 
   function openSend(row: ManualConfirmationRow) {
     setSendForId(row.id);
-    const base = emptyForm(row);
+    const base = emptyForm(row, defaultInvoiceDueDays);
     const def = banks.find((b) => b.is_default) || banks[0];
     if (def) {
       setSelectedBankId(def.id);
@@ -245,7 +249,7 @@ function ManualConfirmationsPage() {
     if (!form || !sendForId) return;
     const mwst_rate = Number(String(form.mwst_rate).replace(",", "."));
     const lieferkosten = Number(String(form.lieferkosten).replace(",", ".")) || 0;
-    const faellig_tage = Math.floor(Number(form.faellig_tage)) || 14;
+    const faellig_tage = Math.floor(Number(form.faellig_tage)) || defaultInvoiceDueDays;
 
     if (!form.customer_email.trim()) {
       setSendMsg({ ok: false, text: "Bitte Kunden-E-Mail eintragen." });

@@ -6,7 +6,11 @@ import {
   saveActiveVerwalter,
   saveAutoSendOffers,
   saveDefaultNeukundenRabatt,
+  saveInvoiceDueDays,
+  saveOfferValidityDays,
   upsertBankAccount,
+  DEFAULT_INVOICE_DUE_DAYS,
+  DEFAULT_OFFER_VALIDITY_DAYS,
   type BankAccountRow,
 } from "@/lib/settings.functions";
 
@@ -35,6 +39,10 @@ function EinstellungenPage() {
   const [neukundenRabatt, setNeukundenRabatt] = useState(5);
   const [savingRabatt, setSavingRabatt] = useState(false);
 
+  const [offerValidityDays, setOfferValidityDays] = useState(DEFAULT_OFFER_VALIDITY_DAYS);
+  const [invoiceDueDays, setInvoiceDueDays] = useState(DEFAULT_INVOICE_DUE_DAYS);
+  const [savingDeadlines, setSavingDeadlines] = useState(false);
+
   const [banks, setBanks] = useState<BankAccountRow[]>([]);
   const [label, setLabel] = useState("");
   const [inhaber, setInhaber] = useState("");
@@ -53,6 +61,8 @@ function EinstellungenPage() {
       setVerwalterRole(res.verwalter.role);
       setAutoSendOffers(res.autoSendOffers);
       setNeukundenRabatt(res.defaultNeukundenRabatt);
+      setOfferValidityDays(res.offerValidityDays);
+      setInvoiceDueDays(res.invoiceDueDays);
       setBanks(res.banks);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Laden fehlgeschlagen.");
@@ -100,6 +110,28 @@ function EinstellungenPage() {
       setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
     } finally {
       setSavingRabatt(false);
+    }
+  }
+
+  async function handleSaveDeadlines() {
+    setSavingDeadlines(true);
+    setMsg(null);
+    try {
+      const offerDays = Math.min(120, Math.max(1, Math.floor(Number(offerValidityDays) || DEFAULT_OFFER_VALIDITY_DAYS)));
+      const invoiceDays = Math.min(120, Math.max(1, Math.floor(Number(invoiceDueDays) || DEFAULT_INVOICE_DUE_DAYS)));
+      const [offerRes, invoiceRes] = await Promise.all([
+        saveOfferValidityDays({ data: { days: offerDays } }),
+        saveInvoiceDueDays({ data: { days: invoiceDays } }),
+      ]);
+      setOfferValidityDays(offerRes.days);
+      setInvoiceDueDays(invoiceRes.days);
+      setMsg(
+        `Fristen gespeichert: Angebote ${offerRes.days} Tage gültig · Rechnungen ${invoiceRes.days} Tage Zahlungsziel.`,
+      );
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setSavingDeadlines(false);
     }
   }
 
@@ -185,7 +217,7 @@ function EinstellungenPage() {
           <h1 className="mt-2 text-4xl">Einstellungen</h1>
           <span className="rule-gold mt-4" />
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            Verwalter, Auto-Versand, Neukundenrabatt und Bankkonten verwalten.
+            Verwalter, Auto-Versand, Fristen, Neukundenrabatt und Bankkonten verwalten.
           </p>
         </div>
         <Link to="/admin" className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary">
@@ -258,6 +290,56 @@ function EinstellungenPage() {
                 {savingRabatt ? "Speichern …" : "Rabatt speichern"}
               </button>
             </div>
+          </div>
+
+          <div className="mt-10 border border-border p-6">
+            <h2 className="font-serif text-2xl text-primary">Fristen</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Standard-Gültigkeit für Angebote und Zahlungsziel für Rechnungen.
+              Gilt für neue Versände (E-Mail, PDF, Auto-Rechnung). Pro Vorgang im Admin weiterhin überschreibbar.
+            </p>
+            <div className="mt-6 flex flex-wrap items-end gap-6">
+              <label className="block">
+                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                  Angebot gültig (Tage)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  step={1}
+                  value={offerValidityDays}
+                  onChange={(e) => setOfferValidityDays(Number(e.target.value))}
+                  className="mt-2 w-28 border border-border bg-background px-3 py-2 text-sm tabular-nums"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+                  Rechnung fällig (Tage)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  step={1}
+                  value={invoiceDueDays}
+                  onChange={(e) => setInvoiceDueDays(Number(e.target.value))}
+                  className="mt-2 w-28 border border-border bg-background px-3 py-2 text-sm tabular-nums"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={savingDeadlines}
+                onClick={handleSaveDeadlines}
+                className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
+              >
+                {savingDeadlines ? "Speichern …" : "Fristen speichern"}
+              </button>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Aktuell: Angebote {offerValidityDays} Tage · Rechnungen {invoiceDueDays} Tage
+              (Werkseinstellung {DEFAULT_OFFER_VALIDITY_DAYS}/{DEFAULT_INVOICE_DUE_DAYS}).
+            </p>
           </div>
 
           <div className="mt-10 border border-border p-6">

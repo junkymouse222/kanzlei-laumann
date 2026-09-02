@@ -47,6 +47,8 @@ export type BelegDbOffer = {
 export type BelegLoadResult = {
   offer: BelegDbOffer;
   items: BelegDbPosition[];
+  /** Gültig-bis / Fällig-am als YYYY-MM-DD (inkl. Settings-Fallback). */
+  gueltigOderFaellig: string;
 };
 
 export const loadBelegByToken = createServerFn({ method: "GET" })
@@ -91,8 +93,21 @@ export const loadBelegByToken = createServerFn({ method: "GET" })
 
     if (itemsErr) throw new Error(itemsErr.message);
 
+    const { addDaysIso, loadInvoiceDueDays, loadOfferValidityDays } = await import(
+      "@/lib/settings.functions"
+    );
+    const gueltigOderFaellig =
+      data.art === "rechnung"
+        ? (offerRow.rechnung_faellig_am ??
+          addDaysIso(new Date(), await loadInvoiceDueDays()))
+        : addDaysIso(offerRow.created_at, await loadOfferValidityDays());
+
     // WICHTIG: KEINE env-Fallbacks für Bankdaten. Anderkonten wechseln je
     // Mandat — ein Fallback würde alte IBANs auf neuen Rechnungen zeigen.
     // Bank-Felder werden 1:1 aus dem Datensatz übernommen (leer wenn leer).
-    return { offer: offerRow, items: (items ?? []) as BelegDbPosition[] };
+    return {
+      offer: offerRow,
+      items: (items ?? []) as BelegDbPosition[],
+      gueltigOderFaellig,
+    };
   });
