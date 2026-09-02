@@ -489,40 +489,69 @@ async function withImap<T>(fn: (client: any) => Promise<T>): Promise<T> {
 }
 
 export async function buildMailboxSignatureHtml(): Promise<string> {
-  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
-  const verwalter = await loadActiveVerwalter();
-  const offices = SITE.offices
-    .map((o) => `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`)
-    .join("<br/>");
-  return `
-<p style="margin:24px 0 0 0;">Mit freundlichen Grüßen</p>
-<p style="margin:8px 0 0 0;"><strong>${escapeHtml(verwalter.name)}</strong><br/>
-${escapeHtml(verwalter.role)}<br/>
-${escapeHtml(SITE.brand)}</p>
-<p style="margin:12px 0 0 0;font-size:12px;line-height:1.5;color:#666;">
-${offices}<br/>
-Tel. ${escapeHtml(SITE.phoneDisplay)} · ${escapeHtml(SITE.email)}<br/>
-USt-IdNr. ${escapeHtml(SITE.ustId)}
-</p>`.trim();
+  const { loadEmailSigner, renderEmailSignatureHtml } = await import("@/lib/offer-email.server");
+  const signer = await loadEmailSigner();
+  return renderEmailSignatureHtml(signer.name, signer.role);
 }
 
 export async function buildMailboxSignatureText(): Promise<string> {
-  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
-  const verwalter = await loadActiveVerwalter();
-  const offices = SITE.offices
-    .map((o) => `${o.label}: ${o.street}, ${o.postalCode} ${o.city}`)
-    .join("\n");
-  return [
-    "Mit freundlichen Grüßen",
-    "",
-    verwalter.name,
-    verwalter.role,
-    SITE.brand,
-    "",
-    offices,
-    `Tel. ${SITE.phoneDisplay} · ${SITE.email}`,
-    `USt-IdNr. ${SITE.ustId}`,
-  ].join("\n");
+  const { loadEmailSigner, renderEmailSignatureText } = await import("@/lib/offer-email.server");
+  const signer = await loadEmailSigner();
+  return renderEmailSignatureText(signer.name, signer.role);
+}
+
+/** Entfernt vorausgefüllte Signatur am Ende, damit sie serverseitig als HTML neu gesetzt wird. */
+function stripPrefilledSignature(body: string, signatureText: string): string {
+  const normalizedBody = body.replace(/\r\n/g, "\n").trimEnd();
+  const normalizedSig = signatureText.replace(/\r\n/g, "\n").trim();
+  if (normalizedSig && normalizedBody.endsWith(normalizedSig)) {
+    return normalizedBody.slice(0, -normalizedSig.length).trim();
+  }
+  const marker = "\nViele Grüße\n";
+  const idx = normalizedBody.lastIndexOf(marker);
+  if (idx >= 0) return normalizedBody.slice(0, idx).trim();
+  if (normalizedBody.startsWith("Viele Grüße\n")) return "";
+  return normalizedBody.trim();
+}
+
+async function buildOutboundMailboxHtml(opts: {
+  userBody: string;
+  subject: string;
+  quotedOriginal?: string;
+}): Promise<{ html: string; text: string; signerName: string }> {
+  const {
+    loadEmailSigner,
+    renderEmailSignatureHtml,
+    renderEmailSignatureText,
+    wrapTransactionalEmailHtml,
+  } = await import("@/lib/offer-email.server");
+  const signer = await loadEmailSigner();
+  const sigText = renderEmailSignatureText(signer.name, signer.role);
+  const userPart = stripPrefilledSignature(opts.userBody, sigText);
+  const textParts = [userPart, "", sigText];
+  if (opts.quotedOriginal) {
+    textParts.push("", "——— Originalnachricht ———", opts.quotedOriginal.slice(0, 8000));
+  }
+  const bodyHtml = `
+      <p style="margin:0 0 16px 0;">${plainToHtml(userPart)}</p>
+      ${renderEmailSignatureHtml(signer.name, signer.role)}
+      ${
+        opts.quotedOriginal
+          ? `<hr style="border:none;border-top:1px solid #ddd;margin:28px 0 12px 0;" />
+      <p style="margin:0;font-size:12px;color:#888;">——— Originalnachricht ———</p>
+      <pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:12px;color:#555;">${escapeHtml(opts.quotedOriginal.slice(0, 8000))}</pre>`
+          : ""
+      }
+    `;
+  return {
+    html: wrapTransactionalEmailHtml({
+      title: opts.subject,
+      bodyHtml,
+      signerName: signer.name,
+    }),
+    text: textParts.join("\n"),
+    signerName: signer.name,
+  };
 }
 
 function escapeHtml(s: string): string {
@@ -1186,16 +1215,15 @@ export const replyMailboxMessage = createServerFn({ method: "POST" })
         ? original.subject
         : `Re: ${original.subject}`);
 
-    const sigHtml = await buildMailboxSignatureHtml();
+    const outbound = await buildOutboundMailboxHtml({
+      userBody: data.body,
+      subject,
+      quotedOriginal: original.text,
+    });
     const sigText = await buildMailboxSignatureText();
-    const bodyText = `${data.body.trim()}\n\n${sigText}`;
-    const bodyHtml = `<div style="font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.6;color:#222;">
-      <p style="margin:0 0 16px 0;">${plainToHtml(data.body.trim())}</p>
-      ${sigHtml}
-      <hr style="border:none;border-top:1px solid #ddd;margin:28px 0 12px 0;" />
-      <p style="margin:0;font-size:12px;color:#888;">——— Originalnachricht ———</p>
-      <pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:12px;color:#555;">${escapeHtml(original.text.slice(0, 8000))}</pre>
-    </div>`;
+    if (!stripPrefilledSignature(data.body, sigText)) {
+      throw new Error("Bitte Nachrichtentext oberhalb der Signatur eingeben.");
+    }
 
     const references = [original.references, original.messageId].filter(Boolean).join(" ").trim();
     const headers: Record<string, string> = {};
@@ -1206,9 +1234,9 @@ export const replyMailboxMessage = createServerFn({ method: "POST" })
       const send = await sendMailboxViaResend({
         to: original.fromEmail,
         subject,
-        html: bodyHtml,
-        text: bodyText,
-        fromName: secrets.fromName,
+        html: outbound.html,
+        text: outbound.text,
+        fromName: secrets.fromName || outbound.signerName,
         user: secrets.user,
         attachments: data.attachments,
         headers,
@@ -1245,21 +1273,23 @@ export const sendMailboxEmail = createServerFn({ method: "POST" })
     const secrets = await loadSecrets();
     if (!secrets.user) throw new Error("Bitte zuerst ein Postfach verbinden.");
 
-    const sigHtml = await buildMailboxSignatureHtml();
+    const subject = data.subject.trim();
     const sigText = await buildMailboxSignatureText();
-    const bodyText = `${data.body.trim()}\n\n${sigText}`;
-    const bodyHtml = `<div style="font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.6;color:#222;">
-      <p style="margin:0 0 16px 0;">${plainToHtml(data.body.trim())}</p>
-      ${sigHtml}
-    </div>`;
+    if (!stripPrefilledSignature(data.body, sigText)) {
+      throw new Error("Bitte Nachrichtentext oberhalb der Signatur eingeben.");
+    }
+    const outbound = await buildOutboundMailboxHtml({
+      userBody: data.body,
+      subject,
+    });
 
     try {
       const send = await sendMailboxViaResend({
         to: data.to,
-        subject: data.subject.trim(),
-        html: bodyHtml,
-        text: bodyText,
-        fromName: secrets.fromName,
+        subject,
+        html: outbound.html,
+        text: outbound.text,
+        fromName: secrets.fromName || outbound.signerName,
         user: secrets.user,
         attachments: data.attachments,
       });
@@ -1267,7 +1297,7 @@ export const sendMailboxEmail = createServerFn({ method: "POST" })
         ok: true as const,
         messageId: send.messageId,
         to: data.to,
-        subject: data.subject.trim(),
+        subject,
         via: "resend" as const,
       };
     } catch (e) {

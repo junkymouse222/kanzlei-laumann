@@ -97,6 +97,21 @@ function PostfachPage() {
   const [composeBody, setComposeBody] = useState("");
   const [composeFiles, setComposeFiles] = useState<FileList | null>(null);
 
+  function bodyWithSignature(sig: string) {
+    const s = (sig || "").trim();
+    return s ? `\n\n${s}` : "";
+  }
+
+  function messageAboveSignature(body: string, sig: string) {
+    const b = body.replace(/\r\n/g, "\n").trimEnd();
+    const s = (sig || "").replace(/\r\n/g, "\n").trim();
+    if (s && b.endsWith(s)) return b.slice(0, -s.length).trim();
+    const idx = b.lastIndexOf("\nViele Grüße\n");
+    if (idx >= 0) return b.slice(0, idx).trim();
+    if (b.startsWith("Viele Grüße\n")) return "";
+    return b.trim();
+  }
+
   function applySettings(s: MailboxSettingsPublic) {
     setSettings(s);
     setUser(s.user);
@@ -150,7 +165,10 @@ function PostfachPage() {
   useEffect(() => {
     loadSettings();
     getMailboxSignaturePreview()
-      .then((r) => setSigPreview(r.text))
+      .then((r) => {
+        setSigPreview(r.text);
+        setComposeBody((prev) => (prev.trim() ? prev : bodyWithSignature(r.text)));
+      })
       .catch(() => undefined);
   }, []);
 
@@ -201,7 +219,8 @@ function PostfachPage() {
     setOpenUid(uid);
     setLoadingDetail(true);
     setDetail(null);
-    setReplyBody("");
+    setReplyBody(bodyWithSignature(sigPreview));
+    setReplyFiles(null);
     try {
       const d = await getMailboxMessage({ data: { uid } });
       setDetail(d);
@@ -215,7 +234,10 @@ function PostfachPage() {
   }
 
   async function handleReply() {
-    if (!openUid || !replyBody.trim()) return;
+    if (!openUid || !messageAboveSignature(replyBody, sigPreview)) {
+      setMsg("Bitte Antworttext oberhalb der Signatur eingeben.");
+      return;
+    }
     setSending(true);
     setMsg(null);
     try {
@@ -231,7 +253,7 @@ function PostfachPage() {
       setMsg(
         `Antwort gesendet an ${res.to}${attachments.length ? ` · ${attachments.length} Anhang` : ""} (Resend).`,
       );
-      setReplyBody("");
+      setReplyBody(bodyWithSignature(sigPreview));
       setReplyFiles(null);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Senden fehlgeschlagen.");
@@ -241,8 +263,12 @@ function PostfachPage() {
   }
 
   async function handleCompose() {
-    if (!composeTo.trim() || !composeSubject.trim() || !composeBody.trim()) {
-      setMsg("Empfänger, Betreff und Text ausfüllen.");
+    if (!composeTo.trim() || !composeSubject.trim()) {
+      setMsg("Empfänger und Betreff ausfüllen.");
+      return;
+    }
+    if (!messageAboveSignature(composeBody, sigPreview)) {
+      setMsg("Bitte Nachrichtentext oberhalb der Signatur eingeben.");
       return;
     }
     setSending(true);
@@ -262,7 +288,7 @@ function PostfachPage() {
       );
       setComposeTo("");
       setComposeSubject("");
-      setComposeBody("");
+      setComposeBody(bodyWithSignature(sigPreview));
       setComposeFiles(null);
       setShowCompose(false);
     } catch (e) {
@@ -290,7 +316,13 @@ function PostfachPage() {
             <>
               <button
                 type="button"
-                onClick={() => setShowCompose((v) => !v)}
+                onClick={() => {
+                  setShowCompose((v) => {
+                    const next = !v;
+                    if (next) setComposeBody((prev) => (prev.trim() ? prev : bodyWithSignature(sigPreview)));
+                    return next;
+                  });
+                }}
                 className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
               >
                 {showCompose ? "Schreiben schließen" : "Neue E-Mail"}
@@ -503,7 +535,8 @@ function PostfachPage() {
         <div className="mt-8 border border-border p-6">
           <h2 className="font-serif text-2xl text-primary">Neue E-Mail</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Versand über Resend · Absender {settings.user} (Reply-To)
+            Versand über Resend · Absender {settings.user} (Reply-To) · Signatur wie bei
+            Angebotsmails vorausgefüllt
           </p>
           <div className="mt-6 grid max-w-2xl gap-4">
             <label className="block">
@@ -532,7 +565,8 @@ function PostfachPage() {
               <textarea
                 value={composeBody}
                 onChange={(e) => setComposeBody(e.target.value)}
-                rows={8}
+                rows={10}
+                placeholder="Nachricht oberhalb der Signatur schreiben …"
                 className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
               />
             </label>
@@ -550,7 +584,10 @@ function PostfachPage() {
             <button
               type="button"
               disabled={
-                sending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()
+                sending ||
+                !composeTo.trim() ||
+                !composeSubject.trim() ||
+                !messageAboveSignature(composeBody, sigPreview)
               }
               onClick={() => void handleCompose()}
               className="w-fit border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
@@ -639,7 +676,8 @@ function PostfachPage() {
                             <textarea
                               value={replyBody}
                               onChange={(e) => setReplyBody(e.target.value)}
-                              rows={6}
+                              rows={8}
+                              placeholder="Antwort oberhalb der Signatur schreiben …"
                               className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
                             />
                           </label>
@@ -656,7 +694,7 @@ function PostfachPage() {
                           </label>
                           <button
                             type="button"
-                            disabled={sending || !replyBody.trim()}
+                            disabled={sending || !messageAboveSignature(replyBody, sigPreview)}
                             onClick={() => void handleReply()}
                             className="border border-primary bg-primary px-5 py-2.5 text-xs uppercase tracking-widest text-primary-foreground disabled:opacity-50"
                           >

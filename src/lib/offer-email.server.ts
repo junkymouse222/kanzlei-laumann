@@ -592,6 +592,71 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** Text-Signatur wie in Angebot-/Rechnungsmails („Viele Grüße“ + Fußzeile). */
+export function renderEmailSignatureText(signerName: string, signerRole: string): string {
+  const offices = SITE.offices.map(
+    (o) => `${o.label}: ${o.street}, ${o.postalCode} ${o.city}`,
+  );
+  return ["Viele Grüße", signerName, "", signerRole, SITE.brand, ...offices, `USt-IdNr. ${SITE.ustId}`].join(
+    "\n",
+  );
+}
+
+/** HTML-Signatur wie in Angebot-/Rechnungsmails. */
+export function renderEmailSignatureHtml(signerName: string, signerRole: string): string {
+  const signer = escapeHtml(signerName);
+  const role = escapeHtml(signerRole);
+  return `<p style="margin:28px 0 0 0;">Viele Grüße<br/>${signer}</p>
+<p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
+  ${role}<br/>
+  ${escapeHtml(SITE.brand)}<br/>
+  ${SITE.offices
+    .map(
+      (o) =>
+        `${escapeHtml(o.label)}: ${escapeHtml(o.street)}, ${escapeHtml(o.postalCode)} ${escapeHtml(o.city)}`,
+    )
+    .join("<br/>\n  ")}<br/>
+  USt-IdNr. ${escapeHtml(SITE.ustId)}
+</p>`;
+}
+
+/**
+ * Komplette Transaktions-Mail im gleichen Layout wie die automatischen Mails
+ * (560px, Georgia, Kopfzeile Absender · Marke · Datum).
+ */
+export function wrapTransactionalEmailHtml(opts: {
+  title: string;
+  bodyHtml: string;
+  signerName: string;
+  headerDate?: string;
+}): string {
+  const signer = escapeHtml(opts.signerName);
+  const datum =
+    opts.headerDate ||
+    new Date().toLocaleDateString("de-DE", { dateStyle: "medium" });
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:28px 24px 8px 24px;font-size:15px;line-height:1.7;color:#222;">
+          <p style="margin:0 0 4px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#777;">
+            ${signer} · ${escapeHtml(SITE.brand)} · ${escapeHtml(datum)}
+          </p>
+          ${opts.bodyHtml}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+export async function loadEmailSigner(): Promise<{ name: string; role: string }> {
+  const { loadActiveVerwalter } = await import("@/lib/settings.functions");
+  const verwalter = await loadActiveVerwalter();
+  return { name: verwalter.name, role: verwalter.role };
+}
+
 export type EmailAttachment = { filename: string; content: string /* base64 */ };
 
 type ResendPostResult = { status: number; body: string };
