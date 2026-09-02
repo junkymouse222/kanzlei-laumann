@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import heroImg from "@/assets/kanzlei-hero.jpg";
-import goldmannImg from "@/assets/anwalt-goldmann.jpg";
-import kopmannImg from "@/assets/anwaeltin-weber.jpg";
 import { SITE, SITE_OFFICE_CITIES } from "@/lib/site";
+import { siteIsFemale, siteVerwalterNoun } from "@/lib/site-person";
+import { getTeam, teamHeadline } from "@/lib/team";
 import { TrustStrip, Kaufprozess } from "@/components/TrustSignals";
 
 export const Route = createFileRoute("/")({
@@ -49,6 +49,10 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const team = getTeam();
+  const verwalterNoun = siteVerwalterNoun();
+  const bestellt = siteIsFemale() ? "bestellte" : "bestellter";
+
   return (
     <>
       {/* Hero */}
@@ -56,7 +60,7 @@ function Index() {
         <div className="absolute inset-0 -z-10">
           <img
             src={heroImg}
-            alt="Empfangsbereich der Kanzlei Laumann in Düsseldorf"
+            alt={`Empfangsbereich der ${SITE.brand} in ${SITE.city}`}
             className="h-full w-full object-cover"
             width={1280}
             height={858}
@@ -74,7 +78,7 @@ function Index() {
             <span className="italic text-gold-soft"> aus der Insolvenzmasse.</span>
           </h1>
           <p className="mt-8 max-w-xl text-lg leading-relaxed text-primary-foreground/80">
-            Als gerichtlich bestellter Insolvenzverwalter verwertet Erik Laumann
+            Als gerichtlich {bestellt} {verwalterNoun} verwertet {SITE.verwalter}{" "}
             Vermögenswerte im Interesse aller Gläubiger. Premium-Büroausstattung,
             Design-Klassiker und professionelle Kaffeetechnik — originalverpackte
             Neuware, sofort verfügbar.
@@ -150,48 +154,42 @@ function Index() {
       {/* Die Verwalter */}
       <section className="bg-primary text-primary-foreground">
         <div className="container-prose py-24 md:py-32">
-          <p className="text-[0.7rem] uppercase tracking-[0.24em] text-gold">Die Insolvenzverwalter</p>
+          <p className="text-[0.7rem] uppercase tracking-[0.24em] text-gold">
+            {team.length > 1 ? "Die Insolvenzverwalter" : `Die ${siteVerwalterNoun()}`}
+          </p>
           <h2 className="mt-4 max-w-2xl font-serif text-4xl text-primary-foreground md:text-5xl">
-            Erik Laumann &amp; Claudia Kopmann
+            {teamHeadline()}
           </h2>
           <span className="rule-gold mt-6" />
           <p className="mt-8 max-w-2xl text-base leading-relaxed text-primary-foreground/80">
-            Als gerichtlich bestellte Insolvenzverwalter verantworten wir die
+            Als gerichtlich bestellte Insolvenzverwaltung verantworten wir die
             bestmögliche Verwertung der Insolvenzmasse im Interesse aller
             Gläubiger. Jede Anfrage wird vertraulich behandelt — verbindlich
             wird ein Erwerb erst mit unserer schriftlichen Bestätigung.
           </p>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2">
-            <div>
-              <img
-                src={goldmannImg}
-                alt="Portrait Erik Laumann"
-                className="aspect-[4/5] w-full object-cover grayscale-[15%]"
-                width={1024}
-                height={1280}
-                loading="lazy"
-              />
-              <p className="mt-4 font-serif text-2xl">Erik Laumann</p>
-              <p className="mt-1 text-sm text-primary-foreground/60">Rechtsanwalt · Insolvenzverwalter</p>
-            </div>
-            <div>
-              <img
-                src={kopmannImg}
-                alt="Portrait Claudia Kopmann"
-                className="aspect-[4/5] w-full object-cover grayscale-[15%]"
-                width={1024}
-                height={1280}
-                loading="lazy"
-              />
-              <p className="mt-4 font-serif text-2xl">Claudia Kopmann</p>
-              <p className="mt-1 text-sm text-primary-foreground/60">Rechtsanwältin · Insolvenzverwalterin</p>
-            </div>
+          <div
+            className={`mt-12 grid gap-8 ${team.length > 1 ? "sm:grid-cols-2" : "max-w-md sm:grid-cols-1"}`}
+          >
+            {team.map((person) => (
+              <div key={person.name}>
+                <img
+                  src={person.img}
+                  alt={`Portrait ${person.name}`}
+                  className="aspect-[4/5] w-full object-cover grayscale-[15%]"
+                  width={1024}
+                  height={1280}
+                  loading="lazy"
+                />
+                <p className="mt-4 font-serif text-2xl">{person.name}</p>
+                <p className="mt-1 text-sm text-primary-foreground/60">{person.role}</p>
+              </div>
+            ))}
           </div>
           <Link
             to="/anwaelte"
             className="mt-10 inline-block border-b border-gold pb-1 text-xs uppercase tracking-[0.22em] text-gold hover:text-gold-soft"
           >
-            Mehr über die Verwalter
+            {team.length > 1 ? "Mehr über die Verwalter" : `Mehr über ${SITE.verwalter}`}
           </Link>
         </div>
       </section>

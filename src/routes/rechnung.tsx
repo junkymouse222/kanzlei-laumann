@@ -11,7 +11,7 @@ const printStyles = belegPrintStyles;
 export const Route = createFileRoute("/rechnung")({
   head: () => ({
     meta: [
-      { title: "Angebots- & Rechnungsgenerator — Kanzlei Laumann" },
+      { title: `Angebots- & Rechnungsgenerator — ${SITE.brand}` },
       {
         name: "description",
         content: "Internes Tool zur Erstellung von Angeboten und Rechnungen aus dem Verwertungskatalog.",

@@ -20,7 +20,13 @@ type Position = { produkt: Produkt; menge: number };
 
 function portraitForVerwalter(name: string): { src: string; alt: string } {
   const n = name.toLowerCase();
-  if (n.includes("claudia") || n.includes("kopmann") || n.includes("weber")) {
+  if (
+    n.includes("claudia") ||
+    n.includes("kopmann") ||
+    n.includes("weber") ||
+    n.includes("cristiana") ||
+    n.includes("adam")
+  ) {
     return { src: kopmannImg, alt: `Portrait ${name}` };
   }
   return { src: goldmannImg, alt: `Portrait ${name}` };

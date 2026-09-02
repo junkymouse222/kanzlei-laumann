@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/fileupload")({
   head: () => ({
     meta: [
-      { title: "PDF Upload — Kanzlei Laumann" },
+      { title: `PDF Upload — ${SITE.brand}` },
       { name: "description", content: "Interner PDF-Upload für Angebote." },
       { name: "robots", content: "noindex, nofollow" },
     ],

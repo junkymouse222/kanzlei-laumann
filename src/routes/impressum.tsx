@@ -1,11 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SITE, siteTelHref } from "@/lib/site";
+import {
+  siteProfessionNoun,
+  siteSalutation,
+  siteVerwalterNoun,
+} from "@/lib/site-person";
 
 export const Route = createFileRoute("/impressum")({
   head: () => ({
     meta: [
-      { title: "Impressum — Kanzlei Laumann" },
-      { name: "description", content: "Impressum und Angaben gemäß § 5 TMG der Kanzlei Laumann, Erik Laumann, Rechtsanwalt und Insolvenzverwalter." },
+      { title: `Impressum — ${SITE.brand}` },
+      {
+        name: "description",
+        content: `Impressum und Angaben gemäß § 5 TMG der ${SITE.brand}, ${SITE.legalName}.`,
+      },
       { name: "robots", content: "noindex" },
       { property: "og:url", content: `${SITE.baseUrl}/impressum` },
     ],
@@ -15,6 +23,10 @@ export const Route = createFileRoute("/impressum")({
 });
 
 function ImpressumPage() {
+  const profession = siteProfessionNoun();
+  const verwalter = siteVerwalterNoun();
+  const anrede = siteSalutation();
+
   return (
     <section className="container-prose py-24 md:py-32">
       <p className="eyebrow">Rechtliches</p>
@@ -26,9 +38,9 @@ function ImpressumPage() {
           <div>
             <p className="text-[0.7rem] uppercase tracking-[0.22em] text-muted-foreground">Anbieter</p>
             <p className="mt-3">
-              Erik Laumann
+              {SITE.verwalter}
               <br />
-              Rechtsanwalt · Insolvenzverwalter
+              {profession} · {verwalter}
               <br />
               {SITE.street}
               <br />
@@ -76,8 +88,8 @@ function ImpressumPage() {
           <div>
             <h2 className="text-2xl">Berufsrechtliche Angaben</h2>
             <p className="mt-4">
-              Die gesetzliche Berufsbezeichnung „Rechtsanwalt" wurde in der
-              Bundesrepublik Deutschland verliehen. Herr Erik Laumann ist Mitglied
+              Die gesetzliche Berufsbezeichnung „{profession}" wurde in der
+              Bundesrepublik Deutschland verliehen. {anrede} {SITE.verwalter} ist Mitglied
               der {SITE.kammer}, {SITE.kammerAnschrift}.
             </p>
             <p className="mt-4">Es gelten folgende berufsrechtliche Regelungen:</p>
@@ -104,7 +116,7 @@ function ImpressumPage() {
 
           <div>
             <h2 className="text-2xl">Verantwortlich i. S. d. § 18 Abs. 2 MStV</h2>
-            <p className="mt-4">Erik Laumann, Anschrift wie oben.</p>
+            <p className="mt-4">{SITE.verwalter}, Anschrift wie oben.</p>
           </div>
 
           <div>

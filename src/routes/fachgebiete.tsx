@@ -4,9 +4,9 @@ import { SITE } from "@/lib/site";
 export const Route = createFileRoute("/fachgebiete")({
   head: () => ({
     meta: [
-      { title: "Tätigkeitsfelder — Insolvenzverwaltung & Verwertung | Kanzlei Laumann" },
+      { title: `Tätigkeitsfelder — Insolvenzverwaltung & Verwertung | ${SITE.brand}` },
       { name: "description", content: "Regelinsolvenzverfahren, Insolvenzverwaltung, Eigenverwaltung, Verwertung, Gläubigervertretung und Verbraucherinsolvenz." },
-      { property: "og:title", content: "Tätigkeitsfelder — Kanzlei Laumann" },
+      { property: "og:title", content: `Tätigkeitsfelder — ${SITE.brand}` },
       { property: "og:description", content: "Insolvenzverwaltung und Verwertung aus einer Hand." },
       { property: "og:url", content: `${SITE.baseUrl}/fachgebiete` },
     ],
