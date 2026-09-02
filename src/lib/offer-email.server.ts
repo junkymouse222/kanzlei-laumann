@@ -393,16 +393,10 @@ export function renderOfferRequestConfirmationHtml(opts: {
   const contactRole = (opts.contactRole || SITE.role).trim();
   const contactAddress = formalPersonAddress(contactName, contactRole);
   const samePerson = contactName.toLowerCase() === signer.toLowerCase();
-<<<<<<< HEAD
-  const followUpHtml = samePerson
-    ? `<p style="margin:0 0 16px 0;">Ich melde mich anschließend mit dem Angebot bei Ihnen.</p>`
-    : `${followUpHtml}`;
-=======
   // Adam u. Ä.: Absender = Kontakt → keine dritte Person („Frau X meldet sich…“)
   const followUpHtml = samePerson
     ? `<p style="margin:0 0 16px 0;">Ich melde mich anschließend mit dem Angebot bei Ihnen.</p>`
     : `<p style="margin:0 0 16px 0;">${escapeHtml(contactAddress)} meldet sich anschließend mit dem Angebot bei Ihnen.</p>`;
->>>>>>> pr-42
 
   const items = (opts.itemNames ?? [])
     .map((n) => shortProductLabel(n))
