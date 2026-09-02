@@ -622,7 +622,7 @@ export function renderEmailSignatureHtml(signerName: string, signerRole: string)
 
 /**
  * Komplette Transaktions-Mail im gleichen Layout wie die automatischen Mails
- * (560px, Georgia, Kopfzeile Absender · Marke · Datum).
+ * (560px, Georgia, Kopfzeile Absender · Marke · Datum am oberen Rand).
  */
 export function wrapTransactionalEmailHtml(opts: {
   title: string;
@@ -631,9 +631,8 @@ export function wrapTransactionalEmailHtml(opts: {
   headerDate?: string;
 }): string {
   const signer = escapeHtml(opts.signerName);
-  const datum =
-    opts.headerDate ||
-    new Date().toLocaleDateString("de-DE", { dateStyle: "medium" });
+  // Gleiches Datumsformat wie Angebot-/Rechnungsmails (toLocaleDateString("de-DE"))
+  const datum = opts.headerDate || new Date().toLocaleDateString("de-DE");
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(opts.title)}</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Georgia,'Times New Roman',serif;color:#222;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:8px 0;">
@@ -651,10 +650,69 @@ export function wrapTransactionalEmailHtml(opts: {
 </body></html>`;
 }
 
+/** Fließtext → Absätze wie in den automatischen Mails. */
+export function plainTextToEmailParagraphs(text: string): string {
+  const normalized = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) return "";
+  return normalized
+    .split(/\n{2,}/)
+    .map((block) => {
+      const inner = escapeHtml(block.trim()).replace(/\n/g, "<br/>");
+      return `<p style="margin:0 0 16px 0;">${inner}</p>`;
+    })
+    .join("\n");
+}
+
 export async function loadEmailSigner(): Promise<{ name: string; role: string }> {
   const { loadActiveVerwalter } = await import("@/lib/settings.functions");
   const verwalter = await loadActiveVerwalter();
   return { name: verwalter.name, role: verwalter.role };
+}
+
+/** Baut eine Postfach-Mail exakt im Layout der automatischen Mails. */
+export async function renderMailboxOutboundHtml(opts: {
+  subject: string;
+  userBody: string;
+  quotedOriginal?: string;
+}): Promise<{ html: string; text: string; signerName: string; signatureText: string }> {
+  const signer = await loadEmailSigner();
+  const sigText = renderEmailSignatureText(signer.name, signer.role);
+  const normalizedBody = opts.userBody.replace(/\r\n/g, "\n").trimEnd();
+  let userPart = normalizedBody;
+  if (sigText && normalizedBody.endsWith(sigText.trim())) {
+    userPart = normalizedBody.slice(0, -sigText.trim().length).trim();
+  } else {
+    const marker = "\nViele Grüße\n";
+    const idx = normalizedBody.lastIndexOf(marker);
+    if (idx >= 0) userPart = normalizedBody.slice(0, idx).trim();
+    else if (normalizedBody.startsWith("Viele Grüße\n")) userPart = "";
+  }
+
+  const textParts = [userPart, "", sigText];
+  if (opts.quotedOriginal) {
+    textParts.push("", "——— Originalnachricht ———", opts.quotedOriginal.slice(0, 8000));
+  }
+
+  const quoteHtml = opts.quotedOriginal
+    ? `<hr style="border:none;border-top:1px solid #ddd;margin:28px 0 12px 0;" />
+          <p style="margin:0 0 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#888;">——— Originalnachricht ———</p>
+          <p style="margin:0;font-size:12px;line-height:1.55;color:#555;">${escapeHtml(opts.quotedOriginal.slice(0, 8000)).replace(/\r\n|\n|\r/g, "<br/>")}</p>`
+    : "";
+
+  const bodyHtml = `${plainTextToEmailParagraphs(userPart)}
+          ${renderEmailSignatureHtml(signer.name, signer.role)}
+          ${quoteHtml}`;
+
+  return {
+    html: wrapTransactionalEmailHtml({
+      title: opts.subject,
+      bodyHtml,
+      signerName: signer.name,
+    }),
+    text: textParts.join("\n"),
+    signerName: signer.name,
+    signatureText: sigText,
+  };
 }
 
 export type EmailAttachment = { filename: string; content: string /* base64 */ };

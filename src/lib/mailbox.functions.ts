@@ -519,51 +519,17 @@ async function buildOutboundMailboxHtml(opts: {
   subject: string;
   quotedOriginal?: string;
 }): Promise<{ html: string; text: string; signerName: string }> {
-  const {
-    loadEmailSigner,
-    renderEmailSignatureHtml,
-    renderEmailSignatureText,
-    wrapTransactionalEmailHtml,
-  } = await import("@/lib/offer-email.server");
-  const signer = await loadEmailSigner();
-  const sigText = renderEmailSignatureText(signer.name, signer.role);
-  const userPart = stripPrefilledSignature(opts.userBody, sigText);
-  const textParts = [userPart, "", sigText];
-  if (opts.quotedOriginal) {
-    textParts.push("", "——— Originalnachricht ———", opts.quotedOriginal.slice(0, 8000));
-  }
-  const bodyHtml = `
-      <p style="margin:0 0 16px 0;">${plainToHtml(userPart)}</p>
-      ${renderEmailSignatureHtml(signer.name, signer.role)}
-      ${
-        opts.quotedOriginal
-          ? `<hr style="border:none;border-top:1px solid #ddd;margin:28px 0 12px 0;" />
-      <p style="margin:0;font-size:12px;color:#888;">——— Originalnachricht ———</p>
-      <pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:12px;color:#555;">${escapeHtml(opts.quotedOriginal.slice(0, 8000))}</pre>`
-          : ""
-      }
-    `;
+  const { renderMailboxOutboundHtml } = await import("@/lib/offer-email.server");
+  const outbound = await renderMailboxOutboundHtml({
+    subject: opts.subject,
+    userBody: opts.userBody,
+    quotedOriginal: opts.quotedOriginal,
+  });
   return {
-    html: wrapTransactionalEmailHtml({
-      title: opts.subject,
-      bodyHtml,
-      signerName: signer.name,
-    }),
-    text: textParts.join("\n"),
-    signerName: signer.name,
+    html: outbound.html,
+    text: outbound.text,
+    signerName: outbound.signerName,
   };
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function plainToHtml(text: string): string {
-  return escapeHtml(text).replace(/\r\n|\n|\r/g, "<br/>");
 }
 
 export const getMailboxSettings = createServerFn({ method: "GET" })
@@ -1311,8 +1277,14 @@ export const getMailboxSignaturePreview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase as never, context.userId);
+    const { loadEmailSigner, renderEmailSignatureHtml, renderEmailSignatureText } =
+      await import("@/lib/offer-email.server");
+    const signer = await loadEmailSigner();
     return {
-      text: await buildMailboxSignatureText(),
-      html: await buildMailboxSignatureHtml(),
+      text: renderEmailSignatureText(signer.name, signer.role),
+      html: renderEmailSignatureHtml(signer.name, signer.role),
+      signerName: signer.name,
+      brand: SITE.brand,
+      headerDate: new Date().toLocaleDateString("de-DE"),
     };
   });

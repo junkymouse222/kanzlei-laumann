@@ -59,6 +59,71 @@ async function readFilesAsAttachments(files: FileList | null): Promise<PendingAt
   return out;
 }
 
+function escapePreview(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function userBodyToPreviewParagraphs(text: string): string {
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return `<p style="margin:0 0 16px 0;color:#aaa;">(Nachrichtentext)</p>`;
+  return normalized
+    .split(/\n{2,}/)
+    .map((block) => {
+      const inner = escapePreview(block.trim()).replace(/\n/g, "<br/>");
+      return `<p style="margin:0 0 16px 0;">${inner}</p>`;
+    })
+    .join("");
+}
+
+/** Live-Vorschau im Layout der automatischen Mails (Georgia, Kopfzeile mit Datum). */
+function MailLayoutPreview(props: {
+  signerName: string;
+  brand: string;
+  headerDate: string;
+  signatureHtml: string;
+  userBody: string;
+  messageAboveSignature: (body: string, sig: string) => string;
+  signatureText: string;
+}) {
+  const userPart = props.messageAboveSignature(props.userBody, props.signatureText);
+  const bodyHtml = userBodyToPreviewParagraphs(userPart) + props.signatureHtml;
+  return (
+    <div className="mt-4 border border-border bg-white">
+      <p className="border-b border-border px-3 py-2 text-[0.7rem] uppercase tracking-widest text-muted-foreground">
+        Vorschau (wie automatische Mails)
+      </p>
+      <div className="overflow-x-auto p-4">
+        <div
+          className="mx-auto max-w-[560px]"
+          style={{
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontSize: 15,
+            lineHeight: 1.7,
+            color: "#222",
+            padding: "12px 8px",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 4px 0",
+              fontFamily: "Helvetica, Arial, sans-serif",
+              fontSize: 12,
+              color: "#777",
+            }}
+          >
+            {props.signerName} · {props.brand} · {props.headerDate}
+          </p>
+          <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PostfachPage() {
   const [settings, setSettings] = useState<MailboxSettingsPublic | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -90,6 +155,12 @@ function PostfachPage() {
   const [replyFiles, setReplyFiles] = useState<FileList | null>(null);
   const [sending, setSending] = useState(false);
   const [sigPreview, setSigPreview] = useState<string>("");
+  const [sigHtml, setSigHtml] = useState<string>("");
+  const [sigMeta, setSigMeta] = useState({
+    signerName: SITE.verwalter,
+    brand: SITE.brand,
+    headerDate: new Date().toLocaleDateString("de-DE"),
+  });
 
   const [showCompose, setShowCompose] = useState(false);
   const [composeTo, setComposeTo] = useState("");
@@ -167,6 +238,12 @@ function PostfachPage() {
     getMailboxSignaturePreview()
       .then((r) => {
         setSigPreview(r.text);
+        setSigHtml(r.html);
+        setSigMeta({
+          signerName: r.signerName,
+          brand: r.brand,
+          headerDate: r.headerDate,
+        });
         setComposeBody((prev) => (prev.trim() ? prev : bodyWithSignature(r.text)));
       })
       .catch(() => undefined);
@@ -568,8 +645,20 @@ function PostfachPage() {
                 rows={10}
                 placeholder="Nachricht oberhalb der Signatur schreiben …"
                 className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 15, lineHeight: 1.7 }}
               />
             </label>
+            {sigHtml && (
+              <MailLayoutPreview
+                signerName={sigMeta.signerName}
+                brand={sigMeta.brand}
+                headerDate={sigMeta.headerDate}
+                signatureHtml={sigHtml}
+                signatureText={sigPreview}
+                userBody={composeBody}
+                messageAboveSignature={messageAboveSignature}
+              />
+            )}
             <label className="block">
               <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
                 Anhänge (max. 12 MB / Datei)
@@ -679,8 +768,24 @@ function PostfachPage() {
                               rows={8}
                               placeholder="Antwort oberhalb der Signatur schreiben …"
                               className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
+                              style={{
+                                fontFamily: "Georgia, 'Times New Roman', serif",
+                                fontSize: 15,
+                                lineHeight: 1.7,
+                              }}
                             />
                           </label>
+                          {sigHtml && (
+                            <MailLayoutPreview
+                              signerName={sigMeta.signerName}
+                              brand={sigMeta.brand}
+                              headerDate={sigMeta.headerDate}
+                              signatureHtml={sigHtml}
+                              signatureText={sigPreview}
+                              userBody={replyBody}
+                              messageAboveSignature={messageAboveSignature}
+                            />
+                          )}
                           <label className="block">
                             <span className="text-[0.7rem] uppercase tracking-widest text-muted-foreground">
                               Anhänge (max. 12 MB / Datei)
