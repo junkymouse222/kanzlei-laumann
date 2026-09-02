@@ -366,7 +366,8 @@ export function formalPersonAddress(name: string, role: string): string {
 
 /**
  * Sofort-Bestätigung nach Eingang einer Angebotsanfrage (noch kein PDF).
- * Absender/Unterschrift: Erik Laumann. Kontaktperson = aktiver Verwalter aus den Einstellungen.
+ * Unterschrift = SITE.verwalter. Wenn Kontaktperson ≠ Unterzeichner (z. B. Laumann),
+ * wird die dritte Person genannt; sonst Ich-Perspektive (z. B. Adam).
  */
 export function renderOfferRequestConfirmationHtml(opts: {
   customer_name: string;
@@ -382,6 +383,11 @@ export function renderOfferRequestConfirmationHtml(opts: {
   const contactName = (opts.contactName || SITE.verwalter).trim();
   const contactRole = (opts.contactRole || SITE.role).trim();
   const contactAddress = formalPersonAddress(contactName, contactRole);
+  const samePerson = contactName.toLowerCase() === signer.toLowerCase();
+  // Adam u. Ä.: Absender = Kontakt → keine dritte Person („Frau X meldet sich…“)
+  const followUpHtml = samePerson
+    ? `<p style="margin:0 0 16px 0;">Ich melde mich anschließend mit dem Angebot bei Ihnen.</p>`
+    : `<p style="margin:0 0 16px 0;">${escapeHtml(contactAddress)} meldet sich anschließend mit dem Angebot bei Ihnen.</p>`;
 
   const items = (opts.itemNames ?? [])
     .map((n) => shortProductLabel(n))
@@ -409,7 +415,7 @@ export function renderOfferRequestConfirmationHtml(opts: {
           <p style="margin:0 0 16px 0;">vielen Dank — Ihre Anfrage ist bei uns eingegangen (Referenz <strong>${escapeHtml(opts.angebot_nr)}</strong>).</p>
           ${itemsBlock}
           <p style="margin:0 0 16px 0;">Wir prüfen jetzt, ob die gewünschten Artikel vorrätig sind. Sollten sie verfügbar sein, erhalten Sie in Kürze ein verbindliches Angebot. Falls einzelne Positionen nicht lieferbar sind, sagen wir Ihnen das natürlich umgehend.</p>
-          <p style="margin:0 0 16px 0;">${escapeHtml(contactAddress)} meldet sich anschließend mit dem Angebot bei Ihnen.</p>
+          ${followUpHtml}
           <p style="margin:0 0 16px 0;">Bei Rückfragen antworten Sie einfach kurz auf diese Mail.</p>
           <p style="margin:28px 0 0 0;">Viele Grüße<br/>${escapeHtml(signer)}</p>
           <p style="margin:18px 0 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.55;color:#888;">
