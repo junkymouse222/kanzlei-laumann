@@ -51,7 +51,7 @@ function render(kind: PageKind, opts: { token?: string; rechnungNr?: string } = 
   .foot{margin-top:24px;font-size:11px;color:#8a8578;}
   .brand{font-family:Georgia,serif;font-size:24px;font-weight:600;color:#0f2740;margin-bottom:8px;}
 </style></head><body><div class="wrap"><div class="card">
-  <div class="brand">Kanzlei Laumann</div>
+  <div class="brand">${escapeHtml(SITE.brand)}</div>
   <div class="rule"></div>
   <h1>${title}</h1>
   ${inner}

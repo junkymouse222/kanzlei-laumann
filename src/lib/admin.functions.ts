@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals } from "@/lib/offer-totals";
+import { DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, computeOfferTotals, normalizePercentRate } from "@/lib/offer-totals";
 
 async function assertAdmin(supabase: ReturnType<typeof import("@supabase/supabase-js").createClient>, userId: string) {
   // Cast to any to sidestep generated-types lag on new tables.
@@ -295,9 +295,14 @@ export const updateOfferItems = createServerFn({ method: "POST" })
         if (upErr) throw new Error(upErr.message);
       }
 
-      const rabattRate =
-        data.rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
-      const mwstRate = data.mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
+      const rabattRate = normalizePercentRate(
+        data.rabatt_rate ?? offer.rabatt_rate,
+        DEFAULT_NEUKUNDEN_RABATT,
+      );
+      const mwstRate = normalizePercentRate(
+        data.mwst_rate ?? offer.mwst_rate,
+        DEFAULT_MWST_RATE,
+      );
       const lieferkosten =
         data.lieferkosten !== undefined
           ? round2(data.lieferkosten)
@@ -465,7 +470,7 @@ export const resendOfferNow = createServerFn({ method: "POST" })
 
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihr Angebot ${offer.angebot_nr as string} — Kanzlei Laumann`,
+      subject: `Ihr Angebot ${offer.angebot_nr as string} — ${SITE.brand}`,
       html,
       attachments: [
         { filename: `Angebot-${offer.angebot_nr}.pdf`, content: toBase64(pdfBytes) },
@@ -651,7 +656,7 @@ export const sendInvoiceNow = createServerFn({ method: "POST" })
 
     const send = await sendOfferEmail({
       to: offer.customer_email as string,
-      subject: `Ihre Rechnung ${rechnung_nr} — Kanzlei Laumann`,
+      subject: `Ihre Rechnung ${rechnung_nr} — ${SITE.brand}`,
       html,
       attachments: [{ filename: `Rechnung-${rechnung_nr}.pdf`, content: toBase64(pdfBytes) }],
     });
@@ -761,8 +766,11 @@ export const previewOfferPdf = createServerFn({ method: "POST" })
         .reduce((s, it) => s + Number(it.position_total || 0), 0)
         .toFixed(2),
     );
-    const rabattRate = data.rabatt_rate ?? Number(offer.rabatt_rate ?? DEFAULT_NEUKUNDEN_RABATT);
-    const mwstRate = data.mwst_rate ?? Number(offer.mwst_rate ?? DEFAULT_MWST_RATE);
+    const rabattRate = normalizePercentRate(
+      data.rabatt_rate ?? offer.rabatt_rate,
+      DEFAULT_NEUKUNDEN_RABATT,
+    );
+    const mwstRate = normalizePercentRate(data.mwst_rate ?? offer.mwst_rate, DEFAULT_MWST_RATE);
     const liefer = data.lieferkosten ?? Number(offer.lieferkosten ?? 0);
     const totals = computeOfferTotals({ subtotal, rabattRate, lieferkosten: liefer, mwstRate });
     const offerForRender = {

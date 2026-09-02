@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { PRODUKTE, KATEGORIEN, type Produkt } from "@/lib/katalog";
 import { SITE } from "@/lib/site";
+import { DEFAULT_MWST_RATE } from "@/lib/offer-totals";
 import { submitOfferRequest } from "@/lib/offer.functions";
 import { getPublicVerwalter, type ActiveVerwalter } from "@/lib/settings.functions";
 import {
@@ -31,7 +32,7 @@ const fmtEUR = (n: number) =>
 export const Route = createFileRoute("/angebot-anfordern/")({
   head: () => ({
     meta: [
-      { title: "Angebot anfordern — Kanzlei Laumann" },
+      { title: `Angebot anfordern — ${SITE.brand}` },
       { name: "description", content: "Fordern Sie ein individuelles Angebot aus dem aktuellen Verwertungskatalog an. Wir melden uns per E-Mail innerhalb weniger Stunden." },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -101,7 +102,7 @@ function AngebotAnfordernPage() {
   );
   const lieferkosten = subtotal >= SITE.versandFreiAbNetto ? 0 : SITE.versandPauschale;
   const netto = subtotal + lieferkosten;
-  const mwst = netto * 0.19;
+  const mwst = netto * (DEFAULT_MWST_RATE / 100);
   const total = netto + mwst;
 
   const looksLikeBizEmail = useMemo(() => {
