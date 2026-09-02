@@ -23,7 +23,7 @@ const InputSchema = z.object({
   customer_postal_code: z
     .string()
     .trim()
-    .regex(/^\d{5}$/, "PLZ muss aus genau 5 Ziffern bestehen."),
+    .regex(/^\d{4,5}$/, "PLZ muss aus 4 oder 5 Ziffern bestehen (z. B. DE oder CH)."),
   customer_city: z.string().trim().min(2, "Ort fehlt.").max(100),
   customer_ust_id: z.string().trim().max(50).optional().nullable(),
   message: z.string().trim().max(2000).optional().nullable(),

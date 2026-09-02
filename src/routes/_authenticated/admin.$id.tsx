@@ -10,13 +10,8 @@ import {
   type OfferDetail,
 } from "@/lib/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
-<<<<<<< HEAD
 import { computeOfferTotals, DEFAULT_MWST_RATE, DEFAULT_NEUKUNDEN_RABATT, normalizePercentRate } from "@/lib/offer-totals";
-import { listBankAccounts } from "@/lib/settings.functions";
-=======
-import { computeOfferTotals } from "@/lib/offer-totals";
 import { listBankAccounts, getAdminSettings, DEFAULT_INVOICE_DUE_DAYS } from "@/lib/settings.functions";
->>>>>>> pr-39
 import { PRODUKTE } from "@/lib/katalog";
 
 type EditItem = {

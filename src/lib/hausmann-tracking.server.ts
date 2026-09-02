@@ -40,7 +40,7 @@ function trackingBaseUrl(): string {
   return (process.env.TRACKING_API_BASE_URL || DEFAULT_BASE).replace(/\/$/, "");
 }
 
-/** Deutsche Mehrzeilen-Adresse → Straße / PLZ / Ort. */
+/** Mehrzeilen-Adresse → Straße / PLZ / Ort (DE 5-stellig, CH 4-stellig). */
 export function parseGermanAddress(address: string): ParsedAddress {
   const lines = String(address ?? "")
     .split(/\r?\n/)
@@ -51,7 +51,7 @@ export function parseGermanAddress(address: string): ParsedAddress {
   }
 
   for (let i = lines.length - 1; i >= 0; i--) {
-    const m = lines[i].match(/^(\d{5})\s+(.+)$/);
+    const m = lines[i].match(/^(\d{4,5})\s+(.+)$/);
     if (m) {
       const streetLines = lines.slice(0, i);
       const street = (streetLines.length ? streetLines.join(", ") : lines[0]).trim();
@@ -60,7 +60,7 @@ export function parseGermanAddress(address: string): ParsedAddress {
   }
 
   const oneLine = lines.join(", ");
-  const m2 = oneLine.match(/^(.+?),?\s+(\d{5})\s+(.+)$/);
+  const m2 = oneLine.match(/^(.+?),?\s+(\d{4,5})\s+(.+)$/);
   if (m2) {
     return { street: m2[1].replace(/,\s*$/, "").trim(), postal_code: m2[2], city: m2[3].trim() };
   }
@@ -87,12 +87,17 @@ export function recipientFromOffer(offer: {
     ? (offer.delivery_address?.trim() || offer.customer_address)
     : offer.customer_address;
   const parsed = parseGermanAddress(addrRaw);
+  const country =
+    parsed.postal_code.length === 4 ||
+    /\b(schweiz|switzerland|suisse|svizzera|ch)\b/i.test(addrRaw)
+      ? "Schweiz"
+      : "Deutschland";
   return {
     name: name.slice(0, 200),
     street: parsed.street,
     postal_code: parsed.postal_code,
     city: parsed.city,
-    country: "Deutschland",
+    country,
   };
 }
 

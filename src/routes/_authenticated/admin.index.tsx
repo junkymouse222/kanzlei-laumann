@@ -179,7 +179,7 @@ function AdminListPage() {
           <h1 className="mt-2 text-4xl">Angebotsanfragen</h1>
           <span className="rule-gold mt-4" />
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="relative">
             <button
               type="button"
@@ -257,6 +257,12 @@ function AdminListPage() {
               </div>
             )}
           </div>
+          <Link
+            to="/admin/kontakt"
+            className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            Kontakt
+          </Link>
           <Link
             to="/admin/traffic"
             className="border border-primary px-4 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground"

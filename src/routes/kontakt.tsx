@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SITE, SITE_OFFICE_CITIES, siteTelHref } from "@/lib/site";
+import { submitContactInquiry } from "@/lib/contact.functions";
 
 export const Route = createFileRoute("/kontakt")({
   head: () => ({
@@ -21,6 +22,34 @@ export const Route = createFileRoute("/kontakt")({
 
 function KontaktPage() {
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefon, setTelefon] = useState("");
+  const [anliegen, setAnliegen] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await submitContactInquiry({
+        data: {
+          name,
+          email,
+          phone: telefon.trim() || null,
+          message: anliegen,
+        },
+      });
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Senden fehlgeschlagen. Bitte erneut versuchen.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <>
       <section className="border-b border-border bg-parchment">
@@ -98,27 +127,45 @@ function KontaktPage() {
               Vielen Dank für Ihre Nachricht. Wir werden uns zeitnah bei Ihnen melden.
             </div>
           ) : (
-            <form
-              className="mt-8 space-y-5"
-              onSubmit={(e) => { e.preventDefault(); setSent(true); }}
-            >
-              {[
-                { name: "name", label: "Name", type: "text", required: true },
-                { name: "email", label: "E-Mail", type: "email", required: true },
-                { name: "telefon", label: "Telefon (optional)", type: "tel" },
-              ].map((f) => (
-                <div key={f.name}>
-                  <label className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
-                    {f.label}
-                  </label>
-                  <input
-                    type={f.type}
-                    name={f.name}
-                    required={f.required}
-                    className="mt-2 w-full border-b border-border bg-transparent py-2 text-sm text-foreground outline-none focus:border-gold"
-                  />
-                </div>
-              ))}
+            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+              <div>
+                <label className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-2 w-full border-b border-border bg-transparent py-2 text-sm text-foreground outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
+                  E-Mail
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mt-2 w-full border-b border-border bg-transparent py-2 text-sm text-foreground outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
+                  Telefon (optional)
+                </label>
+                <input
+                  type="tel"
+                  name="telefon"
+                  value={telefon}
+                  onChange={(e) => setTelefon(e.target.value)}
+                  className="mt-2 w-full border-b border-border bg-transparent py-2 text-sm text-foreground outline-none focus:border-gold"
+                />
+              </div>
               <div>
                 <label className="block text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
                   Ihr Anliegen
@@ -127,6 +174,8 @@ function KontaktPage() {
                   name="anliegen"
                   rows={5}
                   required
+                  value={anliegen}
+                  onChange={(e) => setAnliegen(e.target.value)}
                   className="mt-2 w-full border-b border-border bg-transparent py-2 text-sm text-foreground outline-none focus:border-gold"
                 />
               </div>
@@ -134,11 +183,13 @@ function KontaktPage() {
                 <input type="checkbox" required className="mt-1 accent-[color:var(--color-gold)]" />
                 <span>Ich habe die Datenschutzerklärung zur Kenntnis genommen und stimme der Verarbeitung meiner Daten zur Bearbeitung der Anfrage zu.</span>
               </label>
+              {error && <p className="text-sm text-red-700">{error}</p>}
               <button
                 type="submit"
-                className="w-full bg-primary px-8 py-4 text-xs uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90"
+                disabled={submitting}
+                className="w-full bg-primary px-8 py-4 text-xs uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
-                Anfrage senden
+                {submitting ? "Wird gesendet …" : "Anfrage senden"}
               </button>
             </form>
           )}
