@@ -1,13 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SITE, SITE_OFFICE_CITIES } from "@/lib/site";
+import {
+  siteIsFemale,
+  siteProfessionNoun,
+  siteVerwalterNoun,
+} from "@/lib/site-person";
 
 export const Route = createFileRoute("/kanzlei")({
   head: () => ({
     meta: [
-      { title: "Die Kanzlei — Kanzlei Laumann" },
-      { name: "description", content: `Die Kanzlei Laumann in ${SITE_OFFICE_CITIES} — Rechtsanwalt Erik Laumann. Profil, Historie und Grundsätze einer auf Insolvenz- und Sanierungsrecht spezialisierten Kanzlei.` },
-      { property: "og:title", content: "Die Kanzlei — Kanzlei Laumann" },
-      { property: "og:description", content: `Profil, Historie und Grundsätze der Kanzlei Laumann in ${SITE_OFFICE_CITIES}.` },
+      { title: `Die Kanzlei — ${SITE.brand}` },
+      {
+        name: "description",
+        content: `Die ${SITE.brand} in ${SITE_OFFICE_CITIES} — ${siteProfessionNoun()} ${SITE.verwalter}. Profil, Historie und Grundsätze einer auf Insolvenz- und Sanierungsrecht spezialisierten Kanzlei.`,
+      },
+      { property: "og:title", content: `Die Kanzlei — ${SITE.brand}` },
+      {
+        property: "og:description",
+        content: `Profil, Historie und Grundsätze der ${SITE.brand} in ${SITE_OFFICE_CITIES}.`,
+      },
       { property: "og:url", content: `${SITE.baseUrl}/kanzlei` },
     ],
     links: [{ rel: "canonical", href: `${SITE.baseUrl}/kanzlei` }],
@@ -15,35 +26,45 @@ export const Route = createFileRoute("/kanzlei")({
   component: KanzleiPage,
 });
 
-const historie = [
-  [
-    "2008",
-    "Zulassung als Rechtsanwalt",
-    "Erik Laumann wird als Rechtsanwalt zugelassen und beginnt seine Laufbahn in einer wirtschaftsrechtlich ausgerichteten Sozietät mit Schwerpunkt im Insolvenz- und Sanierungsrecht.",
-  ],
-  [
-    "2013",
-    "Gründung der Kanzlei",
-    "Gründung der Kanzlei Laumann in Düsseldorf am Fürstenwall — als unabhängige Adresse für Insolvenz-, Sanierungs- und Wirtschaftsrecht.",
-  ],
-  [
-    "2016",
-    "Erste Bestellung als Insolvenzverwalter",
-    "Erste gerichtliche Bestellung zum Insolvenzverwalter. Seither begleitet die Kanzlei Regel- und Eigenverwaltungsverfahren von der Sicherung bis zur geordneten Verwertung.",
-  ],
-  [
-    "2019",
-    "Ausbau der Verwertungspraxis",
-    "Aufbau eines eigenen Dezernats für die strukturierte Verwertung von Vermögenswerten — mit dem Anspruch, im Interesse aller Gläubiger das bestmögliche Ergebnis zu erzielen.",
-  ],
-  [
-    "Heute",
-    "Feste Größe in Düsseldorf",
-    "Die Kanzlei Laumann steht für sorgfältige, diskrete und wirtschaftlich fundierte Arbeit — als verlässlicher Partner für Gerichte, Gläubiger und Beteiligte im Rheinland.",
-  ],
-] as const;
+function buildHistorie(): ReadonlyArray<readonly [string, string, string]> {
+  const profession = siteProfessionNoun();
+  const streetHint =
+    SITE.siteKey === "laumann" ? " am Fürstenwall" : ` in der ${SITE.street}`;
+
+  return [
+    [
+      "2008",
+      `Zulassung als ${profession}`,
+      `${SITE.verwalter} wird als ${profession} zugelassen und beginnt die Laufbahn in einer wirtschaftsrechtlich ausgerichteten Sozietät mit Schwerpunkt im Insolvenz- und Sanierungsrecht.`,
+    ],
+    [
+      "2013",
+      "Gründung der Kanzlei",
+      `Gründung der ${SITE.brand} in ${SITE.city}${streetHint} — als unabhängige Adresse für Insolvenz-, Sanierungs- und Wirtschaftsrecht.`,
+    ],
+    [
+      "2016",
+      `Erste Bestellung als ${siteVerwalterNoun()}`,
+      "Erste gerichtliche Bestellung zur Insolvenzverwaltung. Seither begleitet die Kanzlei Regel- und Eigenverwaltungsverfahren von der Sicherung bis zur geordneten Verwertung.",
+    ],
+    [
+      "2019",
+      "Ausbau der Verwertungspraxis",
+      "Aufbau eines eigenen Dezernats für die strukturierte Verwertung von Vermögenswerten — mit dem Anspruch, im Interesse aller Gläubiger das bestmögliche Ergebnis zu erzielen.",
+    ],
+    [
+      "Heute",
+      `Feste Größe in ${SITE.city}`,
+      `Die ${SITE.brand} steht für sorgfältige, diskrete und wirtschaftlich fundierte Arbeit — als verlässlicher Partner für Gerichte, Gläubiger und Beteiligte.`,
+    ],
+  ];
+}
 
 function KanzleiPage() {
+  const historie = buildHistorie();
+  const profession = siteProfessionNoun();
+  const relative = siteIsFemale() ? "die" : "der";
+
   return (
     <>
       <section className="border-b border-border bg-parchment">
@@ -54,7 +75,7 @@ function KanzleiPage() {
           </h1>
           <span className="rule-gold mt-8" />
           <p className="mt-8 max-w-2xl text-lg text-muted-foreground">
-            Die Kanzlei Laumann in {SITE_OFFICE_CITIES} ist auf das Insolvenz- und
+            Die {SITE.brand} in {SITE_OFFICE_CITIES} ist auf das Insolvenz- und
             Sanierungsrecht spezialisiert — unabhängig, sorgfältig und mit einem
             klaren Blick für wirtschaftliche Zusammenhänge.
           </p>
@@ -70,8 +91,8 @@ function KanzleiPage() {
         </div>
         <div className="space-y-6 text-lg leading-relaxed text-foreground/85">
           <p>
-            Die Kanzlei Laumann wird von Rechtsanwalt Erik Laumann geführt, der
-            als gerichtlich bestellter Insolvenzverwalter tätig ist. Von unserem
+            Die {SITE.brand} wird von {profession} {SITE.verwalter} geführt, {relative}{" "}
+            als gerichtlich bestellte{siteIsFemale() ? "" : "r"} {siteVerwalterNoun()} tätig ist. Von unserem
             Hauptsitz am {SITE.street} in {SITE.city}
             {SITE.offices.length > 1
               ? ` sowie unseren weiteren Standorten (${SITE.offices
@@ -140,7 +161,7 @@ function KanzleiPage() {
               {
                 num: "01",
                 title: "Unabhängigkeit",
-                text: "Als bestellter Insolvenzverwalter handeln wir unabhängig und ausschließlich im Interesse des Verfahrens und aller Gläubiger — frei von sachfremden Einflüssen.",
+                text: "Als bestellte Insolvenzverwaltung handeln wir unabhängig und ausschließlich im Interesse des Verfahrens und aller Gläubiger — frei von sachfremden Einflüssen.",
               },
               {
                 num: "02",
@@ -168,7 +189,7 @@ function KanzleiPage() {
         <div className="border border-border p-10 text-center md:p-16">
           <h2 className="text-3xl md:text-4xl">Sprechen Sie mit uns.</h2>
           <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground">
-            Sie erreichen die Kanzlei Laumann in {SITE_OFFICE_CITIES} jederzeit über unser
+            Sie erreichen die {SITE.brand} in {SITE_OFFICE_CITIES} jederzeit über unser
             Kontaktformular. Wir melden uns kurzfristig bei Ihnen zurück.
           </p>
           <Link

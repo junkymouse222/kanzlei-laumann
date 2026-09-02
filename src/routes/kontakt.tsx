@@ -6,12 +6,12 @@ import { submitContactInquiry } from "@/lib/contact.functions";
 export const Route = createFileRoute("/kontakt")({
   head: () => ({
     meta: [
-      { title: `Kontakt — Kanzlei Laumann ${SITE_OFFICE_CITIES}` },
+      { title: `Kontakt — ${SITE.brand} ${SITE_OFFICE_CITIES}` },
       {
         name: "description",
-        content: `Kontakt zur Kanzlei Laumann in ${SITE_OFFICE_CITIES}. Anfragen zur Verwertung aus der Insolvenzmasse werden vertraulich behandelt.`,
+        content: `Kontakt zur ${SITE.brand} in ${SITE_OFFICE_CITIES}. Anfragen zur Verwertung aus der Insolvenzmasse werden vertraulich behandelt.`,
       },
-      { property: "og:title", content: "Kontakt — Kanzlei Laumann" },
+      { property: "og:title", content: `Kontakt — ${SITE.brand}` },
       { property: "og:description", content: "Anfragen werden vertraulich und in der Reihenfolge ihres Eingangs bearbeitet." },
       { property: "og:url", content: `${SITE.baseUrl}/kontakt` },
     ],

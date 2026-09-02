@@ -13,6 +13,7 @@ import {
   DEFAULT_OFFER_VALIDITY_DAYS,
   type BankAccountRow,
 } from "@/lib/settings.functions";
+import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/_authenticated/admin/einstellungen")({
   head: () => ({
@@ -345,7 +346,7 @@ function EinstellungenPage() {
           <div className="mt-10 border border-border p-6">
             <h2 className="font-serif text-2xl text-primary">Zuständiger Insolvenzverwalter</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Erscheint in Angebot-/Rechnungs-E-Mails und im PDF-Briefkopf (z.&nbsp;B. „Claudia Kopmann · Kanzlei Laumann“).
+              Erscheint in Angebot-/Rechnungs-E-Mails und im PDF-Briefkopf (z.&nbsp;B. „{SITE.verwalter} · {SITE.brand}“).
             </p>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="block">
@@ -354,7 +355,7 @@ function EinstellungenPage() {
                   value={verwalterName}
                   onChange={(e) => setVerwalterName(e.target.value)}
                   className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-                  placeholder="Claudia Kopmann"
+                  placeholder={SITE.verwalter}
                 />
               </label>
               <label className="block">
@@ -363,7 +364,7 @@ function EinstellungenPage() {
                   value={verwalterRole}
                   onChange={(e) => setVerwalterRole(e.target.value)}
                   className="mt-2 w-full border border-border bg-background px-3 py-2 text-sm"
-                  placeholder="Insolvenzverwalterin"
+                  placeholder={SITE.role}
                 />
               </label>
             </div>

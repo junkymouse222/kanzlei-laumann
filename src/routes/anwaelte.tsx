@@ -1,19 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import goldmannImg from "@/assets/anwalt-goldmann.jpg";
-import kopmannImg from "@/assets/anwaeltin-weber.jpg";
 import { SITE, siteTelHref } from "@/lib/site";
+import { getTeam, teamMetaDescription } from "@/lib/team";
 
 export const Route = createFileRoute("/anwaelte")({
   head: () => ({
     meta: [
-      { title: "Die Verwalter — Kanzlei Laumann" },
+      { title: `Die Verwalter — ${SITE.brand}` },
       {
         name: "description",
-        content:
-          "Erik Laumann und Claudia Kopmann — Rechtsanwälte und gerichtlich bestellte Insolvenzverwalter der Kanzlei Laumann, Düsseldorf.",
+        content: teamMetaDescription(),
       },
-      { property: "og:title", content: "Die Verwalter — Kanzlei Laumann" },
-      { property: "og:description", content: "Insolvenzverwalterinnen und -verwalter in Düsseldorf." },
+      { property: "og:title", content: `Die Verwalter — ${SITE.brand}` },
+      {
+        property: "og:description",
+        content: `Insolvenzverwaltung in ${SITE.city}.`,
+      },
       { property: "og:url", content: `${SITE.baseUrl}/anwaelte` },
     ],
     links: [{ rel: "canonical", href: `${SITE.baseUrl}/anwaelte` }],
@@ -21,53 +22,15 @@ export const Route = createFileRoute("/anwaelte")({
   component: AnwaeltePage,
 });
 
-const verwalter = [
-  {
-    name: "Erik Laumann",
-    role: "Rechtsanwalt · Insolvenzverwalter",
-    img: goldmannImg,
-    bio: [
-      "Erik Laumann ist Rechtsanwalt und wird als gerichtlich bestellter Insolvenzverwalter mit der Verwaltung und Verwertung von Insolvenzmassen betraut. Sein Schwerpunkt liegt auf der Insolvenzverwaltung und der bestmöglichen Verwertung von Vermögenswerten im Interesse aller Gläubiger.",
-    ],
-    schwerpunkte: [
-      "Insolvenzverwaltung",
-      "Verwertung der Insolvenzmasse",
-      "Freihändiger Verkauf",
-      "Gläubigervertretung",
-    ],
-    angaben: [
-      "Rechtsanwalt (zugelassen in der Bundesrepublik Deutschland)",
-      `Mitglied der ${SITE.kammer}`,
-      "Schwerpunkt: Insolvenzverwaltung & Verwertung",
-    ],
-  },
-  {
-    name: "Claudia Kopmann",
-    role: "Rechtsanwältin · Insolvenzverwalterin",
-    img: kopmannImg,
-    bio: [
-      "Claudia Kopmann ist Rechtsanwältin und Insolvenzverwalterin der Kanzlei Laumann. Sie begleitet Insolvenzverfahren und die Verwertung von Vermögenswerten mit dem Ziel einer geordneten, gläubigerorientierten Abwicklung.",
-    ],
-    schwerpunkte: [
-      "Insolvenzverwaltung",
-      "Verwertung der Insolvenzmasse",
-      "Freihändiger Verkauf",
-      "Gläubigerkommunikation",
-    ],
-    angaben: [
-      "Rechtsanwältin (zugelassen in der Bundesrepublik Deutschland)",
-      `Mitglied der ${SITE.kammer}`,
-      "Schwerpunkt: Insolvenzverwaltung & Verwertung",
-    ],
-  },
-] as const;
-
 function AnwaeltePage() {
+  const verwalter = getTeam();
+  const plural = verwalter.length > 1;
+
   return (
     <>
       <section className="border-b border-border bg-parchment">
         <div className="container-prose py-24 md:py-32">
-          <p className="eyebrow">Die Verwalter</p>
+          <p className="eyebrow">{plural ? "Die Verwalter" : "Die Verwalterin"}</p>
           <h1 className="mt-6 max-w-3xl text-5xl md:text-6xl">
             Bestellte Insolvenzverwaltung — klar und vertraulich.
           </h1>

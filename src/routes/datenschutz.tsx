@@ -4,8 +4,8 @@ import { SITE } from "@/lib/site";
 export const Route = createFileRoute("/datenschutz")({
   head: () => ({
     meta: [
-      { title: "Datenschutz — Kanzlei Laumann" },
-      { name: "description", content: "Datenschutzerklärung der Kanzlei Laumann." },
+      { title: `Datenschutz — ${SITE.brand}` },
+      { name: "description", content: `Datenschutzerklärung der ${SITE.brand}.` },
       { name: "robots", content: "noindex" },
       { property: "og:url", content: `${SITE.baseUrl}/datenschutz` },
     ],
@@ -26,7 +26,7 @@ function DatenschutzPage() {
           <h2 className="text-2xl">1. Verantwortlicher</h2>
           <p className="mt-4">
             Verantwortlich für die Datenverarbeitung auf dieser Website ist
-            {" "}Erik Laumann, Rechtsanwalt und Insolvenzverwalter, {SITE.street},
+            {" "}{SITE.legalName}, {SITE.street},
             {" "}{SITE.postalCode} {SITE.city}
             {SITE.offices.slice(1).map((o) => (
               <span key={o.label}>

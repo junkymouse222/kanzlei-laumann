@@ -1,5 +1,6 @@
-// Zentrale Marken-Komponente der Kanzlei Laumann (Monogramm + Wortmarke).
-// Vektorbasiert, damit sie überall gestochen scharf skaliert (Web, Print, PDF).
+// Zentrale Marken-Komponente (Monogramm + Wortmarke) — Werte aus SITE.
+import { SITE } from "@/lib/site";
+import { siteInitials } from "@/lib/site-person";
 
 type MarkProps = {
   className?: string;
@@ -14,12 +15,13 @@ export function LogoMark({
   gold = "#a3813d",
   frame = "#cbd0d6",
 }: MarkProps) {
+  const initials = siteInitials();
   return (
     <svg
       viewBox="0 0 100 100"
       className={className}
       role="img"
-      aria-label="Erik Laumann"
+      aria-label={SITE.verwalter}
       xmlns="http://www.w3.org/2000/svg"
     >
       <rect x="3" y="3" width="94" height="94" fill="none" stroke={navy} strokeWidth="2.5" />
@@ -35,7 +37,7 @@ export function LogoMark({
         letterSpacing="1.5"
         fill={navy}
       >
-        EL
+        {initials}
       </text>
       <rect x="41" y="70" width="18" height="3.5" fill={gold} />
     </svg>
@@ -64,7 +66,7 @@ export function Logo({ className = "", inverse = false, hideSubline = false }: L
           className="text-[1.02rem] font-semibold uppercase tracking-[0.2em] md:text-[1.12rem]"
           style={{ color: name }}
         >
-          Erik Laumann
+          {SITE.verwalter}
         </span>
         {!hideSubline && (
           <span
