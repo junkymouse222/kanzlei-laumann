@@ -15,18 +15,16 @@ import {
 } from "@/components/TrustSignals";
 import goldmannImg from "@/assets/anwalt-goldmann.jpg";
 import kopmannImg from "@/assets/anwaeltin-weber.jpg";
+import adamImg from "@/assets/anwaeltin-adam.jpg";
 
 type Position = { produkt: Produkt; menge: number };
 
 function portraitForVerwalter(name: string): { src: string; alt: string } {
   const n = name.toLowerCase();
-  if (
-    n.includes("claudia") ||
-    n.includes("kopmann") ||
-    n.includes("weber") ||
-    n.includes("cristiana") ||
-    n.includes("adam")
-  ) {
+  if (n.includes("cristiana") || n.includes("adam") || SITE.siteKey === "adam") {
+    return { src: adamImg, alt: `Portrait ${name}` };
+  }
+  if (n.includes("claudia") || n.includes("kopmann") || n.includes("weber")) {
     return { src: kopmannImg, alt: `Portrait ${name}` };
   }
   return { src: goldmannImg, alt: `Portrait ${name}` };
