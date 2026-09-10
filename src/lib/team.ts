@@ -1,5 +1,6 @@
 import goldmannImg from "@/assets/anwalt-goldmann.jpg";
 import kopmannImg from "@/assets/anwaeltin-weber.jpg";
+import adamImg from "@/assets/anwaeltin-adam.jpg";
 import { SITE } from "@/lib/site";
 import {
   siteDisplayRole,
@@ -24,6 +25,11 @@ const SHARED_SCHWERPUNKTE = [
   "Gläubigerkommunikation",
 ] as const;
 
+function primaryPortrait(): string {
+  if (SITE.siteKey === "adam") return adamImg;
+  return siteIsFemale() ? kopmannImg : goldmannImg;
+}
+
 function primaryMember(): TeamMember {
   const profession = siteProfessionNoun();
   const verwalter = siteVerwalterNoun();
@@ -31,7 +37,7 @@ function primaryMember(): TeamMember {
   return {
     name: SITE.verwalter,
     role: siteDisplayRole(),
-    img: siteIsFemale() ? kopmannImg : goldmannImg,
+    img: primaryPortrait(),
     bio: [
       `${SITE.verwalter} ist ${profession} und wird als gerichtlich bestellte${siteIsFemale() ? "" : "r"} ${verwalter} mit der Verwaltung und Verwertung von Insolvenzmassen betraut. ${pronoun} Schwerpunkt liegt auf der Insolvenzverwaltung und der bestmöglichen Verwertung von Vermögenswerten im Interesse aller Gläubiger.`,
     ],
