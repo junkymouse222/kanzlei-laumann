@@ -32,6 +32,7 @@ const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "https://spedition-hausm
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "trackings.json");
 const DOCS_FILE = path.join(__dirname, "..", "docs", "TRACKING_API.md");
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 function apiKey() {
   const key = (process.env.TRACKING_API_KEY || "").trim();
@@ -296,9 +297,10 @@ function renderTrackPage(res, nr) {
   if (!rec) {
     const html = pageShell(
       "Sendung nicht gefunden",
-      `<div class="card"><h1>Sendung nicht gefunden</h1>
+      `<div class="track-card"><h1>Sendung nicht gefunden</h1>
        <p>Zur Sendungsnummer <strong>${escapeHtml(nr)}</strong> liegt uns nichts vor.
-       Bitte prüfen Sie die Nummer aus Ihrer Rechnung.</p></div>`,
+       Bitte prüfen Sie die Nummer aus Ihrer Rechnung.</p>
+       <p><a href="/#sendung">Neue Nummer eingeben</a></p></div>`,
     );
     return sendText(res, 404, html, "text/html; charset=utf-8");
   }
@@ -327,8 +329,8 @@ function renderTrackPage(res, nr) {
         .join("")}</div>`;
 
   const body = `
-    <div class="card">
-      <div class="head">
+    <div class="track-card">
+      <div class="track-head">
         <div>
           <div class="muted">Sendungsnummer</div>
           <h1>${escapeHtml(rec.tracking_number)}</h1>
@@ -339,7 +341,7 @@ function renderTrackPage(res, nr) {
         </div>
       </div>
       ${progress}
-      <div class="grid">
+      <div class="track-grid">
         <div>
           <div class="muted">Empfänger</div>
           <div>${escapeHtml(rec.recipient.name)}</div>
@@ -352,7 +354,7 @@ function renderTrackPage(res, nr) {
       </div>
       ${rec.description ? `<div class="desc"><div class="muted">Inhalt</div>${escapeHtml(rec.description)}</div>` : ""}
       <h2>Verlauf</h2>
-      <ul class="timeline">${timeline}</ul>
+      <ul class="history">${timeline}</ul>
     </div>`;
 
   return sendText(res, 200, pageShell(`Sendung ${rec.tracking_number}`, body), "text/html; charset=utf-8");
@@ -362,54 +364,26 @@ function pageShell(title, inner) {
   return `<!doctype html><html lang="de"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} · Spedition Hausmann</title>
-<style>
-  :root{--navy:#1a2b3d;--line:#e4e8ee;--muted:#6b7684;--accent:#2e7d32;}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#f5f7fa;color:var(--navy);}
-  header{background:var(--navy);color:#fff;padding:18px 20px;}
-  header .wrap{max-width:780px;margin:0 auto;display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.3px;}
-  main{max-width:780px;margin:24px auto;padding:0 16px;}
-  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
-  .head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start;}
-  h1{font-size:24px;margin:2px 0 0;}
-  h2{font-size:16px;margin:26px 0 10px;}
-  .muted{color:var(--muted);font-size:13px;}
-  .status-now{text-align:right;}
-  .status-pill{display:inline-block;background:#eef5ee;color:var(--accent);font-weight:600;padding:6px 12px;border-radius:999px;margin-top:4px;}
-  .steps{display:flex;gap:6px;margin:22px 0 6px;flex-wrap:wrap;}
-  .step{flex:1 1 90px;text-align:center;position:relative;}
-  .step-dot{display:block;width:14px;height:14px;border-radius:50%;background:#d6dce5;margin:0 auto 8px;border:2px solid #d6dce5;}
-  .step.done .step-dot{background:var(--accent);border-color:var(--accent);}
-  .step.current .step-dot{box-shadow:0 0 0 4px rgba(46,125,50,.18);}
-  .step-label{font-size:11px;color:var(--muted);line-height:1.2;display:block;}
-  .step.done .step-label{color:var(--navy);}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px;}
-  .desc{margin-top:16px;border-top:1px solid var(--line);padding-top:16px;}
-  .timeline{list-style:none;margin:0;padding:0;}
-  .timeline li{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
-  .timeline li:last-child{border-bottom:none;}
-  .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);margin-top:5px;flex:0 0 auto;}
-  .badge-cancel{color:#b42318;font-weight:600;}
-  footer{max-width:780px;margin:18px auto 40px;padding:0 16px;color:var(--muted);font-size:12px;text-align:center;}
-  a{color:var(--navy);}
-</style></head>
-<body>
-<header><div class="wrap">Spedition Hausmann · Sendungsverfolgung</div></header>
-<main>${inner}</main>
-<footer>Spedition Hausmann · Fragen zur Lieferung? Antworten Sie einfach auf die E-Mail Ihrer Rechnung.</footer>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="track-page">
+<header class="site-header">
+  <a class="brand" href="/"><span class="mark" aria-hidden="true"></span><span><strong>Hausmann</strong><em>Spedition · Hamburg</em></span></a>
+  <input id="nav-toggle" class="nav-toggle" type="checkbox" aria-label="Menü">
+  <label class="nav-burger" for="nav-toggle"><span></span>Menü</label>
+  <nav class="site-nav">
+    <a href="/leistungen">Leistungen</a>
+    <a href="/unternehmen">Unternehmen</a>
+    <a href="/faq">FAQ</a>
+    <a href="/kontakt">Kontakt</a>
+    <a class="nav-cta" href="/#sendung">Sendung verfolgen</a>
+  </nav>
+</header>
+<main class="track-main">${inner}</main>
+<footer class="site-footer">
+  <div class="wrap"><p class="legal" style="border:0;margin:0;padding:0">Spedition Hausmann GmbH · Am Hafen 12, 20457 Hamburg · <a href="/faq">FAQ</a> · <a href="/impressum">Impressum</a></p></div>
+</footer>
 </body></html>`;
-}
-
-function landingPage(res) {
-  const body = `<div class="card">
-    <h1>Spedition Hausmann</h1>
-    <p>Geben Sie Ihre Sendungsnummer (Format <strong>SH-XXXXXXXX</strong>) aus Ihrer Rechnung ein, um den Lieferstatus zu verfolgen.</p>
-    <form method="GET" onsubmit="location.href='/track/'+encodeURIComponent(this.nr.value.trim());return false;">
-      <input name="nr" placeholder="SH-XXXXXXXX" style="padding:10px 12px;border:1px solid #d6dce5;border-radius:8px;width:60%;max-width:280px;font-size:15px;">
-      <button type="submit" style="padding:10px 16px;border:0;background:#1a2b3d;color:#fff;border-radius:8px;font-size:15px;cursor:pointer;">Verfolgen</button>
-    </form>
-  </div>`;
-  return sendText(res, 200, pageShell("Sendungsverfolgung", body), "text/html; charset=utf-8");
 }
 
 function serveDocs(res) {
@@ -425,6 +399,59 @@ function serveDocs(res) {
 // Router
 // ---------------------------------------------------------------------------
 
+const STATIC_PAGES = {
+  "/": "index.html",
+  "/leistungen": "leistungen.html",
+  "/unternehmen": "unternehmen.html",
+  "/faq": "faq.html",
+  "/kontakt": "kontakt.html",
+  "/impressum": "impressum.html",
+};
+
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
+  ".ico": "image/x-icon",
+};
+
+function servePublicFile(res, rel, status = 200) {
+  const root = path.resolve(PUBLIC_DIR);
+  const file = path.resolve(root, rel);
+  if (file !== root && !file.startsWith(root + path.sep)) {
+    sendText(res, 403, "Forbidden");
+    return true;
+  }
+  let data;
+  try {
+    data = fs.readFileSync(file);
+  } catch {
+    return false;
+  }
+  const type = MIME[path.extname(file).toLowerCase()] || "application/octet-stream";
+  res.writeHead(status, {
+    "content-type": type,
+    "cache-control": extnameCache(file),
+  });
+  res.end(data);
+  return true;
+}
+
+function extnameCache(file) {
+  const ext = path.extname(file).toLowerCase();
+  if (ext === ".html") return "no-cache";
+  if (ext === ".css" || ext === ".woff2" || ext === ".jpg" || ext === ".jpeg" || ext === ".png" || ext === ".webp") {
+    return "public, max-age=86400";
+  }
+  return "no-cache";
+}
+
 const server = http.createServer(async (req, res) => {
   let url;
   try {
@@ -436,7 +463,6 @@ const server = http.createServer(async (req, res) => {
   const method = req.method || "GET";
 
   try {
-    if (pathname === "/" && method === "GET") return landingPage(res);
     if (pathname === "/healthz") return sendText(res, 200, "ok");
     if (pathname === "/docs/TRACKING_API.md" && method === "GET") return serveDocs(res);
 
@@ -450,6 +476,16 @@ const server = http.createServer(async (req, res) => {
 
     const mTrack = pathname.match(/^\/track\/([^/]+)$/);
     if (mTrack && method === "GET") return renderTrackPage(res, mTrack[1]);
+
+    if (method === "GET" || method === "HEAD") {
+      const page = STATIC_PAGES[pathname];
+      if (page && servePublicFile(res, page)) return;
+      if (pathname.startsWith("/img/") || pathname.startsWith("/css/") || pathname.startsWith("/fonts/")) {
+        const rel = pathname.replace(/^\//, "");
+        if (servePublicFile(res, rel)) return;
+      }
+      if (servePublicFile(res, "404.html", 404)) return;
+    }
 
     return sendText(res, 404, "Not Found");
   } catch (err) {

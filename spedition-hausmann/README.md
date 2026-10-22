@@ -5,6 +5,12 @@ die Kanzlei-App in `src/lib/hausmann-tracking.server.ts` erwartet. Er wurde neu
 gebaut, nachdem der ursprüngliche Server samt Daten verloren ging — dieser Code
 lebt jetzt im Repo, damit er jederzeit reproduzierbar ist.
 
+## Öffentliche Website
+
+Unter `public/` liegt die Firmenwebsite (Start, Leistungen, Unternehmen, FAQ, Kontakt, Impressum) mit Bildern in `public/img/`. Der Node-Prozess liefert sie direkt aus; `/track/:nr` bleibt dynamisch und nutzt dasselbe Layout.
+
+Die Firmengeschichte auf `/unternehmen` ist vorläufig und als Platzhalter im Seitenquelltext markiert.
+
 ## Was er kann
 
 - `POST /api/public/trackings` – Sendung anlegen (Header `x-api-key`)
