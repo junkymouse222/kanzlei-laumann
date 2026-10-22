@@ -364,7 +364,7 @@ function pageShell(title, inner) {
   return `<!doctype html><html lang="de"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} · Spedition Hausmann</title>
-<link rel="stylesheet" href="/css/site.css?v=2">
+<link rel="stylesheet" href="/css/site.css?v=3">
 </head>
 <body class="track-page">
 <header class="site-header">
