@@ -19,6 +19,7 @@ Die Firmengeschichte auf `/unternehmen` ist vorläufig und als Platzhalter im Se
 - `GET /track/:nr` – öffentliche HTML-Statusseite für Kund:innen
 - `GET /docs/TRACKING_API.md` – API-Doku
 - `GET /healthz` – Health-Check
+- `GET /admin` – Disposition: Sendungen anlegen, Adressen und Inhalt ändern, Status setzen, löschen. Anmeldung mit `ADMIN_PASSWORD` (Cookie-Sitzung, 12 Stunden).
 
 Persistenz: eine atomar geschriebene JSON-Datei unter `DATA_DIR`
 (kein DB-Server nötig). Sendungsnummern haben das Format `SH-XXXXXXXX`.
@@ -37,6 +38,7 @@ npm start
 | Variable           | Default                          | Zweck                                             |
 | ------------------ | -------------------------------- | ------------------------------------------------- |
 | `TRACKING_API_KEY` | —  (Pflicht)                     | muss identisch zum Secret der Kanzlei-App sein    |
+| `ADMIN_PASSWORD`   | —                                | Passwort für `/admin` (Disposition)               |
 | `HOST`             | `127.0.0.1`                      | Bind-Adresse (hinter nginx)                       |
 | `PORT`             | `8787`                           | Port des Node-Prozesses                           |
 | `PUBLIC_BASE_URL`  | `https://spedition-hausmann.de`  | Basis für die `tracking_url` in der Antwort       |

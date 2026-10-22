@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disposition · Spedition Hausmann</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/css/site.css?v=3">
+  <link rel="stylesheet" href="/css/admin.css?v=1">
+</head>
+<body class="admin-body">
+  <section class="login" id="login">
+    <form class="login-card" id="login-form">
+      <a class="brand" href="/">
+        <span class="mark" aria-hidden="true"></span>
+        <span><strong>Hausmann</strong><em>Disposition</em></span>
+      </a>
+      <h1>Sendungen führen.</h1>
+      <p class="muted">Anlegen, Adressen ändern, Status setzen. Nur für die Leitstelle.</p>
+      <label for="password">Passwort</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button class="btn" type="submit">Anmelden</button>
+      <p class="form-error" id="login-error" hidden></p>
+    </form>
+  </section>
+
+  <div class="desk" id="desk" hidden>
+    <header class="desk-bar">
+      <a class="brand" href="/">
+        <span class="mark" aria-hidden="true"></span>
+        <span><strong>Hausmann</strong><em>Disposition</em></span>
+      </a>
+      <div class="desk-tools">
+        <input id="q" type="search" placeholder="Nummer, Name, Ort" aria-label="Sendungen durchsuchen">
+        <select id="filter" aria-label="Status filtern"></select>
+        <button class="btn" id="new" type="button">Neue Sendung</button>
+        <button class="btn btn-ghost dark" id="logout" type="button">Abmelden</button>
+      </div>
+    </header>
+    <div class="desk-grid">
+      <section class="desk-list" aria-label="Sendungen">
+        <p class="muted" id="count"></p>
+        <div id="list"></div>
+      </section>
+      <section class="desk-editor" id="editor" aria-label="Sendung bearbeiten">
+        <p class="muted" id="editor-empty">Eine Sendung aus der Liste wählen oder eine neue anlegen.</p>
+        <form id="edit" hidden>
+          <div class="edit-head">
+            <div>
+              <p class="eyebrow" id="edit-kicker">Sendung</p>
+              <h2 id="edit-title">Neue Sendung</h2>
+            </div>
+            <a id="public-link" href="/" target="_blank" rel="noopener" hidden>Öffentliche Seite</a>
+          </div>
+          <label>Status</label>
+          <select id="f-status" name="status"></select>
+          <label for="f-status-note">Hinweis im Kundenverlauf <span class="muted">nur bei Statuswechsel</span></label>
+          <input id="f-status-note" name="status_note" placeholder="z. B. Abholung durch Fahrer">
+          <label for="f-description">Inhalt <span class="muted">sichtbar für den Empfänger</span></label>
+          <textarea id="f-description" name="description" rows="2"></textarea>
+          <label for="f-note">Interne Notiz <span class="muted">nur hier</span></label>
+          <textarea id="f-note" name="note" rows="2"></textarea>
+          <div class="addr-grid">
+            <fieldset>
+              <legend>Absender</legend>
+              <input name="sender_name" placeholder="Name" required>
+              <input name="sender_street" placeholder="Straße" required>
+              <div class="zip-city">
+                <input name="sender_postal_code" placeholder="PLZ" required>
+                <input name="sender_city" placeholder="Ort" required>
+              </div>
+              <input name="sender_country" placeholder="Land" value="Deutschland">
+            </fieldset>
+            <fieldset>
+              <legend>Empfänger</legend>
+              <input name="recipient_name" placeholder="Name" required>
+              <input name="recipient_street" placeholder="Straße" required>
+              <div class="zip-city">
+                <input name="recipient_postal_code" placeholder="PLZ" required>
+                <input name="recipient_city" placeholder="Ort" required>
+              </div>
+              <input name="recipient_country" placeholder="Land" value="Deutschland">
+            </fieldset>
+          </div>
+          <div class="edit-actions">
+            <button class="btn" type="submit" id="save">Speichern</button>
+            <button class="btn btn-ghost dark" type="button" id="remove" hidden>Löschen</button>
+          </div>
+          <p class="form-error" id="edit-error" hidden></p>
+          <h3>Verlauf</h3>
+          <ol class="admin-history" id="history"></ol>
+        </form>
+      </section>
+    </div>
+  </div>
+  <script src="/js/admin.js?v=1"></script>
+</body>
+</html>
