@@ -55,6 +55,6 @@ npm start
   keine DNS für `spedition-hausmann.de` auf diesen Server zeigt, setze in der
   Kanzlei-App `TRACKING_API_BASE_URL=http://38.60.136.33`.
 - Die an Kund:innen ausgegebenen Links werden vom Kanzlei-Client **immer** auf
-  `https://spedition-hausmann.de` normalisiert. Damit diese Links auch im
-  Browser funktionieren, muss der A-Record von `spedition-hausmann.de` auf
-  `38.60.136.33` zeigen; danach TLS via `certbot --nginx` ergänzen.
+  `https://spedition-hausmann.de` normalisiert. Der A-Record muss auf den
+  Server zeigen. TLS kommt von Let's Encrypt (`certbot --nginx --redirect`);
+  `deploy.sh` lässt eine vorhandene Zertifikats-Konfiguration stehen.

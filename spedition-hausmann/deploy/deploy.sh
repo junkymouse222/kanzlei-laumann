@@ -31,9 +31,13 @@ systemctl restart spedition-hausmann
 
 echo "==> nginx einrichten (falls vorhanden)"
 if command -v nginx >/dev/null 2>&1; then
-  cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/spedition-hausmann
-  ln -sf /etc/nginx/sites-available/spedition-hausmann /etc/nginx/sites-enabled/spedition-hausmann
-  rm -f /etc/nginx/sites-enabled/default || true
+  if [ -f /etc/letsencrypt/live/spedition-hausmann.de/fullchain.pem ]; then
+    echo "Let's-Encrypt-Zertifikat vorhanden, bestehende nginx-Site bleibt."
+  else
+    cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/spedition-hausmann
+    ln -sf /etc/nginx/sites-available/spedition-hausmann /etc/nginx/sites-enabled/spedition-hausmann
+    rm -f /etc/nginx/sites-enabled/default || true
+  fi
   nginx -t && systemctl reload nginx
 fi
 
