@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 .admin-body { min-height: 100vh; }
 .login {
   min-height: 100vh;
