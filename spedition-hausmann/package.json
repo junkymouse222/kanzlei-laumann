@@ -1,0 +1,13 @@
+{
+  "name": "spedition-hausmann-tracking",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-dependency Tracking-Server für die Spedition Hausmann (rekonstruiert aus dem Kanzlei-Client-Vertrag).",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  }
+}

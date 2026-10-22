@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spedition Hausmann GmbH · Hamburg</title>
+  <meta name="description" content="Spedition Hausmann in Hamburg: Stückgut, täglicher Linienverkehr, Komplettladungen, beheiztes Lager, Kühltransporte und Express. Am Hafen 12.">
+  <link rel="stylesheet" href="/css/site.css?v=3">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <span class="mark" aria-hidden="true"></span>
+      <span><strong>Hausmann</strong><em>Spedition · Hamburg</em></span>
+    </a>
+    <input id="nav-toggle" class="nav-toggle" type="checkbox" aria-label="Menü">
+    <label class="nav-burger" for="nav-toggle"><span></span>Menü</label>
+    <nav class="site-nav">
+      <a href="/leistungen">Leistungen</a>
+      <a href="/unternehmen">Unternehmen</a>
+      <a href="/faq">FAQ</a>
+      <a href="/kontakt">Kontakt</a>
+      <a class="nav-cta" href="#sendung">Sendung verfolgen</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="sendung">
+    <div class="hero-copy">
+      <p class="eyebrow">Spedition Hausmann GmbH · Hamburg</p>
+      <h1>Vom Kai in die Fläche.</h1>
+      <p class="lead">Stückgut, Linienverkehr und Komplettladungen ab Am Hafen 12. Täglich durch Deutschland und die angrenzende EU — plus beheiztes Lager, Kühltransporte für Lebensmittel und Pharma, Express, wenn der Fahrplan nicht reicht.</p>
+      <form class="track-bar" action="/track" onsubmit="event.preventDefault(); var v=this.nr.value.trim(); if(v) location.href='/track/'+encodeURIComponent(v);">
+        <label class="visually-hidden" for="nr" style="position:absolute;left:-999px">Sendungsnummer</label>
+        <input id="nr" name="nr" autocomplete="off" placeholder="Sendungsnummer, z. B. SH-AB12CD34" required>
+        <button type="submit">Verfolgen</button>
+      </form>
+      <p class="fine">Die Nummer steht auf Ihrer Rechnung. Format SH- und acht Zeichen.</p>
+      <div class="btn-row">
+        <a class="btn" href="/leistungen">Leistungen ansehen</a>
+        <a class="btn btn-ghost" href="/unternehmen">Das Haus seit 1978</a>
+      </div>
+    </div>
+    <figure class="hero-photo">
+      <img src="/img/hero-hafen.jpg" alt="Sattelzug am Hamburger Hafen bei Dämmerung, Kräne und Containerschiff im Hintergrund">
+      <figcaption>Hof am Hafen · Hamburg</figcaption>
+    </figure>
+  </section>
+
+  <section class="ribbon" aria-label="Auf einen Blick">
+    <div><strong>Täglich</strong><span>Abfahrten im Linienverkehr</span></div>
+    <div><strong>DE + EU</strong><span>Deutschland und die Nachbarländer</span></div>
+    <div><strong>Beheizt</strong><span>Lagerfläche an der Kaiserkante</span></div>
+    <div><strong>Kühlkette</strong><span>Lebensmittel und Pharma</span></div>
+  </section>
+
+  <section class="section">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Das Haus</p>
+        <h2>Ein Hamburger Fuhrbetrieb, der beim Stückgut geblieben ist.</h2>
+        <p class="lead">1978 stellte Heinrich Hausmann den ersten Planen-Lkw auf die Linie nach Dortmund. Heute laufen ab Am Hafen 12 tägliche Relationen durch die Republik und in die angrenzende EU — mit eigener Halle, eigener Kühlung und einer Leitstelle, die Sendungen beim Namen nennt.</p>
+        <p>Die Firmengeschichte ist die eines Hafenbetriebs: erst Sammelgut, dann eigene Fläche, dann Temperatur, dann ein Netz. Nichts davon haben wir gegen ein reines Digitalmodell getauscht. Die Rampe bleibt der Ort, an dem eine Sendung wahr wird.</p>
+        <a class="btn" href="/unternehmen">Geschichte lesen</a>
+      </div>
+      <figure class="frame tall">
+        <img src="/img/lagerhalle.jpg" alt="Beheizte Lagerhalle mit Palettenregalen und warmem Hallenlicht">
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <p class="eyebrow">Leistungen</p>
+      <h2>Sechs Arten, Ware vom Hafen wegzubringen.</h2>
+      <div class="services" style="margin-top:1.4rem">
+        <a class="svc" href="/leistungen#stueckgut">
+          <img src="/img/stueckgut.jpg" alt="Umschlag von Stückgut an der Rampe im Morgengrauen">
+          <div><span class="idx">01</span><h3>Stückgut</h3><p>Sammelgut, nachts umgeschlagen, morgens in der Fläche.</p></div>
+        </a>
+        <a class="svc" href="/leistungen#linie">
+          <img src="/img/linienverkehr.jpg" alt="Lkw verlassen abends den Hof in Richtung Autobahn">
+          <div><span class="idx">02</span><h3>Linienverkehr</h3><p>Tägliche Abfahrten in Deutschland und die angrenzende EU.</p></div>
+        </a>
+        <a class="svc" href="/leistungen#komplett">
+          <img src="/img/hof.jpg" alt="Aufgeräumter Speditionshof mit Trailern vor Backsteinspeichern">
+          <div><span class="idx">03</span><h3>Komplettladungen</h3><p>Eine Relation, ein Fahrzeug, ein Auftraggeber.</p></div>
+        </a>
+        <a class="svc" href="/leistungen#lager">
+          <img src="/img/lagerhalle.jpg" alt="Innenansicht der beheizten Lagerfläche">
+          <div><span class="idx">04</span><h3>Lagerlogistik</h3><p>Beheizte Fläche, wenn Ware nicht sofort weiterdarf.</p></div>
+        </a>
+        <a class="svc" href="/leistungen#kuehl">
+          <img src="/img/kuehltransport.jpg" alt="Geöffneter Kühlauflieger mit Lebensmitteln und verschlossenen Kisten">
+          <div><span class="idx">05</span><h3>Kühltransporte</h3><p>Lebensmittel und Pharma, temperaturgeführt.</p></div>
+        </a>
+        <a class="svc" href="/leistungen#express">
+          <img src="/img/express.jpg" alt="Kurierfahrzeug auf nasser Straße vor einem Hafenspeicher bei Nacht">
+          <div><span class="idx">06</span><h3>Express &amp; Kurier</h3><p>Wenn die nächste Linie zu spät kommt.</p></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap section">
+      <div class="split">
+        <figure class="frame">
+          <img src="/img/leitstelle.jpg" alt="Leitstelle mit Blick auf die Hafenkräne, Karten auf dem Schreibtisch">
+        </figure>
+        <div>
+          <p class="eyebrow">Sendung</p>
+          <h2>Eine Nummer, ein Verlauf.</h2>
+          <p class="lead">Jede Sendung, die wir anlegen, bekommt eine Nummer im Format SH-XXXXXXXX. Auf der Statusseite sehen Sie, wo sie im Haus steht — vom Warten auf den Zahlungseingang bis zur Zustellung.</p>
+          <a class="btn" href="#sendung">Nummer eingeben</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap with-aside">
+      <div>
+        <p class="eyebrow">FAQ</p>
+        <h2>Kurz gefragt.</h2>
+        <p>Laufzeiten, Lager, Kühlung, Express. Die langen Antworten stehen auf der FAQ-Seite.</p>
+        <a class="btn" href="/faq" style="color:#fff">Alle Fragen</a>
+      </div>
+      <div class="faq">
+        <details class="qa" open>
+          <summary>Wo steht meine Sendungsnummer?</summary>
+          <p>Auf der Rechnung, im Format SH- und acht Zeichen. Dieselbe Nummer öffnet die Statusseite.</p>
+        </details>
+        <details class="qa">
+          <summary>Wie oft fahren die Linien?</summary>
+          <p>Täglich, in Deutschland und in die angrenzende EU. Den Annahmeschluss der einzelnen Relation nennt die Disposition mit der Auftragsbestätigung.</p>
+        </details>
+        <details class="qa">
+          <summary>Ist das Lager beheizt?</summary>
+          <p>Ja. Die Fläche am Am Hafen 12 ist beheizt, damit empfindliche Ware im Winter nicht auskühlt.</p>
+        </details>
+        <details class="qa">
+          <summary>Nehmt ihr Lebensmittel und Pharma mit?</summary>
+          <p>Ja, im Kühltransport. Ob die Ware zu unserem Equipment passt, klären wir vor der Abholung.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div>
+        <p class="brand-foot">Hausmann</p>
+        <p>Spedition Hausmann GmbH<br>Am Hafen 12<br>20457 Hamburg</p>
+        <p><a href="mailto:kontakt@spedition-hausmann.de">kontakt@spedition-hausmann.de</a></p>
+      </div>
+      <div>
+        <p class="foot-label">Leistungen</p>
+        <a href="/leistungen#stueckgut">Stückgut</a>
+        <a href="/leistungen#linie">Linienverkehr</a>
+        <a href="/leistungen#komplett">Komplettladungen</a>
+        <a href="/leistungen#lager">Lagerlogistik</a>
+        <a href="/leistungen#kuehl">Kühltransporte</a>
+        <a href="/leistungen#express">Express &amp; Kurier</a>
+      </div>
+      <div>
+        <p class="foot-label">Haus</p>
+        <a href="/unternehmen">Unternehmen</a>
+        <a href="/faq">FAQ</a>
+        <a href="/kontakt">Kontakt</a>
+        <a href="/impressum">Impressum</a>
+        <a href="/admin">Disposition</a>
+      </div>
+      <div>
+        <p class="foot-label">Sendung</p>
+        <form class="track-bar" action="/track" onsubmit="event.preventDefault(); var v=this.nr.value.trim(); if(v) location.href='/track/'+encodeURIComponent(v);">
+          <input name="nr" aria-label="Sendungsnummer" placeholder="SH-XXXXXXXX">
+          <button type="submit">Los</button>
+        </form>
+        <p class="fine">Nummer aus der Rechnung.</p>
+      </div>
+    </div>
+    <div class="wrap"><p class="legal">© 2026 Spedition Hausmann GmbH · Am Hafen 12, 20457 Hamburg</p></div>
+  </footer>
+</body>
+</html>

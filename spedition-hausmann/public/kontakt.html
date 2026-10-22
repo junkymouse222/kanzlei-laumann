@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kontakt · Spedition Hausmann</title>
+  <meta name="description" content="Spedition Hausmann GmbH, Am Hafen 12, 20457 Hamburg. Disposition werktags 6:30–18:00 Uhr.">
+  <link rel="stylesheet" href="/css/site.css?v=3">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <span class="mark" aria-hidden="true"></span>
+      <span><strong>Hausmann</strong><em>Spedition · Hamburg</em></span>
+    </a>
+    <input id="nav-toggle" class="nav-toggle" type="checkbox" aria-label="Menü">
+    <label class="nav-burger" for="nav-toggle"><span></span>Menü</label>
+    <nav class="site-nav">
+      <a href="/leistungen">Leistungen</a>
+      <a href="/unternehmen">Unternehmen</a>
+      <a href="/faq">FAQ</a>
+      <a class="is-active" href="/kontakt">Kontakt</a>
+      <a class="nav-cta" href="/#sendung">Sendung verfolgen</a>
+    </nav>
+  </header>
+
+  <div class="wrap page-hero">
+    <p class="eyebrow">Kontakt</p>
+    <h1>Die Leitstelle sitzt am Hof.</h1>
+    <p class="lead">Aufträge, Termine, Temperaturen: eine Adresse, ein Postfach. Für den Status einer laufenden Sendung reicht die Nummer — anrufen müssen Sie dafür nicht.</p>
+  </div>
+
+  <section class="section" style="padding-top:0.5rem">
+    <div class="wrap contact-grid">
+      <div class="card">
+        <p class="eyebrow">Disposition</p>
+        <h2>Spedition Hausmann GmbH</h2>
+        <address>
+          Am Hafen 12<br>
+          20457 Hamburg<br>
+          Deutschland
+        </address>
+        <p><a href="mailto:kontakt@spedition-hausmann.de">kontakt@spedition-hausmann.de</a></p>
+        <p>Werktags 6:30–18:00 Uhr<br>Samstag nach Absprache<br>Sonntag geschlossen, außer bestätigte Direktfahrten</p>
+        <p class="muted">Bitte im Auftrag: Absender, Empfänger mit Straße, PLZ und Ort, Menge, Gewicht, Wunschtag, und ob Stückgut, Linie, Komplett, Lager, Kühlung oder Express.</p>
+        <form class="track-bar" style="margin-top:1rem" onsubmit="event.preventDefault(); var v=this.nr.value.trim(); if(v) location.href='/track/'+encodeURIComponent(v);">
+          <input name="nr" aria-label="Sendungsnummer" placeholder="SH-XXXXXXXX">
+          <button type="submit">Status</button>
+        </form>
+      </div>
+      <figure class="frame" style="min-height:420px">
+        <img src="/img/leitstelle.jpg" alt="Leitstelle der Spedition mit Blick auf den Hafen" style="height:100%;min-height:420px">
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap split">
+      <figure class="frame">
+        <img src="/img/hof.jpg" alt="Anfahrt über den Hof, Trailer vor den Speichern">
+      </figure>
+      <div>
+        <p class="eyebrow">Anfahrt</p>
+        <h2>Über den Hof, nicht durchs Bürohaus.</h2>
+        <p>Lkw fahren die Rampe am Am Hafen 12 an. Die Leitstelle liegt im selben Gebäude, ein Stock über dem Umschlag. Für die erste Anfahrt reicht die Adresse; das Tor ist auf den Hof beschildert, nicht auf einen Besucherempfang.</p>
+        <p>Besucher ohne Fahrzeug bitte kurz vorab per E-Mail, damit jemand von der Disposition unten ist. Der Hof ist kein öffentlicher Parkplatz.</p>
+        <p><a href="https://www.openstreetmap.org/search?query=Am%20Hafen%2012%2C%2020457%20Hamburg" rel="noopener">Lage in OpenStreetMap öffnen</a></p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div>
+        <p class="brand-foot">Hausmann</p>
+        <p>Spedition Hausmann GmbH<br>Am Hafen 12<br>20457 Hamburg</p>
+        <p><a href="mailto:kontakt@spedition-hausmann.de">kontakt@spedition-hausmann.de</a></p>
+      </div>
+      <div>
+        <p class="foot-label">Leistungen</p>
+        <a href="/leistungen#stueckgut">Stückgut</a>
+        <a href="/leistungen#linie">Linienverkehr</a>
+        <a href="/leistungen#komplett">Komplettladungen</a>
+        <a href="/leistungen#lager">Lagerlogistik</a>
+        <a href="/leistungen#kuehl">Kühltransporte</a>
+        <a href="/leistungen#express">Express &amp; Kurier</a>
+      </div>
+      <div>
+        <p class="foot-label">Haus</p>
+        <a href="/unternehmen">Unternehmen</a>
+        <a href="/faq">FAQ</a>
+        <a href="/kontakt">Kontakt</a>
+        <a href="/impressum">Impressum</a>
+      </div>
+      <div>
+        <p class="foot-label">Sendung</p>
+        <form class="track-bar" onsubmit="event.preventDefault(); var v=this.nr.value.trim(); if(v) location.href='/track/'+encodeURIComponent(v);">
+          <input name="nr" aria-label="Sendungsnummer" placeholder="SH-XXXXXXXX">
+          <button type="submit">Los</button>
+        </form>
+      </div>
+    </div>
+    <div class="wrap"><p class="legal">© 2026 Spedition Hausmann GmbH · Am Hafen 12, 20457 Hamburg</p></div>
+  </footer>
+</body>
+</html>

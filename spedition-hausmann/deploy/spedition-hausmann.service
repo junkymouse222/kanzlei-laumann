@@ -1,0 +1,19 @@
+[Unit]
+Description=Spedition Hausmann Tracking Server
+After=network.target
+
+[Service]
+Type=simple
+User=hausmann
+WorkingDirectory=/opt/spedition-hausmann
+EnvironmentFile=/opt/spedition-hausmann/.env
+ExecStart=/usr/bin/node /opt/spedition-hausmann/src/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/spedition-hausmann/data
+
+[Install]
+WantedBy=multi-user.target
