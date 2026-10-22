@@ -136,7 +136,7 @@ p { margin: 0 0 0.8em; }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(320px, 1.05fr) 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) 0.95fr;
   min-height: calc(100vh - var(--header));
   background: var(--navy);
   color: var(--paper);
@@ -170,12 +170,15 @@ p { margin: 0 0 0.8em; }
 
 .track-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 1.4rem;
   max-width: 520px;
+  min-width: 0;
 }
 .track-bar input {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
   border: 0;
   border-radius: 999px;
   padding: 0.9rem 1.1rem;
@@ -416,8 +419,14 @@ address { font-style: normal; }
 
 @media (max-width: 980px) {
   .hero, .split, .split.reverse, .services, .ribbon, .offer-grid, .contact-grid, .footer-grid, .track-grid, .with-aside, .with-aside.narrow {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+  .hero { min-height: 0; }
+  .hero > *, .split > *, .offer-grid > *, .contact-grid > *, .footer-grid > *, .with-aside > * { min-width: 0; }
+  .track-bar { flex-direction: column; align-items: stretch; }
+  .track-bar button { width: 100%; }
+  .hero h1 { font-size: clamp(2.7rem, 12vw, 4.2rem); }
+  .hero-copy { padding: 1.7rem 1.15rem 2rem; }
   .ribbon div { border-right: 0; border-bottom: 1px solid var(--line); }
   .hero-photo { min-height: 320px; }
   .hero-photo img { position: static; height: 360px; }
